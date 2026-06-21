@@ -483,7 +483,7 @@ const capabilityCards = computed(() => [
     tone: runtime.value?.features.saved_key_provider_count ? ("sage" as const) : ("warn" as const),
   },
   { label: "时间", value: "本机直答", tone: "sage" as const },
-  { label: "资料", value: "网页摘要", tone: "sage" as const },
+  { label: "工具", value: "时间/天气/汇率/资料", tone: "sage" as const },
   {
     label: "待办",
     value: runtime.value ? `${runtime.value.features.todo_open_count} 未完成` : "本地读取",
@@ -534,11 +534,29 @@ function chatSourceLabel(source: string) {
     const provider = providerCards.value.find((item) => item.id === providerId);
     return provider ? `云端资料 · ${provider.name}` : "云端资料";
   }
+  if (source.startsWith("ai-weather:")) {
+    const providerId = source.split(":")[1] ?? "";
+    const provider = providerCards.value.find((item) => item.id === providerId);
+    return provider ? `云端天气 · ${provider.name}` : "云端天气";
+  }
+  if (source.startsWith("ai-exchange:")) {
+    const providerId = source.split(":")[1] ?? "";
+    const provider = providerCards.value.find((item) => item.id === providerId);
+    return provider ? `云端汇率 · ${provider.name}` : "云端汇率";
+  }
+  if (source.startsWith("ai-history:")) {
+    const providerId = source.split(":")[1] ?? "";
+    const provider = providerCards.value.find((item) => item.id === providerId);
+    return provider ? `云端历史 · ${provider.name}` : "云端历史";
+  }
   if (source.startsWith("ai:")) {
     const providerId = source.split(":")[1] ?? "";
     const provider = providerCards.value.find((item) => item.id === providerId);
     return provider ? `云端回复 · ${provider.name}` : "云端回复";
   }
+  if (source.startsWith("weather-fallback:")) return "天气";
+  if (source.startsWith("exchange-fallback:")) return "汇率";
+  if (source.startsWith("history-fallback:")) return "历史资料";
   if (source.startsWith("research-fallback:")) return "资料摘要";
   if (source.startsWith("local-fallback:")) return "本地兜底";
   if (source.startsWith("local-time")) return "本机时间";
@@ -548,7 +566,13 @@ function chatSourceLabel(source: string) {
 
 function chatSourceClass(source: string) {
   if (source.startsWith("ai-research:")) return "source-research";
+  if (source.startsWith("ai-weather:")) return "source-weather";
+  if (source.startsWith("ai-exchange:")) return "source-exchange";
+  if (source.startsWith("ai-history:")) return "source-history";
   if (source.startsWith("ai:")) return "source-ai";
+  if (source.startsWith("weather-fallback:")) return "source-weather";
+  if (source.startsWith("exchange-fallback:")) return "source-exchange";
+  if (source.startsWith("history-fallback:")) return "source-history";
   if (source.startsWith("research-fallback:")) return "source-research";
   if (source.startsWith("local-fallback:")) return "source-fallback";
   return "source-local";
@@ -1074,7 +1098,17 @@ async function sendChatMessage() {
     chatMessages.value = [...chatMessages.value, message].slice(-30);
     chatDraft.value = "";
     publishChatSignal(message);
-    showToast(message.source.startsWith("ai") ? "云端对话已记录" : message.source.startsWith("research") ? "资料摘要已记录" : "本地对话已记录");
+    showToast(
+      message.source.startsWith("ai")
+        ? "云端对话已记录"
+        : message.source.startsWith("weather")
+          ? "天气摘要已记录"
+          : message.source.startsWith("exchange")
+            ? "汇率摘要已记录"
+            : message.source.startsWith("history") || message.source.startsWith("research")
+              ? "资料摘要已记录"
+              : "本地对话已记录",
+    );
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
   } finally {

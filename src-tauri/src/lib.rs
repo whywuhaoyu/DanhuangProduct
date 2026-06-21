@@ -1252,6 +1252,7 @@ struct ResearchBundle {
     query: String,
     context: String,
     local_reply: String,
+    source_tag: String,
 }
 
 fn contains_any(value: &str, terms: &[&str]) -> bool {
@@ -1361,8 +1362,15 @@ fn is_research_query(text: &str) -> bool {
         "资讯",
         "热搜",
         "天气",
+        "气温",
+        "温度",
+        "下雨",
+        "降雨",
+        "风力",
         "股价",
         "汇率",
+        "兑换",
+        "换算",
         "今日",
         "今天发生",
         "往年今日",
@@ -1398,8 +1406,13 @@ fn is_recency_research_query(text: &str) -> bool {
             "今日",
             "现在",
             "天气",
+            "气温",
+            "温度",
+            "下雨",
             "股价",
             "汇率",
+            "兑换",
+            "换算",
             "价格",
             "多少钱",
             "2026",
@@ -1907,6 +1920,484 @@ fn historical_today_context() -> String {
     compact_lines(lines, 1800)
 }
 
+fn format_decimal(value: f64, decimals: usize) -> String {
+    let mut text = format!("{:.*}", decimals, value);
+    while text.contains('.') && text.ends_with('0') {
+        text.pop();
+    }
+    if text.ends_with('.') {
+        text.pop();
+    }
+    text
+}
+
+fn value_at_index(value: &Value, key: &str, index: usize) -> Option<f64> {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .and_then(|items| items.get(index))
+        .and_then(Value::as_f64)
+}
+
+fn weather_code_label(code: i64) -> &'static str {
+    match code {
+        0 => "晴",
+        1 | 2 => "少云",
+        3 => "阴",
+        45 | 48 => "雾",
+        51 | 53 | 55 => "毛毛雨",
+        56 | 57 => "冻毛毛雨",
+        61 | 63 | 65 => "雨",
+        66 | 67 => "冻雨",
+        71 | 73 | 75 => "雪",
+        77 => "雪粒",
+        80 | 81 | 82 => "阵雨",
+        85 | 86 => "阵雪",
+        95 => "雷暴",
+        96 | 99 => "雷暴伴冰雹",
+        _ => "天气状况待确认",
+    }
+}
+
+fn is_weather_query(text: &str) -> bool {
+    let raw = text.trim().to_lowercase();
+    contains_any(
+        &raw,
+        &[
+            "天气",
+            "气温",
+            "温度",
+            "下雨",
+            "降雨",
+            "风力",
+            "weather",
+            "forecast",
+            "temperature",
+            "rain",
+        ],
+    )
+}
+
+fn weather_location_from_text(text: &str) -> String {
+    let mut query = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    query = regex_replace_all(
+        &query,
+        r"(?i)\b(weather|forecast|temperature|rain|in|for|today|tomorrow|now)\b",
+        " ",
+    );
+    query = regex_replace_all(
+        &query,
+        r"(主人|你可以|可以|能不能|帮我|麻烦你|请你|请|查一下|查下|查查|查询|搜索|搜一下|看看|看下)",
+        " ",
+    );
+    query = regex_replace_all(
+        &query,
+        r"(天气预报|天气|气温|温度|下雨|降雨|风力|会不会|会|今天|今日|明天|现在|最近|怎么样|如何|多少|吗|呢|呀|的)",
+        " ",
+    );
+    query = regex_replace_all(&query, r"[？?。！!,，]+", " ");
+    query = query.split_whitespace().collect::<Vec<_>>().join(" ");
+    query
+        .chars()
+        .take(48)
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+fn weather_measure(label: &str, value: Option<f64>, unit: &str) -> Option<String> {
+    value.map(|item| format!("{}{}{}", label, format_decimal(item, 1), unit))
+}
+
+fn build_weather_bundle(user_text: &str) -> Option<ResearchBundle> {
+    if !is_weather_query(user_text) {
+        return None;
+    }
+
+    let location_query = weather_location_from_text(user_text);
+    if location_query.is_empty() {
+        return Some(ResearchBundle {
+            triggered: true,
+            query: "天气".to_string(),
+            context: "【结构化天气】用户询问天气，但没有提供城市。请让主人补充城市或地区。"
+                .to_string(),
+            local_reply: "主人，要查天气还需要一个城市或地区，比如“查一下北京天气”。".to_string(),
+            source_tag: "weather".to_string(),
+        });
+    }
+
+    let geo_url = format!(
+        "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=zh&format=json",
+        percent_encode_query(&location_query)
+    );
+    let Ok(geo_body) = web_request_text(&geo_url, 10.0) else {
+        return None;
+    };
+    let Ok(geo_value) = serde_json::from_str::<Value>(&geo_body) else {
+        return None;
+    };
+    let Some(place) = geo_value
+        .get("results")
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+    else {
+        return Some(ResearchBundle {
+            triggered: true,
+            query: format!("天气 {}", location_query),
+            context: format!(
+                "【结构化天气】\n查询地点：{}\nOpen-Meteo 地理编码没有匹配到地点。",
+                location_query
+            ),
+            local_reply: format!(
+                "主人，我没定位到“{}”这个地点。你换成更明确的城市名，我再查天气。",
+                location_query
+            ),
+            source_tag: "weather".to_string(),
+        });
+    };
+
+    let latitude = place.get("latitude").and_then(Value::as_f64)?;
+    let longitude = place.get("longitude").and_then(Value::as_f64)?;
+    let name = place
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or(&location_query);
+    let admin = place.get("admin1").and_then(Value::as_str).unwrap_or("");
+    let country = place.get("country").and_then(Value::as_str).unwrap_or("");
+    let location_label = [name, admin, country]
+        .into_iter()
+        .filter(|item| !item.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ");
+    let forecast_url = format!(
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code&timezone=auto&forecast_days=2",
+        latitude, longitude
+    );
+    let Ok(body) = web_request_text(&forecast_url, 10.0) else {
+        return None;
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&body) else {
+        return None;
+    };
+    let current = value.get("current").unwrap_or(&Value::Null);
+    let daily = value.get("daily").unwrap_or(&Value::Null);
+    let current_weather = current
+        .get("weather_code")
+        .and_then(Value::as_i64)
+        .map(weather_code_label)
+        .unwrap_or("天气状况待确认");
+    let daily_weather = daily
+        .get("weather_code")
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(Value::as_i64)
+        .map(weather_code_label)
+        .unwrap_or(current_weather);
+    let mut current_parts = vec![current_weather.to_string()];
+    current_parts.extend(
+        [
+            weather_measure(
+                "气温 ",
+                current.get("temperature_2m").and_then(Value::as_f64),
+                "°C",
+            ),
+            weather_measure(
+                "湿度 ",
+                current.get("relative_humidity_2m").and_then(Value::as_f64),
+                "%",
+            ),
+            weather_measure(
+                "降水 ",
+                current.get("precipitation").and_then(Value::as_f64),
+                "mm",
+            ),
+            weather_measure(
+                "风速 ",
+                current.get("wind_speed_10m").and_then(Value::as_f64),
+                "km/h",
+            ),
+        ]
+        .into_iter()
+        .flatten(),
+    );
+    let today_high = value_at_index(daily, "temperature_2m_max", 0);
+    let today_low = value_at_index(daily, "temperature_2m_min", 0);
+    let today_rain = value_at_index(daily, "precipitation_sum", 0);
+    let tomorrow_high = value_at_index(daily, "temperature_2m_max", 1);
+    let tomorrow_low = value_at_index(daily, "temperature_2m_min", 1);
+    let today_line = format!(
+        "今日：{}，{} / {}，降水合计 {}mm。",
+        daily_weather,
+        today_high
+            .map(|item| format!("最高 {}°C", format_decimal(item, 1)))
+            .unwrap_or_else(|| "最高温待确认".to_string()),
+        today_low
+            .map(|item| format!("最低 {}°C", format_decimal(item, 1)))
+            .unwrap_or_else(|| "最低温待确认".to_string()),
+        today_rain
+            .map(|item| format_decimal(item, 1))
+            .unwrap_or_else(|| "待确认".to_string())
+    );
+    let tomorrow_line = match (tomorrow_high, tomorrow_low) {
+        (Some(high), Some(low)) => format!(
+            "明日：最高 {}°C / 最低 {}°C。",
+            format_decimal(high, 1),
+            format_decimal(low, 1)
+        ),
+        _ => "明日：暂未拿到完整预报。".to_string(),
+    };
+    let current_line = format!("当前：{}。", current_parts.join("，"));
+    let context = compact_lines(
+        vec![
+            "【结构化天气】".to_string(),
+            format!("查询地点：{}", location_label),
+            current_line.clone(),
+            today_line.clone(),
+            tomorrow_line.clone(),
+            "来源：Open-Meteo Geocoding API + Forecast API，无 API Key。".to_string(),
+        ],
+        1800,
+    );
+    let local_reply = compact_lines(
+        vec![
+            format!("主人，{}天气我查到了：", location_label),
+            current_line,
+            today_line,
+            tomorrow_line,
+            "天气会变化，出门前再看一眼实时预报更稳。".to_string(),
+        ],
+        900,
+    );
+    Some(ResearchBundle {
+        triggered: true,
+        query: format!("天气 {}", location_label),
+        context,
+        local_reply,
+        source_tag: "weather".to_string(),
+    })
+}
+
+#[derive(Clone, Copy)]
+struct CurrencyMention {
+    code: &'static str,
+    label: &'static str,
+    position: usize,
+}
+
+fn currency_label(code: &str) -> &'static str {
+    match code {
+        "CNY" => "人民币",
+        "USD" => "美元",
+        "EUR" => "欧元",
+        "JPY" => "日元",
+        "GBP" => "英镑",
+        "HKD" => "港币",
+        "AUD" => "澳元",
+        "CAD" => "加元",
+        "SGD" => "新加坡元",
+        "CHF" => "瑞士法郎",
+        "KRW" => "韩元",
+        _ => "货币",
+    }
+}
+
+fn currency_mentions(text: &str) -> Vec<CurrencyMention> {
+    let lowered = text.to_lowercase();
+    let terms = [
+        ("cny", "CNY", "人民币"),
+        ("人民币", "CNY", "人民币"),
+        ("usd", "USD", "美元"),
+        ("美元", "USD", "美元"),
+        ("美金", "USD", "美元"),
+        ("eur", "EUR", "欧元"),
+        ("欧元", "EUR", "欧元"),
+        ("jpy", "JPY", "日元"),
+        ("日元", "JPY", "日元"),
+        ("日币", "JPY", "日元"),
+        ("gbp", "GBP", "英镑"),
+        ("英镑", "GBP", "英镑"),
+        ("hkd", "HKD", "港币"),
+        ("港币", "HKD", "港币"),
+        ("港元", "HKD", "港币"),
+        ("aud", "AUD", "澳元"),
+        ("澳元", "AUD", "澳元"),
+        ("cad", "CAD", "加元"),
+        ("加元", "CAD", "加元"),
+        ("sgd", "SGD", "新加坡元"),
+        ("新加坡元", "SGD", "新加坡元"),
+        ("chf", "CHF", "瑞士法郎"),
+        ("瑞士法郎", "CHF", "瑞士法郎"),
+        ("krw", "KRW", "韩元"),
+        ("韩元", "KRW", "韩元"),
+    ];
+    let mut matches = Vec::new();
+    for (term, code, label) in terms {
+        if let Some(position) = lowered.find(term) {
+            matches.push(CurrencyMention {
+                code,
+                label,
+                position,
+            });
+        }
+    }
+    matches.sort_by_key(|item| item.position);
+    let mut seen = HashSet::new();
+    matches
+        .into_iter()
+        .filter(|item| seen.insert(item.code))
+        .collect()
+}
+
+fn is_exchange_query(text: &str) -> bool {
+    let lowered = text.to_lowercase();
+    contains_any(
+        &lowered,
+        &[
+            "汇率",
+            "兑换",
+            "换算",
+            "等于多少",
+            "兑",
+            "usd",
+            "cny",
+            "eur",
+            "jpy",
+        ],
+    ) && !currency_mentions(text).is_empty()
+}
+
+fn exchange_amount_from_text(text: &str) -> f64 {
+    Regex::new(r"(\d+(?:\.\d+)?)")
+        .ok()
+        .and_then(|re| re.captures(text))
+        .and_then(|cap| cap.get(1))
+        .and_then(|item| item.as_str().parse::<f64>().ok())
+        .filter(|amount| amount.is_finite() && *amount > 0.0)
+        .unwrap_or(1.0)
+}
+
+fn exchange_pair_from_text(text: &str) -> (CurrencyMention, CurrencyMention) {
+    let mentions = currency_mentions(text);
+    if mentions.len() >= 2 {
+        return (mentions[0], mentions[1]);
+    }
+    if let Some(from) = mentions.first().copied() {
+        let target_code = if from.code == "CNY" { "USD" } else { "CNY" };
+        return (
+            from,
+            CurrencyMention {
+                code: target_code,
+                label: currency_label(target_code),
+                position: usize::MAX,
+            },
+        );
+    }
+    (
+        CurrencyMention {
+            code: "USD",
+            label: "美元",
+            position: 0,
+        },
+        CurrencyMention {
+            code: "CNY",
+            label: "人民币",
+            position: 1,
+        },
+    )
+}
+
+fn build_exchange_bundle(user_text: &str) -> Option<ResearchBundle> {
+    if !is_exchange_query(user_text) {
+        return None;
+    }
+    let amount = exchange_amount_from_text(user_text);
+    let (from, to) = exchange_pair_from_text(user_text);
+    if from.code == to.code {
+        return Some(ResearchBundle {
+            triggered: true,
+            query: format!("汇率 {} {}", from.code, to.code),
+            context: "【结构化汇率】同一币种换算，汇率为 1。".to_string(),
+            local_reply: format!(
+                "主人，{} {} 还是 {} {}，同一币种不用换算。",
+                format_decimal(amount, 2),
+                from.label,
+                format_decimal(amount, 2),
+                to.label
+            ),
+            source_tag: "exchange".to_string(),
+        });
+    }
+
+    let url = format!(
+        "https://api.frankfurter.dev/v2/rates?base={}&quotes={}",
+        from.code, to.code
+    );
+    let Ok(body) = web_request_text(&url, 10.0) else {
+        return None;
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&body) else {
+        return None;
+    };
+    let Some(row) = value.as_array().and_then(|rows| rows.first()) else {
+        return None;
+    };
+    let rate = row.get("rate").and_then(Value::as_f64)?;
+    let date = row.get("date").and_then(Value::as_str).unwrap_or("latest");
+    let converted = amount * rate;
+    let context = compact_lines(
+        vec![
+            "【结构化汇率】".to_string(),
+            format!(
+                "{} {} -> {} {}",
+                format_decimal(amount, 2),
+                from.code,
+                format_decimal(converted, 2),
+                to.code
+            ),
+            format!(
+                "参考汇率：1 {} = {} {}",
+                from.code,
+                format_decimal(rate, 4),
+                to.code
+            ),
+            format!("日期：{}", date),
+            "来源：Frankfurter v2 rates API，无 API Key；汇率为日度参考值。".to_string(),
+        ],
+        1200,
+    );
+    let local_reply = compact_lines(
+        vec![
+            format!(
+                "主人，按 {} 的日度参考汇率，{} {} 约等于 {} {}。",
+                date,
+                format_decimal(amount, 2),
+                from.label,
+                format_decimal(converted, 2),
+                to.label
+            ),
+            format!(
+                "参考：1 {} = {} {}。",
+                from.code,
+                format_decimal(rate, 4),
+                to.code
+            ),
+            "汇率会随时间变化，正式付款或结算前要以银行/支付渠道为准。".to_string(),
+        ],
+        700,
+    );
+    Some(ResearchBundle {
+        triggered: true,
+        query: format!("汇率 {} {}", from.code, to.code),
+        context,
+        local_reply,
+        source_tag: "exchange".to_string(),
+    })
+}
+
+fn structured_tool_bundle(user_text: &str) -> Option<ResearchBundle> {
+    build_weather_bundle(user_text).or_else(|| build_exchange_bundle(user_text))
+}
+
 fn merge_research_results(groups: Vec<Vec<ResearchItem>>, limit: usize) -> Vec<ResearchItem> {
     let mut merged = Vec::new();
     let mut seen = HashSet::new();
@@ -1968,7 +2459,12 @@ fn build_research_bundle(user_text: &str) -> ResearchBundle {
             query: String::new(),
             context: String::new(),
             local_reply: String::new(),
+            source_tag: String::new(),
         };
+    }
+
+    if let Some(bundle) = structured_tool_bundle(user_text) {
+        return bundle;
     }
 
     let query = research_query_from_user_text(user_text);
@@ -1999,6 +2495,7 @@ fn build_research_bundle(user_text: &str) -> ResearchBundle {
                     ],
                     1200,
                 ),
+                source_tag: "history".to_string(),
             };
         }
         return ResearchBundle {
@@ -2012,6 +2509,7 @@ fn build_research_bundle(user_text: &str) -> ResearchBundle {
                 "主人，我刚刚查了“{}”，但没拿到可用摘要。你换个更具体的说法，我再帮你查。",
                 query
             ),
+            source_tag: "research".to_string(),
         };
     }
 
@@ -2059,6 +2557,11 @@ fn build_research_bundle(user_text: &str) -> ResearchBundle {
         query,
         context: compact_lines(context_lines, 5200),
         local_reply: compact_lines(reply_lines, 1100),
+        source_tag: if is_on_this_day_query(user_text) {
+            "history".to_string()
+        } else {
+            "research".to_string()
+        },
     }
 }
 
@@ -2570,6 +3073,7 @@ fn call_ai_reply(
     user_text: &str,
     mood: &str,
     research_context: &str,
+    research_source_tag: &str,
 ) -> Result<(String, String), String> {
     if settings.ai_enabled == Some(false) {
         return Err("AI 已关闭".to_string());
@@ -2658,14 +3162,18 @@ fn call_ai_reply(
         return Err("AI 未使用已检索资料".to_string());
     }
 
-    Ok((
-        visible,
-        if research_context.trim().is_empty() {
-            format!("ai:{}", provider_id)
-        } else {
-            format!("ai-research:{}", provider_id)
-        },
-    ))
+    let source = if research_context.trim().is_empty() {
+        format!("ai:{}", provider_id)
+    } else {
+        match research_source_tag {
+            "weather" => format!("ai-weather:{}", provider_id),
+            "exchange" => format!("ai-exchange:{}", provider_id),
+            "history" => format!("ai-history:{}", provider_id),
+            _ => format!("ai-research:{}", provider_id),
+        }
+    };
+
+    Ok((visible, source))
 }
 
 fn append_reminder_event(
@@ -4043,7 +4551,15 @@ fn send_chat_message(
         (time_reply, "local-time".to_string())
     } else {
         let research = build_research_bundle(&text);
-        match call_ai_reply(&root, &settings, &file, &text, &mood, &research.context) {
+        match call_ai_reply(
+            &root,
+            &settings,
+            &file,
+            &text,
+            &mood,
+            &research.context,
+            &research.source_tag,
+        ) {
             Ok((reply, source)) => (reply, source),
             Err(error) => {
                 let local_reply = if research.triggered && !research.local_reply.trim().is_empty() {
@@ -4055,8 +4571,14 @@ fn send_chat_message(
                     .replace(':', "_")
                     .replace('\n', " ");
                 let prefix = if research.triggered {
+                    let source_tag = if research.source_tag.trim().is_empty() {
+                        "research"
+                    } else {
+                        research.source_tag.as_str()
+                    };
                     format!(
-                        "research-fallback:{}:",
+                        "{}-fallback:{}:",
+                        source_tag,
                         normalize_text(&research.query, "资料", 40)
                     )
                 } else {
@@ -4368,6 +4890,31 @@ mod tests {
         assert!(is_time_query("现在几点了？"));
         assert!(local_time_reply("今天几号？").contains("主人，今天是"));
         assert!(local_time_reply("现在几点了？").contains("现在是"));
+    }
+
+    #[test]
+    fn weather_query_extracts_city_name() {
+        assert!(is_weather_query("查一下北京明天天气怎么样"));
+        assert_eq!(
+            weather_location_from_text("查一下北京明天天气怎么样"),
+            "北京"
+        );
+        assert_eq!(
+            weather_location_from_text("weather in New York"),
+            "New York"
+        );
+    }
+
+    #[test]
+    fn exchange_query_extracts_pair_and_amount() {
+        assert!(is_exchange_query("100美元等于多少人民币"));
+        assert_eq!(
+            format_decimal(exchange_amount_from_text("100美元等于多少人民币"), 2),
+            "100"
+        );
+        let (from, to) = exchange_pair_from_text("100美元等于多少人民币");
+        assert_eq!(from.code, "USD");
+        assert_eq!(to.code, "CNY");
     }
 
     #[cfg(windows)]

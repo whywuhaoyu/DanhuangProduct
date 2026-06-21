@@ -1356,6 +1356,24 @@ input:focus-visible {
   background: #eef8fa;
 }
 
+.message-source.source-weather {
+  color: #2d5f49;
+  border-color: #b8dcc5;
+  background: #eef9f1;
+}
+
+.message-source.source-exchange {
+  color: #735322;
+  border-color: #e3ca91;
+  background: #fff7dc;
+}
+
+.message-source.source-history {
+  color: #654574;
+  border-color: #d5c1de;
+  background: #f8f0fb;
+}
+
 .message-source.source-local {
   color: var(--brand-primary-dark);
   border-color: #e6c89c;
