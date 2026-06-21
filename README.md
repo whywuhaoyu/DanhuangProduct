@@ -38,6 +38,28 @@ src-tauri\target\release\bundle\nsis\蛋黄桌宠_0.1.0_x64-setup.exe
 
 MSI/WiX 链路曾在 `light.exe` 阶段失败，后续需要 MSI 时再单独排查。
 
+## 同步到 GitHub
+
+本仓库默认按私有仓库发布。首次发布前需要本机 GitHub CLI 完成登录：
+
+```powershell
+gh auth login --hostname github.com --git-protocol https --web
+```
+
+登录完成后执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\publish-github.ps1
+```
+
+默认目标仓库：
+
+```text
+whywuhaoyu/danhuang-desktop-pet-tauri-vue
+```
+
+如需公开仓库，追加 `-Public`。
+
 ## 当前边界
 
 当前版本继续复用 spritesheet/atlas 和 strip 动作资产。Live2D、Lottie、WebGL 和粒子 renderer 作为后续 renderer 预留。
