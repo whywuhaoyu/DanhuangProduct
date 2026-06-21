@@ -58,6 +58,7 @@ import type {
   UploadPetActionStripInput,
   UploadPetImageInput,
   UpdateAiProviderStateInput,
+  UpdateAiProviderKeyInput,
   UpdatePetProfileInput,
   UpdateQuickMenuActionsInput,
   UpdateSettingsInput,
@@ -351,6 +352,10 @@ const providerCards = ref<ProviderCard[]>([
 const selectedProvider = ref("deepseek");
 const providerTestLog = ref("选择厂商后可测试连接；真实 Key 不回显、不写日志。");
 const providerSavingId = ref("");
+const providerKeyModalMode = ref<"" | "replace" | "clear">("");
+const providerKeyDraft = ref("");
+const providerKeyConfirm = ref("");
+const providerKeySaving = ref(false);
 
 const chatMessages = ref<ChatMessageSummary[]>([]);
 const chatLoading = ref(false);
@@ -491,6 +496,18 @@ const chatStatusSummary = computed(() => {
   if (active?.hasSavedKey) return `${active.name} 云端回复 + 本地兜底`;
   if (active?.enabled) return `${active.name} 待配置 Key，本地兜底`;
   return "本地陪伴回复";
+});
+const providerKeyModalTitle = computed(() =>
+  providerKeyModalMode.value === "clear"
+    ? `清除 ${selectedProviderCard.value.name} Key`
+    : `替换 ${selectedProviderCard.value.name} Key`,
+);
+const providerKeyActionDisabled = computed(() => {
+  if (providerKeySaving.value || !providerKeyModalMode.value) return true;
+  if (providerKeyModalMode.value === "clear") {
+    return providerKeyConfirm.value.trim() !== selectedProviderCard.value.name;
+  }
+  return providerKeyDraft.value.trim().length < 8;
 });
 const pageTitle = computed(() => navigationItems.value.find((item) => item.id === activePage.value)?.label ?? "首页");
 const pageCaption = computed(() => {
@@ -1256,6 +1273,48 @@ function testProvider(providerId = selectedProvider.value) {
     ? `${provider.name} 本机已保存 Key；本轮只做安全状态检查，不发起联网测试。`
     : `${provider.name} 未保存 Key；后续接 Stronghold 或系统安全存储后再联网测试。`;
   showToast("已完成本地安全状态检查");
+}
+
+function openProviderKeyModal(mode: "replace" | "clear") {
+  providerKeyModalMode.value = mode;
+  providerKeyDraft.value = "";
+  providerKeyConfirm.value = "";
+}
+
+function closeProviderKeyModal() {
+  if (providerKeySaving.value) return;
+  providerKeyModalMode.value = "";
+  providerKeyDraft.value = "";
+  providerKeyConfirm.value = "";
+}
+
+async function saveProviderKey() {
+  if (!providerKeyModalMode.value || providerKeyActionDisabled.value) return;
+  const provider = selectedProviderCard.value;
+  const input: UpdateAiProviderKeyInput =
+    providerKeyModalMode.value === "clear"
+      ? { provider_id: provider.id, clear: true }
+      : { provider_id: provider.id, api_key: providerKeyDraft.value.trim(), clear: false };
+
+  providerKeySaving.value = true;
+  providerSavingId.value = provider.id;
+  try {
+    const summary = await runtimeApi.updateAiProviderKey(input);
+    await applyRuntimeSummary(summary, { refreshTodoList: false });
+    providerTestLog.value =
+      providerKeyModalMode.value === "clear"
+        ? `${provider.name} 的本机 Key 已清除；历史聊天记录不会被修改。`
+        : `${provider.name} 的 Key 已写入本机加密配置，真实值未返回前端。`;
+    showToast(providerKeyModalMode.value === "clear" ? "Key 已清除" : "Key 已加密保存");
+    providerKeyModalMode.value = "";
+    providerKeyDraft.value = "";
+    providerKeyConfirm.value = "";
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : String(error));
+  } finally {
+    providerKeySaving.value = false;
+    providerSavingId.value = "";
+  }
 }
 
 async function refreshTodos() {
@@ -3103,8 +3162,8 @@ onBeforeUnmount(() => {
                 {{ selectedProviderCard.enabled ? "停用" : "启用" }}
               </button>
               <button class="button ghost" type="button" @click="testProvider()">本地状态检查</button>
-              <button class="button ghost" type="button" @click="showToast('替换 Key 会进入本地确认弹窗')">替换 Key</button>
-              <button class="button danger" type="button" @click="showToast('清除 Key 需要二次确认')">清除 Key</button>
+              <button class="button ghost" type="button" @click="openProviderKeyModal('replace')">替换 Key</button>
+              <button class="button danger" type="button" :disabled="!selectedProviderCard.hasSavedKey" @click="openProviderKeyModal('clear')">清除 Key</button>
             </div>
           </article>
         </section>
@@ -3561,6 +3620,42 @@ onBeforeUnmount(() => {
           </article>
         </section>
       </div>
+    </section>
+
+    <section v-if="providerKeyModalMode" class="modal-backdrop" @mousedown.self="closeProviderKeyModal">
+      <form class="profile-modal" @submit.prevent="saveProviderKey">
+        <header class="modal-header">
+          <div>
+            <span class="eyebrow">本机安全配置</span>
+            <h2>{{ providerKeyModalTitle }}</h2>
+          </div>
+          <button class="icon-button compact" type="button" title="关闭" :disabled="providerKeySaving" @click="closeProviderKeyModal">
+            <X :size="16" />
+          </button>
+        </header>
+        <div class="form-stack">
+          <div class="privacy-matrix">
+            <div><StatusPill label="只写本机" tone="sage" /><p>Key 只传给 Rust，写入 DPAPI 加密字段。</p></div>
+            <div><StatusPill label="不回显" tone="info" /><p>保存后前端只刷新“已保存”状态，不读取真实值。</p></div>
+            <div><StatusPill label="不进仓库" tone="danger-soft" /><p>运行镜像、DPAPI 和 Key 文件默认被 Git 排除。</p></div>
+          </div>
+          <label v-if="providerKeyModalMode === 'replace'">
+            <span>新的 API Key</span>
+            <input v-model="providerKeyDraft" type="password" autocomplete="off" placeholder="粘贴新的 Key，保存后不会显示" />
+          </label>
+          <label v-else>
+            <span>输入厂商名确认清除：{{ selectedProviderCard.name }}</span>
+            <input v-model.trim="providerKeyConfirm" autocomplete="off" :placeholder="selectedProviderCard.name" />
+          </label>
+        </div>
+        <footer class="modal-actions">
+          <button class="button ghost" type="button" :disabled="providerKeySaving" @click="closeProviderKeyModal">取消</button>
+          <button class="button" :class="providerKeyModalMode === 'clear' ? 'danger' : 'primary'" type="submit" :disabled="providerKeyActionDisabled">
+            <KeyRound :size="16" />
+            {{ providerKeySaving ? "处理中" : providerKeyModalMode === "clear" ? "确认清除" : "加密保存" }}
+          </button>
+        </footer>
+      </form>
     </section>
 
     <section v-if="editingPetId" class="modal-backdrop" @mousedown.self="closePetProfileEditor">

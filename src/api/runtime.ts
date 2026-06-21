@@ -15,6 +15,7 @@ import type {
   UploadPetActionStripInput,
   UploadPetImageInput,
   UpdateAiProviderStateInput,
+  UpdateAiProviderKeyInput,
   UpdatePetProfileInput,
   UpdateQuickMenuActionsInput,
   UpdateSettingsInput,
@@ -370,6 +371,27 @@ export const runtimeApi: RuntimeApi = {
       return mockRuntime;
     }
     return invoke<RuntimeSummary>("update_ai_provider_state", { input });
+  },
+
+  async updateAiProviderKey(input: UpdateAiProviderKeyInput) {
+    if (!isTauri()) {
+      const providers = mockRuntime.features.providers.map((provider) =>
+        provider.id === input.provider_id
+          ? {
+              ...provider,
+              enabled: input.clear ? provider.enabled : true,
+              has_saved_key: input.clear ? false : true,
+            }
+          : provider,
+      );
+      mockRuntime.features.providers = providers;
+      mockRuntime.features.saved_key_provider_count = providers.filter((provider) => provider.has_saved_key).length;
+      if (!input.clear) {
+        mockRuntime.features.active_provider = input.provider_id;
+      }
+      return mockRuntime;
+    }
+    return invoke<RuntimeSummary>("update_ai_provider_key", { input });
   },
 
   async switchPet(input: SwitchPetInput) {

@@ -257,6 +257,15 @@ struct UpdateAiProviderStateInput {
     make_active: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct UpdateAiProviderKeyInput {
+    provider_id: String,
+    #[serde(default)]
+    api_key: String,
+    #[serde(default)]
+    clear: bool,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct AiProvidersFile {
     #[serde(default = "default_version")]
@@ -2013,6 +2022,52 @@ fn provider_endpoint_url(provider: &AiProviderFile) -> Result<String, String> {
 }
 
 #[cfg(windows)]
+fn dpapi_encrypt_text(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err("API Key 不能为空".to_string());
+    }
+
+    use std::ptr::null_mut;
+    use std::slice;
+    use winapi::um::dpapi::CryptProtectData;
+    use winapi::um::winbase::LocalFree;
+    use winapi::um::wincrypt::DATA_BLOB;
+
+    let mut input = value.as_bytes().to_vec();
+    let mut blob_in = DATA_BLOB {
+        cbData: input.len() as u32,
+        pbData: input.as_mut_ptr(),
+    };
+    let mut blob_out = DATA_BLOB {
+        cbData: 0,
+        pbData: null_mut(),
+    };
+
+    let ok = unsafe {
+        CryptProtectData(
+            &mut blob_in,
+            null_mut(),
+            null_mut(),
+            null_mut(),
+            null_mut(),
+            0,
+            &mut blob_out,
+        )
+    };
+    if ok == 0 {
+        return Err("Windows DPAPI 加密失败".to_string());
+    }
+
+    let bytes =
+        unsafe { slice::from_raw_parts(blob_out.pbData, blob_out.cbData as usize).to_vec() };
+    unsafe {
+        LocalFree(blob_out.pbData.cast());
+    }
+    Ok(format!("dpapi:{}", BASE64.encode(bytes)))
+}
+
+#[cfg(windows)]
 fn dpapi_decrypt_text(value: &str) -> Result<String, String> {
     let value = value.trim();
     if value.is_empty() || !value.starts_with("dpapi:") {
@@ -2058,6 +2113,11 @@ fn dpapi_decrypt_text(value: &str) -> Result<String, String> {
         LocalFree(blob_out.pbData.cast());
     }
     String::from_utf8(bytes).map_err(|_| "DPAPI Key 解密后不是 UTF-8".to_string())
+}
+
+#[cfg(not(windows))]
+fn dpapi_encrypt_text(_value: &str) -> Result<String, String> {
+    Err("当前平台暂未接入系统 Key 加密存储".to_string())
 }
 
 #[cfg(not(windows))]
@@ -3357,6 +3417,50 @@ fn update_ai_provider_state(
 }
 
 #[tauri::command]
+fn update_ai_provider_key(
+    app: AppHandle,
+    input: UpdateAiProviderKeyInput,
+) -> Result<RuntimeSummary, String> {
+    let root = product_root()?;
+    let path = runtime_file_path(&root, AI_PROVIDERS_PATH)?;
+    let mut file: AiProvidersFile = read_json_file(&path)?;
+    let provider_id = normalized_pet_id(&input.provider_id)?;
+
+    let provider = file
+        .providers
+        .get_mut(&provider_id)
+        .ok_or_else(|| "未找到这个 AI Provider".to_string())?;
+
+    if input.clear {
+        provider.encrypted_api_key.clear();
+    } else {
+        let api_key = input.api_key.trim();
+        if api_key.chars().count() < 8 {
+            return Err("API Key 太短，请检查后再保存".to_string());
+        }
+        if api_key.contains('\n') || api_key.contains('\r') {
+            return Err("API Key 不能包含换行".to_string());
+        }
+        provider.encrypted_api_key = dpapi_encrypt_text(api_key)?;
+        provider.enabled = true;
+        file.active_provider = provider_id.clone();
+    }
+
+    write_json_file(&path, &file)?;
+
+    let summary = get_runtime_summary()?;
+    let _ = app.emit(
+        "danhuang-runtime-changed",
+        json!({
+            "ai_provider_key_updated": provider_id,
+            "cleared": input.clear,
+            "active_provider": summary.features.active_provider
+        }),
+    );
+    Ok(summary)
+}
+
+#[tauri::command]
 fn switch_pet(app: AppHandle, input: SwitchPetInput) -> Result<RuntimeSummary, String> {
     let root = product_root()?;
     let family_path = root.join(FAMILY_PATH);
@@ -4039,6 +4143,7 @@ pub fn run() {
             update_settings,
             update_quick_menu_actions,
             update_ai_provider_state,
+            update_ai_provider_key,
             switch_pet,
             update_pet_profile,
             upload_pet_image,
@@ -4094,5 +4199,15 @@ mod tests {
         assert!(is_time_query("现在几点了？"));
         assert!(local_time_reply("今天几号？").contains("主人，今天是"));
         assert!(local_time_reply("现在几点了？").contains("现在是"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn dpapi_key_roundtrip_stays_private() {
+        let encrypted = dpapi_encrypt_text("test-provider-key-123").expect("encrypt");
+        assert!(encrypted.starts_with("dpapi:"));
+        assert!(!encrypted.contains("test-provider-key-123"));
+        let decrypted = dpapi_decrypt_text(&encrypted).expect("decrypt");
+        assert_eq!(decrypted, "test-provider-key-123");
     }
 }

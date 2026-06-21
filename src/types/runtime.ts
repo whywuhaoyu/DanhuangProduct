@@ -287,12 +287,19 @@ export interface UpdateAiProviderStateInput {
   make_active?: boolean;
 }
 
+export interface UpdateAiProviderKeyInput {
+  provider_id: string;
+  api_key?: string;
+  clear?: boolean;
+}
+
 export interface RuntimeApi {
   getRuntimeSummary(): Promise<RuntimeSummary>;
   getRuntimeAsset(assetPath: string): Promise<RuntimeAsset>;
   updateSettings(input: UpdateSettingsInput): Promise<SafeSettingsSummary>;
   updateQuickMenuActions(input: UpdateQuickMenuActionsInput): Promise<RuntimeSummary>;
   updateAiProviderState(input: UpdateAiProviderStateInput): Promise<RuntimeSummary>;
+  updateAiProviderKey(input: UpdateAiProviderKeyInput): Promise<RuntimeSummary>;
   switchPet(input: SwitchPetInput): Promise<RuntimeSummary>;
   updatePetProfile(input: UpdatePetProfileInput): Promise<RuntimeSummary>;
   uploadPetImage(input: UploadPetImageInput): Promise<RuntimeSummary>;
