@@ -1430,6 +1430,25 @@ fn is_time_query(text: &str) -> bool {
     })
 }
 
+fn is_on_this_day_query(text: &str) -> bool {
+    let raw = text.trim();
+    if raw.is_empty() {
+        return false;
+    }
+    contains_any(
+        raw,
+        &[
+            "往年今日",
+            "历史上的今天",
+            "今日历史",
+            "今天发生过",
+            "今天发生的事件",
+            "今天历史上",
+            "on this day",
+        ],
+    )
+}
+
 fn local_time_reply(text: &str) -> String {
     if !is_time_query(text) {
         return String::new();
@@ -1463,17 +1482,9 @@ fn research_query_from_user_text(text: &str) -> String {
     if raw.is_empty() {
         return raw;
     }
-    if contains_any(
-        &raw,
-        &[
-            "往年今日",
-            "历史上的今天",
-            "今日的事件",
-            "今天发生过",
-            "今天发生的事件",
-        ],
-    ) {
-        return "历史上的今天 事件".to_string();
+    if is_on_this_day_query(&raw) {
+        let now = Local::now();
+        return format!("历史上的今天 {}月{}日 事件", now.month(), now.day());
     }
 
     let mut query = raw.clone();
@@ -1662,6 +1673,57 @@ fn duckduckgo_search_results(query: &str, limit: usize) -> Vec<ResearchItem> {
     results
 }
 
+fn bing_search_results(query: &str, limit: usize) -> Vec<ResearchItem> {
+    let url = format!(
+        "https://www.bing.com/search?q={}&setlang=zh-CN&cc=CN",
+        percent_encode_query(query)
+    );
+    let Ok(body) = web_request_text(&url, 14.0) else {
+        return Vec::new();
+    };
+    let block_re =
+        match Regex::new(r#"(?is)<li[^>]*class=['"][^'"]*\bb_algo\b[^'"]*['"][^>]*>(.*?)</li>"#) {
+            Ok(re) => re,
+            Err(_) => return Vec::new(),
+        };
+    let link_re =
+        match Regex::new(r#"(?is)<h2[^>]*>\s*<a[^>]*href=['"]([^'"]+)['"][^>]*>(.*?)</a>"#) {
+            Ok(re) => re,
+            Err(_) => return Vec::new(),
+        };
+    let snippet_re = Regex::new(r#"(?is)<p[^>]*>(.*?)</p>"#).ok();
+    let mut results = Vec::new();
+    for block in block_re.captures_iter(&body) {
+        let html = block.get(1).map(|item| item.as_str()).unwrap_or_default();
+        let Some(link) = link_re.captures(html) else {
+            continue;
+        };
+        let href = html_unescape_basic(link.get(1).map(|item| item.as_str()).unwrap_or_default());
+        let title = clean_web_text(
+            link.get(2).map(|item| item.as_str()).unwrap_or_default(),
+            120,
+        );
+        let snippet = snippet_re
+            .as_ref()
+            .and_then(|re| re.captures(html))
+            .and_then(|cap| cap.get(1))
+            .map(|item| clean_web_text(item.as_str(), 280))
+            .unwrap_or_default();
+        if !title.is_empty() && href.starts_with("http") {
+            results.push(ResearchItem {
+                title,
+                url: href,
+                snippet,
+                source: "Bing".to_string(),
+            });
+        }
+        if results.len() >= limit {
+            break;
+        }
+    }
+    results
+}
+
 fn wikipedia_search_results(query: &str, limit: usize) -> Vec<ResearchItem> {
     let url = format!(
         "https://zh.wikipedia.org/w/api.php?action=opensearch&namespace=0&format=json&limit={}&search={}",
@@ -1791,6 +1853,60 @@ fn wikipedia_summary_result(query: &str) -> Option<ResearchItem> {
     None
 }
 
+fn fetch_page_brief(url: &str) -> String {
+    let value = url.trim();
+    if !(value.starts_with("https://") || value.starts_with("http://")) {
+        return String::new();
+    }
+    let Ok(body) = web_request_text(value, 8.0) else {
+        return String::new();
+    };
+    let mut content = regex_replace_all(&body, r"(?is)<head[\s\S]*?</head>", " ");
+    content = regex_replace_all(&content, r"(?is)<nav[\s\S]*?</nav>", " ");
+    content = regex_replace_all(&content, r"(?is)<footer[\s\S]*?</footer>", " ");
+    clean_web_text(&content, 640)
+}
+
+fn historical_today_context() -> String {
+    let now = Local::now();
+    let url = format!(
+        "https://zh.wikipedia.org/api/rest_v1/feed/onthisday/events/{}/{}",
+        now.month(),
+        now.day()
+    );
+    let Ok(body) = web_request_text(&url, 10.0) else {
+        return String::new();
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&body) else {
+        return String::new();
+    };
+    let Some(events) = value.get("events").and_then(Value::as_array) else {
+        return String::new();
+    };
+    let mut lines = vec![format!(
+        "资料源：中文维基百科 On This Day，日期 {}月{}日。",
+        now.month(),
+        now.day()
+    )];
+    for event in events.iter().take(8) {
+        let year = event
+            .get("year")
+            .and_then(Value::as_i64)
+            .unwrap_or_default();
+        let text = clean_web_text(
+            event
+                .get("text")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            260,
+        );
+        if !text.is_empty() {
+            lines.push(format!("- {} 年：{}", year, text));
+        }
+    }
+    compact_lines(lines, 1800)
+}
+
 fn merge_research_results(groups: Vec<Vec<ResearchItem>>, limit: usize) -> Vec<ResearchItem> {
     let mut merged = Vec::new();
     let mut seen = HashSet::new();
@@ -1829,12 +1945,20 @@ fn web_search_results(query: &str, limit: usize) -> Vec<ResearchItem> {
         }
     }
     let duckduckgo = duckduckgo_search_results(query, limit);
-    let wiki = if is_general_knowledge_query(query) || duckduckgo.len() < limit.min(3) {
+    let primary_target = if limit <= 2 { limit } else { 3 };
+    let need_fallback = duckduckgo.len() < primary_target;
+    let bing = if need_fallback {
+        bing_search_results(query, limit)
+    } else {
+        Vec::new()
+    };
+    let wiki = if is_general_knowledge_query(query) || duckduckgo.len() + bing.len() < limit.min(3)
+    {
         wikipedia_search_results(query, 3)
     } else {
         Vec::new()
     };
-    merge_research_results(vec![wiki_summary, duckduckgo, wiki], limit)
+    merge_research_results(vec![wiki_summary, duckduckgo, bing, wiki], limit)
 }
 
 fn build_research_bundle(user_text: &str) -> ResearchBundle {
@@ -1849,7 +1973,34 @@ fn build_research_bundle(user_text: &str) -> ResearchBundle {
 
     let query = research_query_from_user_text(user_text);
     let results = web_search_results(&query, 5);
+    let historical_context = if is_on_this_day_query(user_text) {
+        historical_today_context()
+    } else {
+        String::new()
+    };
     if results.is_empty() {
+        if !historical_context.trim().is_empty() {
+            return ResearchBundle {
+                triggered: true,
+                query: query.clone(),
+                context: compact_lines(
+                    vec![
+                        format!("【联网查询资料】\n搜索词：{}", query),
+                        historical_context.clone(),
+                    ],
+                    5200,
+                ),
+                local_reply: compact_lines(
+                    vec![
+                        "主人，我查到今天在历史上的一些事件：".to_string(),
+                        historical_context,
+                        "这些来自中文维基百科的日期事件资料，具体细节我们再点来源核对。"
+                            .to_string(),
+                    ],
+                    1200,
+                ),
+            };
+        }
         return ResearchBundle {
             triggered: true,
             query: query.clone(),
@@ -1866,6 +2017,10 @@ fn build_research_bundle(user_text: &str) -> ResearchBundle {
 
     let mut context_lines = vec![format!("【联网查询资料】\n搜索词：{}", query)];
     let mut reply_lines = vec![format!("主人，我先帮你查到这些：\n搜索词：{}", query)];
+    if !historical_context.trim().is_empty() {
+        context_lines.push(historical_context.clone());
+        reply_lines.push(historical_context.clone());
+    }
     for (index, item) in results.iter().enumerate() {
         context_lines.push(format!(
             "{}. [{}] {} | {}\n摘要：{}",
@@ -1875,6 +2030,12 @@ fn build_research_bundle(user_text: &str) -> ResearchBundle {
             item.url,
             item.snippet
         ));
+        if index < 2 {
+            let page_brief = fetch_page_brief(&item.url);
+            if !page_brief.trim().is_empty() {
+                context_lines.push(format!("页面摘录：{}\n{}", item.title, page_brief));
+            }
+        }
         if index < 3 {
             let detail = if item.snippet.trim().is_empty() {
                 item.url.as_str()
@@ -4192,6 +4353,14 @@ mod tests {
             "Tauri"
         );
         assert_eq!(research_query_from_user_text("什么是 Live2D？"), "Live2D");
+    }
+
+    #[test]
+    fn on_this_day_query_uses_date_specific_search_terms() {
+        assert!(is_on_this_day_query("历史上的今天发生了什么？"));
+        let query = research_query_from_user_text("查一下历史上的今天");
+        assert!(query.starts_with("历史上的今天 "));
+        assert!(query.ends_with(" 事件"));
     }
 
     #[test]
