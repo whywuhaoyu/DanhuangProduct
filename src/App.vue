@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { currentMonitor, cursorPosition, getCurrentWindow, PhysicalPosition, PhysicalSize } from "@tauri-apps/api/window";
+import {
+  availableMonitors,
+  currentMonitor,
+  cursorPosition,
+  getCurrentWindow,
+  PhysicalPosition,
+  PhysicalSize,
+  primaryMonitor,
+  type Monitor,
+} from "@tauri-apps/api/window";
 import {
   Bell,
   BookOpen,
@@ -78,6 +87,7 @@ const REMINDER_CHECK_INTERVAL_MS = 30_000;
 const PET_ROAM_INTERVAL_MS = 180;
 const PET_ROAM_PAUSE_MS = 2_200;
 const PET_ROAM_EDGE_PADDING = 12;
+const PET_ROAM_MONITOR_SWITCH_CHANCE = 0.24;
 const PET_DRAG_DIRECTION_THRESHOLD = 6;
 const PET_DRAG_FEEDBACK_INTERVAL_MS = 16;
 const PET_DRAG_IDLE_RESET_MS = 650;
@@ -180,10 +190,23 @@ interface ProviderCard {
   hasSavedKey: boolean;
 }
 
+interface PetRoamArea {
+  monitor: Monitor;
+  monitorKey: string;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  allowCenter: boolean;
+  clampCurrentPosition: boolean;
+}
+
 const runtime = ref<RuntimeSummary | null>(null);
 const currentAsset = ref("");
+const currentAssetPath = ref("");
 const referenceAssets = ref<string[]>([]);
 const petSpriteAsset = ref("");
+const petSpriteAssetPath = ref("");
 const assetError = ref("");
 const referenceAssetError = ref("");
 const petSpriteError = ref("");
@@ -204,6 +227,7 @@ let petRoamTimer: number | undefined;
 let autoTalkTimer: number | undefined;
 let petRoamTargetX: number | null = null;
 let petRoamTargetY: number | null = null;
+let petRoamTargetMonitorKey: string | null = null;
 let petRoamDirection: "left" | "right" = "right";
 let petRoamBusy = false;
 let petWindowSizeBusy = false;
@@ -255,7 +279,11 @@ const themeOptions: ThemeOption[] = [
   },
 ];
 const bubbleStyleOptions = [
-  { id: "thought", label: "思考泡", caption: "当前运行镜像默认，轻盈、有陪伴感。" },
+  {
+    id: "thought",
+    label: "思考泡",
+    caption: "当前运行镜像默认，轻盈、有陪伴感。",
+  },
   { id: "cloud", label: "云朵", caption: "更柔软，适合主动陪伴短句。" },
   { id: "rounded", label: "圆角", caption: "克制、清晰，适合工作时常开。" },
   { id: "comic", label: "漫画", caption: "边框更明确，适合互动反馈。" },
@@ -263,15 +291,41 @@ const bubbleStyleOptions = [
   { id: "pixel", label: "像素", caption: "更接近桌宠精灵图的玩具感。" },
 ];
 const bubblePaletteOptions: BubblePaletteOption[] = [
-  { id: "warm", label: "暖白便签", caption: "接近 Tk 默认气泡，温和不抢屏。", fill: "#fffaf0", outline: "#d8a760", text: "#3b3024" },
-  { id: "mint", label: "薄荷轻声", caption: "降低橙色占比，适合长期挂桌面。", fill: "#f1fbf6", outline: "#74a98b", text: "#24453a" },
-  { id: "blue", label: "浅蓝便签", caption: "和浅蓝页面背景搭配更清爽。", fill: "#f3f8ff", outline: "#79a8c6", text: "#233846" },
-  { id: "paper", label: "漫画纸面", caption: "边框更明确，适合动作反馈。", fill: "#fffdf8", outline: "#2f807c", text: "#262b28" },
+  {
+    id: "warm",
+    label: "暖白便签",
+    caption: "接近 Tk 默认气泡，温和不抢屏。",
+    fill: "#fffaf0",
+    outline: "#d8a760",
+    text: "#3b3024",
+  },
+  {
+    id: "mint",
+    label: "薄荷轻声",
+    caption: "降低橙色占比，适合长期挂桌面。",
+    fill: "#f1fbf6",
+    outline: "#74a98b",
+    text: "#24453a",
+  },
+  {
+    id: "blue",
+    label: "浅蓝便签",
+    caption: "和浅蓝页面背景搭配更清爽。",
+    fill: "#f3f8ff",
+    outline: "#79a8c6",
+    text: "#233846",
+  },
+  {
+    id: "paper",
+    label: "漫画纸面",
+    caption: "边框更明确，适合动作反馈。",
+    fill: "#fffdf8",
+    outline: "#2f807c",
+    text: "#262b28",
+  },
 ];
 const storedTheme = localStorage.getItem(THEME_KEY);
-const activeThemeId = ref<PanelThemeId>(
-  themeOptions.some((theme) => theme.id === storedTheme) ? (storedTheme as PanelThemeId) : "studio",
-);
+const activeThemeId = ref<PanelThemeId>(themeOptions.some((theme) => theme.id === storedTheme) ? (storedTheme as PanelThemeId) : "studio");
 const reminderFilters: ReminderFilter[] = ["全部", "今日", "重要", "已完成"];
 const reminderPriorityOptions: ReminderItem["priority"][] = ["普通", "重要", "安全"];
 const reminderRepeatOptions = [
@@ -325,16 +379,7 @@ const quickTools = [
 
 const baseActionIds = ["idle", "running-right", "running-left", "waving", "jumping"];
 
-const roleStyles = [
-  "蛋黄本色",
-  "技术导师",
-  "产品拆解",
-  "知识博主",
-  "短视频编导",
-  "研究助手",
-  "直说教练",
-  "运营写手",
-];
+const roleStyles = ["蛋黄本色", "技术导师", "产品拆解", "知识博主", "短视频编导", "研究助手", "直说教练", "运营写手"];
 
 function providerCard(id: string, name: string, model: string, state: ProviderState, note: string): ProviderCard {
   return {
@@ -453,9 +498,24 @@ const petProfileDraft = ref({
 });
 
 const stories = [
-  { type: "故事", title: "第一次把胖久接入家人列表", time: "2026-06-17", detail: "记录主像素图、现实照片和基础动作包状态。" },
-  { type: "日记", title: "今天的陪伴摘要", time: "2026-06-18", detail: "短句、待办、资料查询和本地兜底都保持低打扰。" },
-  { type: "思念", title: "蛋黄一直在", time: "长期", detail: "纪念表达保持克制，保留家人感，不做夸张替代。" },
+  {
+    type: "故事",
+    title: "第一次把胖久接入家人列表",
+    time: "2026-06-17",
+    detail: "记录主像素图、现实照片和基础动作包状态。",
+  },
+  {
+    type: "日记",
+    title: "今天的陪伴摘要",
+    time: "2026-06-18",
+    detail: "短句、待办、资料查询和本地兜底都保持低打扰。",
+  },
+  {
+    type: "思念",
+    title: "蛋黄一直在",
+    time: "长期",
+    detail: "纪念表达保持克制，保留家人感，不做夸张替代。",
+  },
 ];
 
 const currentPet = computed(() => runtime.value?.current_pet ?? null);
@@ -472,17 +532,11 @@ const selectedStory = computed(() => petState.value?.stories.find((story) => sto
 const memoryTimelineItems = computed(() => {
   const memory = petMemorySummary.value;
   if (!memory) return [];
-  return [
-    ...memory.emotional_patterns,
-    ...memory.common_questions.map((question) => `常见问题: ${question}`),
-    ...memory.notes,
-  ].slice(0, 8);
+  return [...memory.emotional_patterns, ...memory.common_questions.map((question) => `常见问题: ${question}`), ...memory.notes].slice(0, 8);
 });
 const visibleReminders = computed(() => {
   const today = new Date().toISOString().slice(0, 10);
-  const items = reminders.value
-    .slice()
-    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || Number(a.done) - Number(b.done));
+  const items = reminders.value.slice().sort((a, b) => Number(b.pinned) - Number(a.pinned) || Number(a.done) - Number(b.done));
   if (reminderFilter.value === "今日") return items.filter((item) => item.due.includes("今日") || item.due.includes("今天") || item.due.startsWith(today));
   if (reminderFilter.value === "重要") return items.filter((item) => item.priority !== "普通" || item.pinned);
   if (reminderFilter.value === "已完成") return items.filter((item) => item.done);
@@ -515,9 +569,7 @@ const chatStatusSummary = computed(() => {
   return "本地陪伴回复";
 });
 const providerKeyModalTitle = computed(() =>
-  providerKeyModalMode.value === "clear"
-    ? `清除 ${selectedProviderCard.value.name} Key`
-    : `替换 ${selectedProviderCard.value.name} Key`,
+  providerKeyModalMode.value === "clear" ? `清除 ${selectedProviderCard.value.name} Key` : `替换 ${selectedProviderCard.value.name} Key`,
 );
 const providerKeyActionDisabled = computed(() => {
   if (providerKeySaving.value || !providerKeyModalMode.value) return true;
@@ -596,27 +648,19 @@ function chatSourceClass(source: string) {
 }
 
 const petVisualLabel = computed(() => currentPet.value?.display_name?.slice(0, 2) || "蛋黄");
-const petStatusText = computed(() => currentPet.value ? petStatusLabel(currentPet.value) : "等待运行镜像");
+const petStatusText = computed(() => (currentPet.value ? petStatusLabel(currentPet.value) : "等待运行镜像"));
 const playableActions = computed(() => currentPet.value?.actions ?? []);
 const actionById = computed(() => new globalThis.Map(playableActions.value.map((action) => [action.id, action])));
 const savedQuickMenuActionIds = computed(() => runtime.value?.settings.quick_menu_actions ?? []);
 const activeQuickMenuActionItems = computed(() => {
-  const items = savedQuickMenuActionIds.value
-    .map((id) => actionById.value.get(id))
-    .filter((action): action is PetActionSummary => Boolean(action));
+  const items = savedQuickMenuActionIds.value.map((id) => actionById.value.get(id)).filter((action): action is PetActionSummary => Boolean(action));
   return items.length ? items : playableActions.value.slice(0, 8);
 });
-const quickMenuUnavailableCount = computed(
-  () => savedQuickMenuActionIds.value.filter((id) => !actionById.value.has(id)).length,
-);
+const quickMenuUnavailableCount = computed(() => savedQuickMenuActionIds.value.filter((id) => !actionById.value.has(id)).length);
 const quickMenuDraftItems = computed(() =>
-  quickMenuDraft.value
-    .map((id) => actionById.value.get(id))
-    .filter((action): action is PetActionSummary => Boolean(action)),
+  quickMenuDraft.value.map((id) => actionById.value.get(id)).filter((action): action is PetActionSummary => Boolean(action)),
 );
-const quickMenuCandidateItems = computed(() =>
-  playableActions.value.filter((action) => !quickMenuDraft.value.includes(action.id)),
-);
+const quickMenuCandidateItems = computed(() => playableActions.value.filter((action) => !quickMenuDraft.value.includes(action.id)));
 const activePetAction = computed(
   () =>
     playableActions.value.find((action) => action.id === activePetActionId.value) ??
@@ -625,9 +669,7 @@ const activePetAction = computed(
     null,
 );
 const baseActionItems = computed(() =>
-  baseActionIds
-    .map((id) => playableActions.value.find((action) => action.id === id))
-    .filter((action): action is PetActionSummary => Boolean(action)),
+  baseActionIds.map((id) => playableActions.value.find((action) => action.id === id)).filter((action): action is PetActionSummary => Boolean(action)),
 );
 const extensionActionItems = computed(() => playableActions.value.filter((action) => !baseActionIds.includes(action.id)));
 const petScale = computed(() => Math.min(Math.max(Number(scaleValue.value) || 0.46, 0.2), 1.2));
@@ -636,6 +678,17 @@ const petStageHeight = computed(() => Math.max(SPRITE_CELL_HEIGHT, Math.round(SP
 const petWindowWidth = computed(() => Math.max(260, Math.min(420, petStageWidth.value + 64)));
 const petWindowHeight = computed(() => Math.max(260, Math.min(420, petStageHeight.value + 92)));
 const petWindowSizeLabel = computed(() => `${petWindowWidth.value} x ${petWindowHeight.value}`);
+const roamPolicyLabel = computed(() => {
+  if (roamCurrentMonitorOnly.value) return "当前屏限制";
+  if (multiMonitorRoam.value) return secondaryMonitorFullRoam.value ? "多屏 + 副屏自由" : "多屏候选";
+  return primaryMonitorEdgeOnly.value ? "主屏边缘" : "单屏巡游";
+});
+const roamPolicyCaption = computed(() => {
+  if (roamCurrentMonitorOnly.value) return "自动巡游只跟随当前所在显示器；拖到另一块屏幕后，那块屏幕会成为新的活动范围。";
+  if (multiMonitorRoam.value) return "自动巡游会从系统显示器列表中选择目标工作区，支持负坐标副屏。";
+  if (primaryMonitorEdgeOnly.value && !roamAllowCenter.value) return "主屏优先贴近上下边缘水平移动，减少遮挡工作区。";
+  return "自动巡游限制在当前显示器工作区内。";
+});
 const petStageStyle = computed(() => ({
   width: `${petStageWidth.value}px`,
   height: `${petStageHeight.value}px`,
@@ -649,7 +702,7 @@ const petSpriteStyle = computed(() => {
   if (!action || !petSpriteAsset.value) return {};
   const frameCount = Math.max(action.frames, 1);
   const frame = spriteFrame.value % frameCount;
-  const row = action.source === "strip" ? 0 : action.row ?? 0;
+  const row = action.source === "strip" ? 0 : (action.row ?? 0);
   const style: Record<string, string> = {
     width: `${SPRITE_CELL_WIDTH}px`,
     height: `${SPRITE_CELL_HEIGHT}px`,
@@ -663,9 +716,29 @@ const petSpriteStyle = computed(() => {
   }
   return style;
 });
+const currentAssetIsSpritesheet = computed(
+  () => Boolean(currentAsset.value && currentAssetPath.value && currentPet.value?.spritesheet_asset === currentAssetPath.value),
+);
+const panelSpritePreviewStyle = computed(() => {
+  const action = activePetAction.value ?? playableActions.value.find((item) => item.id === "idle") ?? playableActions.value[0] ?? null;
+  if (!action || !petSpriteAsset.value) return {};
+  const frameCount = Math.max(action.frames, 1);
+  const frame = spriteFrame.value % frameCount;
+  const row = action.source === "strip" ? 0 : action.row ?? 0;
+  const style: Record<string, string> = {
+    width: `${SPRITE_CELL_WIDTH}px`,
+    height: `${SPRITE_CELL_HEIGHT}px`,
+    backgroundImage: `url("${petSpriteAsset.value}")`,
+    backgroundPosition: `-${frame * SPRITE_CELL_WIDTH}px -${row * SPRITE_CELL_HEIGHT}px`,
+  };
+  if (action.source === "strip") {
+    style.backgroundSize = `${frameCount * SPRITE_CELL_WIDTH}px ${SPRITE_CELL_HEIGHT}px`;
+  }
+  return style;
+});
 const quickMenuStyle = computed(() => ({
-  left: `${Math.min(Math.max(quickMenuPos.value.x, 8), window.innerWidth - 328)}px`,
-  top: `${Math.min(Math.max(quickMenuPos.value.y, 8), window.innerHeight - 420)}px`,
+  left: `${clamp(quickMenuPos.value.x, 8, Math.max(8, window.innerWidth - Math.min(320, window.innerWidth - 16) - 8))}px`,
+  top: `${clamp(quickMenuPos.value.y, 8, Math.max(8, window.innerHeight - Math.min(420, window.innerHeight - 16) - 8))}px`,
 }));
 const bubbleCssVars = computed<Record<string, string>>(() => ({
   "--bubble-fill": bubbleFill.value,
@@ -764,10 +837,7 @@ function startNextPetBubble() {
   }
 }
 
-function showPetBubble(
-  message = petBubbleFullText.value || petBubbleText.value,
-  options: { source?: string; actionId?: string; replace?: boolean } = {},
-) {
+function showPetBubble(message = petBubbleFullText.value || petBubbleText.value, options: { source?: string; actionId?: string; replace?: boolean } = {}) {
   const normalized = normalizeBubbleMessage(message);
   if (!normalized) return;
 
@@ -875,9 +945,7 @@ function quickPetTalk() {
 function quickPetTouch() {
   quickMenuOpen.value = false;
   const action =
-    playableActions.value.find((item) => item.id === "waving") ??
-    playableActions.value.find((item) => item.label.includes("挥")) ??
-    actionForRoam("idle");
+    playableActions.value.find((item) => item.id === "waving") ?? playableActions.value.find((item) => item.label.includes("挥")) ?? actionForRoam("idle");
   publishPetBubbleSignal("摸摸头，蛋黄摇了摇尾巴。", "quick-menu", action?.id ?? "");
 }
 
@@ -930,6 +998,93 @@ function petDragIdleResetDelay() {
   return Math.round(PET_DRAG_IDLE_RESET_MS + inertia * 550);
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function monitorKey(monitor: Monitor) {
+  return [monitor.name ?? "monitor", monitor.position.x, monitor.position.y, monitor.size.width, monitor.size.height, monitor.scaleFactor].join(":");
+}
+
+function sameMonitor(left: Monitor | null | undefined, right: Monitor | null | undefined) {
+  return Boolean(left && right && monitorKey(left) === monitorKey(right));
+}
+
+function isPrimaryRoamMonitor(monitor: Monitor, primary: Monitor | null) {
+  return !primary || sameMonitor(monitor, primary);
+}
+
+function monitorDistanceFromCurrent(monitor: Monitor, current: Monitor | null) {
+  if (!current) return 0;
+  const monitorCenterX = monitor.workArea.position.x + monitor.workArea.size.width / 2;
+  const monitorCenterY = monitor.workArea.position.y + monitor.workArea.size.height / 2;
+  const currentCenterX = current.workArea.position.x + current.workArea.size.width / 2;
+  const currentCenterY = current.workArea.position.y + current.workArea.size.height / 2;
+  return Math.hypot(monitorCenterX - currentCenterX, monitorCenterY - currentCenterY);
+}
+
+function shouldRoamInMonitorCenter(monitor: Monitor, primary: Monitor | null) {
+  const primaryLike = isPrimaryRoamMonitor(monitor, primary);
+  if (!primaryLike && secondaryMonitorFullRoam.value) return true;
+  if (primaryLike && primaryMonitorEdgeOnly.value && !roamAllowCenter.value) return false;
+  return roamAllowCenter.value;
+}
+
+function chooseRoamMonitor(monitors: Monitor[], current: Monitor | null, primary: Monitor | null) {
+  const fallback = current ?? monitors[0] ?? null;
+  if (!fallback) return null;
+  if (roamCurrentMonitorOnly.value || !multiMonitorRoam.value || monitors.length <= 1) return fallback;
+
+  if (petRoamTargetMonitorKey) {
+    const existing = monitors.find((monitor) => monitorKey(monitor) === petRoamTargetMonitorKey);
+    if (existing) return existing;
+  }
+
+  const otherMonitors = monitors
+    .filter((monitor) => !sameMonitor(monitor, current))
+    .sort((left, right) => {
+      if (secondaryMonitorFullRoam.value) {
+        const primaryOrder = Number(isPrimaryRoamMonitor(left, primary)) - Number(isPrimaryRoamMonitor(right, primary));
+        if (primaryOrder !== 0) return primaryOrder;
+      }
+      return monitorDistanceFromCurrent(left, current) - monitorDistanceFromCurrent(right, current);
+    });
+  if (!otherMonitors.length || Math.random() > PET_ROAM_MONITOR_SWITCH_CHANCE) return fallback;
+  return otherMonitors[0];
+}
+
+function nearestEdgeY(value: number, minY: number, maxY: number) {
+  if (value <= minY) return minY;
+  if (value >= maxY) return maxY;
+  return value - minY < maxY - value ? minY : maxY;
+}
+
+async function resolvePetRoamArea(windowSize: PhysicalSize): Promise<PetRoamArea | null> {
+  const [current, monitors, primary] = await Promise.all([currentMonitor(), availableMonitors(), primaryMonitor().catch(() => null)]);
+  const available = monitors.length ? monitors : current ? [current] : [];
+  const monitor = chooseRoamMonitor(available, current, primary);
+  if (!monitor) return null;
+
+  const workArea = monitor.workArea;
+  const minX = workArea.position.x + PET_ROAM_EDGE_PADDING;
+  const maxX = workArea.position.x + workArea.size.width - windowSize.width - PET_ROAM_EDGE_PADDING;
+  const minY = workArea.position.y + PET_ROAM_EDGE_PADDING;
+  const maxY = workArea.position.y + workArea.size.height - windowSize.height - PET_ROAM_EDGE_PADDING;
+  if (maxX <= minX || maxY <= minY) return null;
+
+  petRoamTargetMonitorKey = monitorKey(monitor);
+  return {
+    monitor,
+    monitorKey: petRoamTargetMonitorKey,
+    minX,
+    maxX,
+    minY,
+    maxY,
+    allowCenter: shouldRoamInMonitorCenter(monitor, primary),
+    clampCurrentPosition: keepOnScreen.value && sameMonitor(monitor, current),
+  };
+}
+
 async function syncPetWindowSize() {
   if (viewMode !== "pet" || petWindowSizeBusy) return;
   petWindowSizeBusy = true;
@@ -952,7 +1107,10 @@ function selectBubblePalette(palette: BubblePaletteOption) {
   bubbleFill.value = palette.fill;
   bubbleOutline.value = palette.outline;
   bubbleTextColor.value = palette.text;
-  showPetBubble("气泡颜色已预览。", { replace: true, source: "appearance-preview" });
+  showPetBubble("气泡颜色已预览。", {
+    replace: true,
+    source: "appearance-preview",
+  });
   showToast(`气泡配色已切换为${palette.label}`);
 }
 
@@ -1244,11 +1402,11 @@ function showChatFeedback(signal: ChatSignal) {
   const key = chatSignalKey(signal);
   if (lastHandledChatSignal === key) return;
   lastHandledChatSignal = key;
-  const action =
-    playableActions.value.find((item) => item.id === "waving") ??
-    playableActions.value.find((item) => item.id === "idle") ??
-    pickAutoTalkAction();
-  showPetBubble(signal.reply, { source: signal.source || "chat", actionId: action?.id ?? "" });
+  const action = playableActions.value.find((item) => item.id === "waving") ?? playableActions.value.find((item) => item.id === "idle") ?? pickAutoTalkAction();
+  showPetBubble(signal.reply, {
+    source: signal.source || "chat",
+    actionId: action?.id ?? "",
+  });
 }
 
 function publishChatSignal(message: ChatMessageSummary) {
@@ -1434,7 +1592,11 @@ async function saveProviderKey() {
   const input: UpdateAiProviderKeyInput =
     providerKeyModalMode.value === "clear"
       ? { provider_id: provider.id, clear: true }
-      : { provider_id: provider.id, api_key: providerKeyDraft.value.trim(), clear: false };
+      : {
+          provider_id: provider.id,
+          api_key: providerKeyDraft.value.trim(),
+          clear: false,
+        };
 
   providerKeySaving.value = true;
   providerSavingId.value = provider.id;
@@ -1500,7 +1662,11 @@ async function toggleReminderDone(id: string) {
   const item = reminders.value.find((todo) => todo.id === id);
   if (!item) return;
   try {
-    const todo = await runtimeApi.updateTodoState({ id, done: !item.done, now: nowIso() });
+    const todo = await runtimeApi.updateTodoState({
+      id,
+      done: !item.done,
+      now: nowIso(),
+    });
     updateReminder(mapTodoToReminder(todo));
     if (!item.done && activeDueReminder.value?.id === id) activeDueReminder.value = null;
     await refreshRuntime();
@@ -1514,7 +1680,11 @@ async function toggleReminderPinned(id: string) {
   const item = reminders.value.find((todo) => todo.id === id);
   if (!item) return;
   try {
-    const todo = await runtimeApi.updateTodoState({ id, pinned: !item.pinned, now: nowIso() });
+    const todo = await runtimeApi.updateTodoState({
+      id,
+      pinned: !item.pinned,
+      now: nowIso(),
+    });
     updateReminder(mapTodoToReminder(todo));
     await refreshRuntime();
     showToast(item.pinned ? "已取消置顶" : "提醒已置顶");
@@ -1526,7 +1696,11 @@ async function toggleReminderPinned(id: string) {
 async function snoozeReminder(id: string, minutes = 15) {
   const snoozeUntil = new Date(Date.now() + minutes * 60 * 1000).toISOString();
   try {
-    const todo = await runtimeApi.updateTodoState({ id, snooze_until: snoozeUntil, now: nowIso() });
+    const todo = await runtimeApi.updateTodoState({
+      id,
+      snooze_until: snoozeUntil,
+      now: nowIso(),
+    });
     updateReminder(mapTodoToReminder(todo));
     if (activeDueReminder.value?.id === id) activeDueReminder.value = null;
     await refreshRuntime();
@@ -1580,7 +1754,10 @@ function showDueReminderFeedback(signal: ReminderSignal) {
   if (matched) activeDueReminder.value = matched;
 
   const message = `${signal.title} 到点了。`;
-  showPetBubble(message, { source: "reminder", actionId: pickReminderCueAction()?.id ?? "" });
+  showPetBubble(message, {
+    source: "reminder",
+    actionId: pickReminderCueAction()?.id ?? "",
+  });
   void playReminderCueAction();
   if (viewMode === "panel") {
     showToast(`提醒到点：${signal.title}`);
@@ -1600,13 +1777,15 @@ function publishReminderSignal(reminder: ReminderItem, time: string) {
 }
 
 function nextDueReminder(now = new Date()) {
-  return reminders.value
-    .filter((reminder) => isReminderReadyToSignal(reminder, now))
-    .sort((a, b) => {
-      const aDue = parseReminderDate(a.due, now)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-      const bDue = parseReminderDate(b.due, now)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-      return Number(b.pinned) - Number(a.pinned) || aDue - bDue;
-    })[0] ?? null;
+  return (
+    reminders.value
+      .filter((reminder) => isReminderReadyToSignal(reminder, now))
+      .sort((a, b) => {
+        const aDue = parseReminderDate(a.due, now)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const bDue = parseReminderDate(b.due, now)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        return Number(b.pinned) - Number(a.pinned) || aDue - bDue;
+      })[0] ?? null
+  );
 }
 
 async function checkDueReminders(options: { silent?: boolean } = {}) {
@@ -1676,13 +1855,22 @@ function scheduleSpriteFrame() {
   }, duration);
 }
 
-async function loadPetSpriteForAction(action: PetActionSummary | null | undefined = activePetAction.value, pet: PetSummary | null | undefined = currentPet.value) {
+async function loadPetSpriteForAction(
+  action: PetActionSummary | null | undefined = activePetAction.value,
+  pet: PetSummary | null | undefined = currentPet.value,
+) {
   clearSpriteTimer();
-  petSpriteAsset.value = "";
   petSpriteError.value = "";
   const assetPath = spriteAssetPathForAction(action, pet);
   if (!assetPath) {
+    petSpriteAsset.value = "";
+    petSpriteAssetPath.value = "";
     petSpriteError.value = "当前宠物没有可播放精灵图";
+    return;
+  }
+  if (petSpriteAsset.value && petSpriteAssetPath.value === assetPath) {
+    spriteFrame.value = 0;
+    scheduleSpriteFrame();
     return;
   }
   const loadVersion = ++spriteLoadVersion;
@@ -1690,10 +1878,12 @@ async function loadPetSpriteForAction(action: PetActionSummary | null | undefine
     const asset = await runtimeApi.getRuntimeAsset(assetPath);
     if (loadVersion !== spriteLoadVersion) return;
     petSpriteAsset.value = asset.data_url;
+    petSpriteAssetPath.value = assetPath;
     spriteFrame.value = 0;
     scheduleSpriteFrame();
   } catch (error) {
     if (loadVersion !== spriteLoadVersion) return;
+    if (!petSpriteAsset.value) petSpriteAssetPath.value = "";
     petSpriteError.value = error instanceof Error ? error.message : String(error);
   }
 }
@@ -1703,7 +1893,11 @@ async function setPetAction(action: PetActionSummary) {
   activePetActionId.value = action.id;
   spriteFrame.value = 0;
   await loadPetSpriteForAction(action);
-  showPetBubble(`${action.label}，主人。`, { replace: true, source: "action", actionId: action.id });
+  showPetBubble(`${action.label}，主人。`, {
+    replace: true,
+    source: "action",
+    actionId: action.id,
+  });
   showToast(`${action.label} 正在播放`);
 }
 
@@ -1809,7 +2003,6 @@ function finishPetDragFeedback() {
   petDragLastCursorX = null;
   window.removeEventListener("mousemove", handlePetDragMove);
   window.removeEventListener("mouseup", finishPetDragFeedback);
-  window.removeEventListener("mouseleave", finishPetDragFeedback);
   window.removeEventListener("blur", finishPetDragFeedback);
   clearPetDragFeedbackTimer();
   clearPetDragSafetyTimer();
@@ -1834,7 +2027,6 @@ async function beginPetDragFeedback(event: MouseEvent) {
   petDragLastCursorX = position.x;
   window.addEventListener("mousemove", handlePetDragMove);
   window.addEventListener("mouseup", finishPetDragFeedback);
-  window.addEventListener("mouseleave", finishPetDragFeedback);
   window.addEventListener("blur", finishPetDragFeedback);
   petDragFeedbackTimer = window.setInterval(() => {
     void pollPetDragCursor();
@@ -1852,6 +2044,7 @@ function clearPetRoamTimer() {
 function resetPetRoamTarget() {
   petRoamTargetX = null;
   petRoamTargetY = null;
+  petRoamTargetMonitorKey = null;
 }
 
 async function settlePetRoamIdle() {
@@ -1870,61 +2063,63 @@ async function tickPetRoam() {
   petRoamBusy = true;
   try {
     const windowRef = getCurrentWindow();
-    const [position, size, monitor] = await Promise.all([
-      windowRef.outerPosition(),
-      windowRef.outerSize(),
-      currentMonitor(),
-    ]);
-    const workArea = monitor?.workArea;
-    if (!workArea) return;
+    const [position, size] = await Promise.all([windowRef.outerPosition(), windowRef.outerSize()]);
+    const roamArea = await resolvePetRoamArea(size);
+    if (!roamArea) return;
 
-    const minX = workArea.position.x + PET_ROAM_EDGE_PADDING;
-    const maxX = workArea.position.x + workArea.size.width - size.width - PET_ROAM_EDGE_PADDING;
-    const minY = workArea.position.y + PET_ROAM_EDGE_PADDING;
-    const maxY = workArea.position.y + workArea.size.height - size.height - PET_ROAM_EDGE_PADDING;
-    if (maxX <= minX || maxY <= minY) return;
+    const currentX = roamArea.clampCurrentPosition ? clamp(position.x, roamArea.minX, roamArea.maxX) : position.x;
+    const currentY = roamArea.clampCurrentPosition ? clamp(position.y, roamArea.minY, roamArea.maxY) : position.y;
+    if (roamArea.clampCurrentPosition && (currentX !== position.x || currentY !== position.y)) {
+      await windowRef.setPosition(new PhysicalPosition(Math.round(currentX), Math.round(currentY)));
+    }
 
-    const currentX = Math.min(Math.max(position.x, minX), maxX);
-    const currentY = Math.min(Math.max(position.y, minY), maxY);
     if (petRoamTargetX === null || Math.abs(petRoamTargetX - currentX) < 8) {
-      const usableWidth = Math.max(maxX - minX, 1);
+      const usableWidth = Math.max(roamArea.maxX - roamArea.minX, 1);
       const distanceRatio = Math.min(Math.max(Number(roamDistanceValue.value) || 0.35, 0.05), 1);
       const distance = Math.max(80, Math.round(usableWidth * distanceRatio));
-      petRoamDirection = currentX <= minX + 24 ? "right" : currentX >= maxX - 24 ? "left" : petRoamDirection === "right" ? "left" : "right";
+      petRoamDirection =
+        currentX < roamArea.minX - 24
+          ? "right"
+          : currentX > roamArea.maxX + 24
+            ? "left"
+            : currentX <= roamArea.minX + 24
+              ? "right"
+              : currentX >= roamArea.maxX - 24
+                ? "left"
+                : petRoamDirection === "right"
+                  ? "left"
+                  : "right";
       petRoamTargetX =
         petRoamDirection === "right"
-          ? Math.min(currentX + distance, maxX)
-          : Math.max(currentX - distance, minX);
+          ? Math.min(Math.max(currentX + distance, roamArea.minX), roamArea.maxX)
+          : Math.max(Math.min(currentX - distance, roamArea.maxX), roamArea.minX);
       if (Math.abs(petRoamTargetX - currentX) < 24) {
-        petRoamTargetX = petRoamDirection === "right" ? maxX : minX;
+        petRoamTargetX = petRoamDirection === "right" ? roamArea.maxX : roamArea.minX;
       }
-      petRoamTargetY = roamAllowCenter.value
-        ? Math.round(minY + Math.random() * Math.max(maxY - minY, 1))
-        : currentY;
+      petRoamTargetY = roamArea.allowCenter
+        ? Math.round(roamArea.minY + Math.random() * Math.max(roamArea.maxY - roamArea.minY, 1))
+        : nearestEdgeY(currentY, roamArea.minY, roamArea.maxY);
     }
 
     const nextDirection = petRoamTargetX >= currentX ? "right" : "left";
     petRoamDirection = nextDirection;
     const intervalSeconds = petRoamIntervalMs() / 1000;
     const step = Math.min(Math.max(Math.round((Number(roamSpeedValue.value) || 75) * intervalSeconds), 4), 32);
-    const nextX =
-      nextDirection === "right"
-        ? Math.min(currentX + step, petRoamTargetX)
-        : Math.max(currentX - step, petRoamTargetX);
+    const nextX = nextDirection === "right" ? Math.min(currentX + step, petRoamTargetX) : Math.max(currentX - step, petRoamTargetX);
     const targetY = petRoamTargetY ?? currentY;
-    const nextY =
-      Math.abs(targetY - currentY) <= step
-        ? targetY
-        : targetY > currentY
-          ? currentY + step
-          : currentY - step;
+    const nextY = Math.abs(targetY - currentY) <= step ? targetY : targetY > currentY ? currentY + step : currentY - step;
 
     await setPetActionSilently(actionForRoam(nextDirection));
-    await windowRef.setPosition(new PhysicalPosition(Math.round(nextX), Math.round(nextY)));
+    const nextInsideTarget = nextX >= roamArea.minX && nextX <= roamArea.maxX && nextY >= roamArea.minY && nextY <= roamArea.maxY;
+    const shouldClampNext = keepOnScreen.value && (roamArea.clampCurrentPosition || nextInsideTarget);
+    const clampedNextX = shouldClampNext ? clamp(nextX, roamArea.minX, roamArea.maxX) : nextX;
+    const clampedNextY = shouldClampNext ? clamp(nextY, roamArea.minY, roamArea.maxY) : nextY;
+    await windowRef.setPosition(new PhysicalPosition(Math.round(clampedNextX), Math.round(clampedNextY)));
 
-    if (Math.abs(nextX - petRoamTargetX) < 2 && Math.abs(nextY - targetY) < 2) {
+    if (Math.abs(clampedNextX - petRoamTargetX) < 2 && Math.abs(clampedNextY - targetY) < 2) {
       petRoamTargetX = null;
       petRoamTargetY = null;
+      petRoamTargetMonitorKey = null;
       petRoamPausedUntil = Date.now() + 1_200;
       await setPetActionSilently(actionForRoam("idle"));
     }
@@ -1987,15 +2182,15 @@ function syncRuntimeFeatures(summary: RuntimeSummary) {
 function syncQuickMenuDraft(summary: RuntimeSummary) {
   const available = new Set((summary.current_pet?.actions ?? []).map((action) => action.id));
   const configured = summary.settings.quick_menu_actions.filter((id, index, source) => available.has(id) && source.indexOf(id) === index);
-  quickMenuDraft.value = configured.length
-    ? configured
-    : (summary.current_pet?.actions ?? []).slice(0, 8).map((action) => action.id);
+  quickMenuDraft.value = configured.length ? configured : (summary.current_pet?.actions ?? []).slice(0, 8).map((action) => action.id);
 }
 
 async function loadAsset(path: string) {
   currentAsset.value = "";
+  currentAssetPath.value = path;
   assetError.value = "";
   if (!path) {
+    currentAssetPath.value = "";
     assetError.value = "当前宠物没有可预览主图";
     return;
   }
@@ -2094,10 +2289,7 @@ async function setClickThrough(enabled: boolean, options: { persist?: boolean } 
     }
     await runtimeApi.setPetClickThrough(enabled);
     if (options.persist) {
-      await saveRuntimeSettings(
-        { click_through_enabled: enabled },
-        enabled ? "鼠标穿透已开启并保存" : "鼠标穿透已关闭并保存",
-      );
+      await saveRuntimeSettings({ click_through_enabled: enabled }, enabled ? "鼠标穿透已开启并保存" : "鼠标穿透已关闭并保存");
     } else {
       showToast(enabled ? "鼠标穿透已开启，可从控制面板关闭" : "鼠标穿透已关闭");
     }
@@ -2369,7 +2561,10 @@ async function switchCurrentPet(pet: PetSummary) {
       await refreshPetState();
     }
     localStorage.setItem(PET_REFRESH_KEY, `${Date.now()}:${pet.id}`);
-    showPetBubble(`已切换为${pet.display_name}。`, { replace: true, source: "pet-switch" });
+    showPetBubble(`已切换为${pet.display_name}。`, {
+      replace: true,
+      source: "pet-switch",
+    });
     showToast(`已切换为 ${pet.display_name}`);
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
@@ -2490,11 +2685,14 @@ onMounted(() => {
     })
     .catch(() => {
       // Browser preview directly shows the local reply in sendChatMessage().
-  });
+    });
   startReminderCheckTimer();
   startPetRoamTimer();
   if (viewMode === "pet") {
-    showPetBubble(petBubbleFullText.value || petBubbleText.value, { replace: true, source: "startup" });
+    showPetBubble(petBubbleFullText.value || petBubbleText.value, {
+      replace: true,
+      source: "startup",
+    });
     hydrateRecentPetSignals();
     scheduleAutoTalk(45_000);
   }
@@ -2527,11 +2725,24 @@ watch(roamEnabled, (enabled) => {
   }
 });
 
-watch([roamSpeedValue, roamDistanceValue, roamIntervalValue, roamAllowCenter], () => {
-  if (viewMode !== "pet" || !roamEnabled.value) return;
-  resetPetRoamTarget();
-  startPetRoamTimer();
-});
+watch(
+  [
+    roamSpeedValue,
+    roamDistanceValue,
+    roamIntervalValue,
+    roamAllowCenter,
+    multiMonitorRoam,
+    primaryMonitorEdgeOnly,
+    secondaryMonitorFullRoam,
+    roamCurrentMonitorOnly,
+    keepOnScreen,
+  ],
+  () => {
+    if (viewMode !== "pet" || !roamEnabled.value) return;
+    resetPetRoamTarget();
+    startPetRoamTimer();
+  },
+);
 
 watch(talkEnabled, (enabled) => {
   if (viewMode !== "pet") return;
@@ -2581,15 +2792,14 @@ onBeforeUnmount(() => {
     class="pet-window"
     @mousedown="startPetDrag"
     @contextmenu.prevent="openQuickMenu"
-    @dblclick="showPetBubble('摸摸头，蛋黄摇了摇尾巴。', { source: 'touch', actionId: pickAutoTalkAction()?.id ?? '' })"
+    @dblclick="
+      showPetBubble('摸摸头，蛋黄摇了摇尾巴。', {
+        source: 'touch',
+        actionId: pickAutoTalkAction()?.id ?? '',
+      })
+    "
   >
-    <div
-      v-if="petBubbleVisible"
-      class="pet-bubble"
-      :class="`pet-bubble--${selectedBubbleStyle}`"
-      :style="bubbleCssVars"
-      aria-live="polite"
-    >
+    <div v-if="petBubbleVisible" class="pet-bubble" :class="`pet-bubble--${selectedBubbleStyle}`" :style="bubbleCssVars" aria-live="polite">
       <span>{{ petBubbleText }}</span>
     </div>
     <div class="pet-stage" :class="{ 'pet-stage--fallback': !petSpriteAsset && !currentAsset }" :style="petStageStyle">
@@ -2599,7 +2809,7 @@ onBeforeUnmount(() => {
         :style="petSpriteStyle"
         :aria-label="`${currentPet?.display_name ?? '当前宠物'}：${activePetAction.label}`"
       />
-      <img v-else-if="currentAsset" :src="currentAsset" :alt="currentPet?.display_name ?? '当前宠物'" :style="petImageStyle" />
+      <img v-else-if="currentAsset && !currentAssetIsSpritesheet" :src="currentAsset" :alt="currentPet?.display_name ?? '当前宠物'" :style="petImageStyle" />
       <div v-else class="pet-fallback">
         <Heart :size="54" />
         <strong>{{ petVisualLabel }}</strong>
@@ -2646,7 +2856,10 @@ onBeforeUnmount(() => {
             <strong>{{ pet.display_name }}</strong>
             <small>{{ pet.species || "未标注种类" }} · {{ pet.action_pack_level || "basic" }}</small>
           </span>
-          <StatusPill :label="pet.id === runtime?.current_pet_id ? '当前' : petSwitchingId === pet.id ? '切换中' : '切换'" :tone="pet.id === runtime?.current_pet_id ? 'info' : 'sage'" />
+          <StatusPill
+            :label="pet.id === runtime?.current_pet_id ? '当前' : petSwitchingId === pet.id ? '切换中' : '切换'"
+            :tone="pet.id === runtime?.current_pet_id ? 'info' : 'sage'"
+          />
         </button>
         <button class="quick-menu__manage-link" type="button" @click="openPanelPage('identity')">管理全部形象</button>
       </div>
@@ -2663,7 +2876,9 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <footer class="quick-menu__footer">
-        <button class="button ghost" type="button" @click="setPinned(!petPinned)">{{ petPinned ? "取消置顶" : "窗口置顶" }}</button>
+        <button class="button ghost" type="button" @click="setPinned(!petPinned)">
+          {{ petPinned ? "取消置顶" : "窗口置顶" }}
+        </button>
         <button class="button ghost" type="button" :disabled="clickThroughBusy" @click="setClickThrough(true, { persist: true })">鼠标穿透</button>
         <button class="button ghost" type="button" @click="hidePetWindow">隐藏</button>
       </footer>
@@ -2679,7 +2894,7 @@ onBeforeUnmount(() => {
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">
-          <img v-if="currentAsset" :src="currentAsset" alt="" />
+          <img v-if="currentAsset && !currentAssetIsSpritesheet" :src="currentAsset" alt="" />
           <Heart v-else :size="22" />
         </div>
         <div>
@@ -2691,13 +2906,7 @@ onBeforeUnmount(() => {
       <nav class="nav" aria-label="主导航">
         <section v-for="group in navGroups" :key="group.label" class="nav-group">
           <p>{{ group.label }}</p>
-          <button
-            v-for="item in group.items"
-            :key="item.id"
-            type="button"
-            :class="{ active: activePage === item.id }"
-            @click="switchPage(item.id)"
-          >
+          <button v-for="item in group.items" :key="item.id" type="button" :class="{ active: activePage === item.id }" @click="switchPage(item.id)">
             <component :is="item.icon" :size="17" />
             <span>{{ item.label }}</span>
           </button>
@@ -2752,13 +2961,7 @@ onBeforeUnmount(() => {
       </header>
 
       <nav class="mobile-nav" aria-label="窄屏导航">
-        <button
-          v-for="item in navigationItems"
-          :key="item.id"
-          type="button"
-          :class="{ active: activePage === item.id }"
-          @click="switchPage(item.id)"
-        >
+        <button v-for="item in navigationItems" :key="item.id" type="button" :class="{ active: activePage === item.id }" @click="switchPage(item.id)">
           <component :is="item.icon" :size="16" />
           <span>{{ item.label }}</span>
         </button>
@@ -2789,7 +2992,8 @@ onBeforeUnmount(() => {
             </div>
             <div class="hero-visual">
               <div class="pet-orbit">
-                <img v-if="currentAsset" :src="currentAsset" :alt="currentPet?.display_name ?? '当前宠物'" />
+                <div v-if="petSpriteAsset" class="panel-sprite-preview" :style="panelSpritePreviewStyle" :aria-label="currentPet?.display_name ?? '当前宠物'" />
+                <img v-else-if="currentAsset && !currentAssetIsSpritesheet" :src="currentAsset" :alt="currentPet?.display_name ?? '当前宠物'" />
                 <div v-else class="pet-preview-fallback">
                   <Heart :size="44" />
                   <span>{{ assetError || "浏览器预览使用占位图" }}</span>
@@ -2813,7 +3017,9 @@ onBeforeUnmount(() => {
               <MetricCard label="扩展动作" :value="runtime?.total_extension_assets ?? 0" />
             </div>
             <div class="progress-block">
-              <div><span>陪伴等级</span><strong>Lv. {{ runtime?.features.companion_level ?? 1 }}</strong></div>
+              <div>
+                <span>陪伴等级</span><strong>Lv. {{ runtime?.features.companion_level ?? 1 }}</strong>
+              </div>
               <div class="progress-track"><span style="width: 68%" /></div>
               <p>下一等级还需要 32 次轻互动。这里是产品 UI 示例，后续接宠物级 companion-state。</p>
             </div>
@@ -2852,7 +3058,10 @@ onBeforeUnmount(() => {
             <div class="quick-tool-grid">
               <button v-for="tool in quickTools" :key="tool.label" class="action-card" type="button" @click="showToast(`${tool.label} 已触发`)">
                 <component :is="tool.icon" :size="18" />
-                <span><strong>{{ tool.label }}</strong><small>{{ tool.caption }}</small></span>
+                <span
+                  ><strong>{{ tool.label }}</strong
+                  ><small>{{ tool.caption }}</small></span
+                >
                 <ChevronRight :size="16" />
               </button>
             </div>
@@ -2872,12 +3081,20 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="identity-preview">
-              <img v-if="currentAsset" :src="currentAsset" :alt="currentPet?.display_name ?? '当前宠物'" />
+              <div v-if="petSpriteAsset" class="panel-sprite-preview panel-sprite-preview--large" :style="panelSpritePreviewStyle" :aria-label="currentPet?.display_name ?? '当前宠物'" />
+              <img v-else-if="currentAsset && !currentAssetIsSpritesheet" :src="currentAsset" :alt="currentPet?.display_name ?? '当前宠物'" />
               <div v-else class="pet-preview-fallback"><Heart :size="40" /><span>等待图片</span></div>
             </div>
-            <p class="identity-note">{{ currentPet?.notes || "还没有补充这个形象的说明。" }}</p>
+            <p class="identity-note">
+              {{ currentPet?.notes || "还没有补充这个形象的说明。" }}
+            </p>
             <div class="asset-upload-row">
-              <label class="button ghost compact-action file-button" :class="{ disabled: petImageUploading === 'identity' || !currentPet }">
+              <label
+                class="button ghost compact-action file-button"
+                :class="{
+                  disabled: petImageUploading === 'identity' || !currentPet,
+                }"
+              >
                 <Upload :size="16" />
                 {{ petImageUploading === "identity" ? "导入中" : "导入主形象" }}
                 <input
@@ -2887,7 +3104,12 @@ onBeforeUnmount(() => {
                   @change="uploadPetImage('identity', $event)"
                 />
               </label>
-              <label class="button ghost compact-action file-button" :class="{ disabled: petImageUploading === 'reference' || !currentPet }">
+              <label
+                class="button ghost compact-action file-button"
+                :class="{
+                  disabled: petImageUploading === 'reference' || !currentPet,
+                }"
+              >
                 <Image :size="16" />
                 {{ petImageUploading === "reference" ? "导入中" : "追加参考图" }}
                 <input
@@ -2983,9 +3205,12 @@ onBeforeUnmount(() => {
               <StatusPill label="宠物级隔离" tone="sage" />
               <strong>长期记忆摘要</strong>
               <p v-if="petMemorySummary">
-                {{ petMemorySummary.message_count }} 轮对话 · 最近情绪 {{ petMemorySummary.last_mood || "未记录" }} · {{ petMemorySummary.updated_at || "未更新时间" }}
+                {{ petMemorySummary.message_count }} 轮对话 · 最近情绪 {{ petMemorySummary.last_mood || "未记录" }} ·
+                {{ petMemorySummary.updated_at || "未更新时间" }}
               </p>
-              <p v-else>{{ petStateLoading ? "正在读取当前宠物记忆摘要..." : "当前宠物暂未读取到长期记忆摘要。" }}</p>
+              <p v-else>
+                {{ petStateLoading ? "正在读取当前宠物记忆摘要..." : "当前宠物暂未读取到长期记忆摘要。" }}
+              </p>
               <div v-if="petMemorySummary" class="memory-chip-row">
                 <StatusPill
                   v-for="[mood, count] in Object.entries(petMemorySummary.mood_counts).slice(0, 6)"
@@ -3051,7 +3276,7 @@ onBeforeUnmount(() => {
               </div>
               <span class="story-card__link">查看全文</span>
             </button>
-            <div v-if="!petStateLoading && !(petState?.stories.length)" class="empty-state">
+            <div v-if="!petStateLoading && !petState?.stories.length" class="empty-state">
               <BookOpen :size="24" />
               <span>当前宠物还没有故事记录。</span>
             </div>
@@ -3059,9 +3284,13 @@ onBeforeUnmount(() => {
           <article class="panel reader-panel">
             <span class="eyebrow">阅读器</span>
             <h2>{{ selectedStory?.title ?? "选择一条故事" }}</h2>
-            <p>{{ selectedStory?.content ?? "故事页保留全文阅读器和新增入口。删除用户故事或照片前仍需明确确认。" }}</p>
+            <p>
+              {{ selectedStory?.content ?? "故事页保留全文阅读器和新增入口。删除用户故事或照片前仍需明确确认。" }}
+            </p>
             <div v-if="petState?.role_prompt" class="timeline-list">
-              <div><BookOpen :size="14" /><span>角色 prompt 已保存 · {{ petState.summary_updated_at || "未记录更新时间" }}</span></div>
+              <div>
+                <BookOpen :size="14" /><span>角色 prompt 已保存 · {{ petState.summary_updated_at || "未记录更新时间" }}</span>
+              </div>
               <div><ShieldCheck :size="14" /><span>故事和纪念内容只保存在 E 盘运行镜像。</span></div>
             </div>
             <form class="form-stack story-form" @submit.prevent="createStory">
@@ -3097,7 +3326,10 @@ onBeforeUnmount(() => {
               <div class="quick-tool-grid compact-grid">
                 <button v-for="tool in quickTools.slice(0, 4)" :key="tool.label" class="action-card" type="button" @click="showToast(`${tool.label} 已触发`)">
                   <component :is="tool.icon" :size="18" />
-                  <span><strong>{{ tool.label }}</strong><small>{{ tool.caption }}</small></span>
+                  <span
+                    ><strong>{{ tool.label }}</strong
+                    ><small>{{ tool.caption }}</small></span
+                  >
                 </button>
               </div>
             </div>
@@ -3130,7 +3362,9 @@ onBeforeUnmount(() => {
               <h3>窗口操作</h3>
               <div class="button-row">
                 <button class="button ghost" type="button" @click="showPetWindow">显示桌宠</button>
-                <button class="button ghost" type="button" @click="setPinned(!petPinned)">{{ petPinned ? "取消置顶" : "窗口置顶" }}</button>
+                <button class="button ghost" type="button" @click="setPinned(!petPinned)">
+                  {{ petPinned ? "取消置顶" : "窗口置顶" }}
+                </button>
                 <button class="button danger" type="button" @click="hidePetWindow">隐藏桌宠</button>
               </div>
             </div>
@@ -3198,12 +3432,7 @@ onBeforeUnmount(() => {
               <label class="button primary file-button action-upload-button" :class="{ disabled: petActionUploading || !currentPet }">
                 <Upload :size="16" />
                 {{ petActionUploading ? "导入中" : "选择动作条并导入" }}
-                <input
-                  type="file"
-                  accept="image/png,image/webp"
-                  :disabled="petActionUploading || !currentPet"
-                  @change="uploadPetActionStrip"
-                />
+                <input type="file" accept="image/png,image/webp" :disabled="petActionUploading || !currentPet" @change="uploadPetActionStrip" />
               </label>
             </div>
             <div class="qa-list">
@@ -3289,7 +3518,15 @@ onBeforeUnmount(() => {
                 <StatusPill v-for="item in capabilityCards" :key="item.label" :label="`${item.label} · ${item.value}`" :tone="item.tone" />
               </div>
               <div class="role-grid">
-                <button v-for="role in roleStyles" :key="role" type="button" :class="{ selected: selectedRoleStyle === role }" @click="selectedRoleStyle = role">{{ role }}</button>
+                <button
+                  v-for="role in roleStyles"
+                  :key="role"
+                  type="button"
+                  :class="{ selected: selectedRoleStyle === role }"
+                  @click="selectedRoleStyle = role"
+                >
+                  {{ role }}
+                </button>
               </div>
               <div class="message-list">
                 <div v-if="chatLoading" class="empty-state compact">
@@ -3356,9 +3593,22 @@ onBeforeUnmount(() => {
               <KeyRound :size="22" />
             </div>
             <div class="security-grid">
-              <div><strong>当前状态</strong><p>{{ selectedProviderCard.active ? "当前厂商" : selectedProviderCard.enabled ? "已启用" : "未启用" }}</p></div>
-              <div><strong>Key 状态</strong><p>{{ selectedProviderCard.hasSavedKey ? "已保存本机加密 Key" : "未保存 Key" }}</p></div>
-              <div><strong>测试反馈</strong><p>{{ providerTestLog }}</p></div>
+              <div>
+                <strong>当前状态</strong>
+                <p>
+                  {{ selectedProviderCard.active ? "当前厂商" : selectedProviderCard.enabled ? "已启用" : "未启用" }}
+                </p>
+              </div>
+              <div>
+                <strong>Key 状态</strong>
+                <p>
+                  {{ selectedProviderCard.hasSavedKey ? "已保存本机加密 Key" : "未保存 Key" }}
+                </p>
+              </div>
+              <div>
+                <strong>测试反馈</strong>
+                <p>{{ providerTestLog }}</p>
+              </div>
             </div>
             <div class="button-row panel-actions">
               <button
@@ -3436,14 +3686,17 @@ onBeforeUnmount(() => {
                 v-for="todo in visibleReminders"
                 :key="todo.id"
                 class="todo-card"
-                :class="{ selected: selectedReminder?.id === todo.id, done: todo.done }"
+                :class="{
+                  selected: selectedReminder?.id === todo.id,
+                  done: todo.done,
+                }"
                 type="button"
                 @click="selectedReminderId = todo.id"
               >
                 <StatusPill :label="todo.priority" :tone="todo.tone" />
                 <strong>{{ todo.title }}</strong>
                 <span>
-                  {{ todo.due }} · {{ todo.category }} · {{ todo.repeat }}{{ todo.pinned ? ' · 置顶' : '' }}{{ todo.snoozeUntil ? ' · 已稍后' : '' }}
+                  {{ todo.due }} · {{ todo.category }} · {{ todo.repeat }}{{ todo.pinned ? " · 置顶" : "" }}{{ todo.snoozeUntil ? " · 已稍后" : "" }}
                 </span>
               </button>
               <div v-if="!remindersLoading && !visibleReminders.length" class="empty-state">
@@ -3492,19 +3745,28 @@ onBeforeUnmount(() => {
                 <label>
                   优先级
                   <select v-model="reminderDetailDraft.priority" :disabled="!selectedReminder" aria-label="编辑提醒优先级">
-                    <option v-for="priority in reminderPriorityOptions" :key="priority" :value="priority">{{ priority }}</option>
+                    <option v-for="priority in reminderPriorityOptions" :key="priority" :value="priority">
+                      {{ priority }}
+                    </option>
                   </select>
                 </label>
                 <label>
                   重复
                   <select v-model="reminderDetailDraft.repeat" :disabled="!selectedReminder" aria-label="编辑提醒重复规则">
-                    <option v-for="option in reminderRepeatOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                    <option v-for="option in reminderRepeatOptions" :key="option.value" :value="option.value">
+                      {{ option.label }}
+                    </option>
                   </select>
                 </label>
               </div>
               <label>
                 备注
-                <textarea v-model="reminderDetailDraft.note" :disabled="!selectedReminder" aria-label="编辑提醒备注" placeholder="补充提醒背景，默认只保存在本机运行镜像。" />
+                <textarea
+                  v-model="reminderDetailDraft.note"
+                  :disabled="!selectedReminder"
+                  aria-label="编辑提醒备注"
+                  placeholder="补充提醒背景，默认只保存在本机运行镜像。"
+                />
               </label>
               <div class="button-row">
                 <button class="button primary" type="submit" :disabled="!selectedReminder || reminderDetailSaving">
@@ -3526,10 +3788,18 @@ onBeforeUnmount(() => {
             </form>
 
             <div class="timeline-list reminder-timeline">
-              <div><Clock3 :size="14" /><span>创建 · {{ selectedReminder?.createdAt || "等待同步" }}</span></div>
-              <div><Bell :size="14" /><span>上次提醒 · {{ selectedReminder?.lastRemindedAt || "未触发" }}</span></div>
-              <div><CircleDot :size="14" /><span>累计提醒 · {{ selectedReminder?.remindCount ?? 0 }} 次</span></div>
-              <div><Timer :size="14" /><span>稍后 · {{ selectedReminder?.snoozeUntil || "未设置" }}</span></div>
+              <div>
+                <Clock3 :size="14" /><span>创建 · {{ selectedReminder?.createdAt || "等待同步" }}</span>
+              </div>
+              <div>
+                <Bell :size="14" /><span>上次提醒 · {{ selectedReminder?.lastRemindedAt || "未触发" }}</span>
+              </div>
+              <div>
+                <CircleDot :size="14" /><span>累计提醒 · {{ selectedReminder?.remindCount ?? 0 }} 次</span>
+              </div>
+              <div>
+                <Timer :size="14" /><span>稍后 · {{ selectedReminder?.snoozeUntil || "未设置" }}</span>
+              </div>
               <div><CheckCircle2 :size="14" /><span>完成/重开/置顶/编辑会写入本地时间轴</span></div>
             </div>
           </article>
@@ -3594,7 +3864,14 @@ onBeforeUnmount(() => {
                 :key="style.id"
                 type="button"
                 :class="{ selected: selectedBubbleStyle === style.id }"
-                @click="selectedBubbleStyle = style.id; showPetBubble(`气泡样式已切换为${style.label}。`, { replace: true, source: 'appearance-preview' }); showToast(`气泡样式预览切换为 ${style.label}`)"
+                @click="
+                  selectedBubbleStyle = style.id;
+                  showPetBubble(`气泡样式已切换为${style.label}。`, {
+                    replace: true,
+                    source: 'appearance-preview',
+                  });
+                  showToast(`气泡样式预览切换为 ${style.label}`);
+                "
               >
                 <span>{{ style.label }}</span>
                 <strong>{{ style.id }}</strong>
@@ -3614,7 +3891,15 @@ onBeforeUnmount(() => {
                   :class="{ selected: activeBubblePaletteId === palette.id }"
                   @click="selectBubblePalette(palette)"
                 >
-                  <span class="bubble-palette-preview" :style="{ background: palette.fill, borderColor: palette.outline, color: palette.text }">Aa</span>
+                  <span
+                    class="bubble-palette-preview"
+                    :style="{
+                      background: palette.fill,
+                      borderColor: palette.outline,
+                      color: palette.text,
+                    }"
+                    >Aa</span
+                  >
                   <strong>{{ palette.label }}</strong>
                   <small>{{ palette.caption }}</small>
                 </button>
@@ -3622,19 +3907,63 @@ onBeforeUnmount(() => {
               <div class="bubble-control-grid">
                 <label>
                   <span>背景</span>
-                  <input v-model="bubbleFill" type="color" aria-label="气泡背景色" @input="showPetBubble('气泡背景已预览。', { replace: true, source: 'appearance-preview' })" />
+                  <input
+                    v-model="bubbleFill"
+                    type="color"
+                    aria-label="气泡背景色"
+                    @input="
+                      showPetBubble('气泡背景已预览。', {
+                        replace: true,
+                        source: 'appearance-preview',
+                      })
+                    "
+                  />
                 </label>
                 <label>
                   <span>描边</span>
-                  <input v-model="bubbleOutline" type="color" aria-label="气泡描边色" @input="showPetBubble('气泡描边已预览。', { replace: true, source: 'appearance-preview' })" />
+                  <input
+                    v-model="bubbleOutline"
+                    type="color"
+                    aria-label="气泡描边色"
+                    @input="
+                      showPetBubble('气泡描边已预览。', {
+                        replace: true,
+                        source: 'appearance-preview',
+                      })
+                    "
+                  />
                 </label>
                 <label>
                   <span>文字</span>
-                  <input v-model="bubbleTextColor" type="color" aria-label="气泡文字色" @input="showPetBubble('气泡文字已预览。', { replace: true, source: 'appearance-preview' })" />
+                  <input
+                    v-model="bubbleTextColor"
+                    type="color"
+                    aria-label="气泡文字色"
+                    @input="
+                      showPetBubble('气泡文字已预览。', {
+                        replace: true,
+                        source: 'appearance-preview',
+                      })
+                    "
+                  />
                 </label>
                 <label class="bubble-duration-control">
-                  <span>显示时长 <strong>{{ bubbleDuration.toFixed(0) }} 秒</strong></span>
-                  <input v-model.number="bubbleDuration" type="range" min="2" max="20" step="1" @input="showPetBubble('显示时长已预览。', { replace: true, source: 'appearance-preview' })" />
+                  <span
+                    >显示时长 <strong>{{ bubbleDuration.toFixed(0) }} 秒</strong></span
+                  >
+                  <input
+                    v-model.number="bubbleDuration"
+                    type="range"
+                    min="2"
+                    max="20"
+                    step="1"
+                    @input="
+                      showPetBubble('显示时长已预览。', {
+                        replace: true,
+                        source: 'appearance-preview',
+                      })
+                    "
+                  />
                 </label>
               </div>
             </div>
@@ -3643,7 +3972,18 @@ onBeforeUnmount(() => {
                 <Save :size="16" />
                 {{ settingsSaving ? "保存中" : "保存外观偏好" }}
               </button>
-              <button class="button ghost" type="button" @click="showPetBubble('这是保存前的气泡预览。', { replace: true, source: 'appearance-preview' })">预览桌宠气泡</button>
+              <button
+                class="button ghost"
+                type="button"
+                @click="
+                  showPetBubble('这是保存前的气泡预览。', {
+                    replace: true,
+                    source: 'appearance-preview',
+                  })
+                "
+              >
+                预览桌宠气泡
+              </button>
               <button class="button ghost" type="button" @click="selectTheme('studio')">恢复清透工作台</button>
             </div>
           </article>
@@ -3659,7 +3999,16 @@ onBeforeUnmount(() => {
               <Map :size="22" />
             </div>
             <div class="mode-grid">
-              <button type="button" :class="{ selected: primaryMonitorEdgeOnly && !roamAllowCenter }" @click="primaryMonitorEdgeOnly = true; roamAllowCenter = false">
+              <button
+                type="button"
+                :class="{
+                  selected: primaryMonitorEdgeOnly && !roamAllowCenter,
+                }"
+                @click="
+                  primaryMonitorEdgeOnly = true;
+                  roamAllowCenter = false;
+                "
+              >
                 <Moon :size="20" />
                 <strong>边缘安静</strong>
                 <span>主屏四边，不挡工作内容。</span>
@@ -3669,7 +4018,14 @@ onBeforeUnmount(() => {
                 <strong>当前屏自由</strong>
                 <span>允许跑到当前屏幕中间。</span>
               </button>
-              <button type="button" :class="{ selected: multiMonitorRoam }" @click="multiMonitorRoam = !multiMonitorRoam; secondaryMonitorFullRoam = multiMonitorRoam">
+              <button
+                type="button"
+                :class="{ selected: multiMonitorRoam }"
+                @click="
+                  multiMonitorRoam = !multiMonitorRoam;
+                  secondaryMonitorFullRoam = multiMonitorRoam;
+                "
+              >
                 <Layers3 :size="20" />
                 <strong>多屏巡游</strong>
                 <span>保留副屏自由活动策略。</span>
@@ -3719,6 +4075,11 @@ onBeforeUnmount(() => {
                 <span>向右移动播放“向右跑”，向左移动播放“向左跑”，到达边界回到待机。</span>
               </div>
               <div>
+                <StatusPill :label="roamPolicyLabel" tone="info" />
+                <strong>活动范围会真实影响移动</strong>
+                <span>{{ roamPolicyCaption }}</span>
+              </div>
+              <div>
                 <StatusPill label="尺寸同步" tone="sage" />
                 <strong>大小比例会真实生效</strong>
                 <span>保存或拖动滑杆后，透明桌宠窗口和精灵图会按当前比例同步调整。</span>
@@ -3726,7 +4087,9 @@ onBeforeUnmount(() => {
               <div>
                 <StatusPill :label="clickThroughEnabled ? '穿透开启' : '可交互'" :tone="clickThroughEnabled ? 'info' : 'sage'" />
                 <strong>鼠标穿透可切换</strong>
-                <span>{{ clickThroughEnabled ? "桌宠不会挡住下面的软件，恢复交互请回到控制面板关闭。" : "桌宠可拖动、右键打开快捷菜单，也能响应摸摸和说句话。" }}</span>
+                <span>{{
+                  clickThroughEnabled ? "桌宠不会挡住下面的软件，恢复交互请回到控制面板关闭。" : "桌宠可拖动、右键打开快捷菜单，也能响应摸摸和说句话。"
+                }}</span>
               </div>
               <div>
                 <StatusPill label="Tk 设置接入" tone="sage" />
@@ -3736,35 +4099,51 @@ onBeforeUnmount(() => {
             </div>
             <div class="slider-stack">
               <label>
-                <span>大小比例 <strong>{{ scaleValue.toFixed(2) }}</strong></span>
+                <span
+                  >大小比例 <strong>{{ scaleValue.toFixed(2) }}</strong></span
+                >
                 <input v-model.number="scaleValue" type="range" min="0.2" max="1.2" step="0.01" />
               </label>
               <label>
-                <span>动画速度 <strong>{{ animationSpeedValue.toFixed(2) }}</strong></span>
+                <span
+                  >动画速度 <strong>{{ animationSpeedValue.toFixed(2) }}</strong></span
+                >
                 <input v-model.number="animationSpeedValue" type="range" min="0.1" max="2" step="0.05" />
               </label>
               <label>
-                <span>拖动灵敏度 <strong>{{ dragSensitivityValue.toFixed(2) }}</strong></span>
+                <span
+                  >拖动灵敏度 <strong>{{ dragSensitivityValue.toFixed(2) }}</strong></span
+                >
                 <input v-model.number="dragSensitivityValue" type="range" min="0.1" max="2" step="0.05" />
               </label>
               <label>
-                <span>拖动惯性 <strong>{{ inertiaValue.toFixed(2) }}</strong></span>
+                <span
+                  >拖动惯性 <strong>{{ inertiaValue.toFixed(2) }}</strong></span
+                >
                 <input v-model.number="inertiaValue" type="range" min="0" max="1" step="0.05" />
               </label>
               <label>
-                <span>巡游速度 <strong>{{ roamSpeedValue.toFixed(0) }} px/s</strong></span>
+                <span
+                  >巡游速度 <strong>{{ roamSpeedValue.toFixed(0) }} px/s</strong></span
+                >
                 <input v-model.number="roamSpeedValue" type="range" min="20" max="240" step="5" />
               </label>
               <label>
-                <span>巡游距离 <strong>{{ Math.round(roamDistanceValue * 100) }}%</strong></span>
+                <span
+                  >巡游距离 <strong>{{ Math.round(roamDistanceValue * 100) }}%</strong></span
+                >
                 <input v-model.number="roamDistanceValue" type="range" min="0.05" max="1" step="0.05" />
               </label>
               <label>
-                <span>自动说话间隔 <strong>{{ talkIntervalValue.toFixed(0) }} 秒</strong></span>
+                <span
+                  >自动说话间隔 <strong>{{ talkIntervalValue.toFixed(0) }} 秒</strong></span
+                >
                 <input v-model.number="talkIntervalValue" type="range" min="30" max="600" step="10" />
               </label>
               <label>
-                <span>互动后延迟 <strong>{{ talkAfterInteractionDelayValue.toFixed(0) }} 秒</strong></span>
+                <span
+                  >互动后延迟 <strong>{{ talkAfterInteractionDelayValue.toFixed(0) }} 秒</strong></span
+                >
                 <input v-model.number="talkAfterInteractionDelayValue" type="range" min="2" max="120" step="2" />
               </label>
             </div>
@@ -3779,7 +4158,12 @@ onBeforeUnmount(() => {
                 <strong>多屏活动策略</strong>
                 <span>{{ multiMonitorRoam ? "已保存多屏策略" : "只按当前屏策略巡游" }}</span>
               </button>
-              <button class="switch-card" :class="{ selected: secondaryMonitorFullRoam }" type="button" @click="secondaryMonitorFullRoam = !secondaryMonitorFullRoam">
+              <button
+                class="switch-card"
+                :class="{ selected: secondaryMonitorFullRoam }"
+                type="button"
+                @click="secondaryMonitorFullRoam = !secondaryMonitorFullRoam"
+              >
                 <PanelRightOpen :size="19" />
                 <strong>副屏自由活动</strong>
                 <span>{{ secondaryMonitorFullRoam ? "副屏可使用更大活动范围" : "副屏也按安静范围处理" }}</span>
@@ -3789,22 +4173,69 @@ onBeforeUnmount(() => {
                 <strong>保持在屏幕内</strong>
                 <span>{{ keepOnScreen ? "开启，自动巡游不跑出工作区" : "关闭，仅保存偏好，仍建议谨慎" }}</span>
               </button>
+              <button class="switch-card" :class="{ selected: roamCurrentMonitorOnly }" type="button" @click="roamCurrentMonitorOnly = !roamCurrentMonitorOnly">
+                <CircleDot :size="19" />
+                <strong>只在当前屏</strong>
+                <span>{{ roamCurrentMonitorOnly ? "拖到哪块屏，自动巡游就留在哪块屏" : "允许按多屏策略选择活动范围" }}</span>
+              </button>
+              <button class="switch-card" :class="{ selected: lockSizeAcrossMonitors }" type="button" @click="lockSizeAcrossMonitors = !lockSizeAcrossMonitors">
+                <LayoutGrid :size="19" />
+                <strong>跨屏尺寸锁定</strong>
+                <span>{{ lockSizeAcrossMonitors ? "保持同一物理尺寸，降低 DPI 跳变" : "只保存偏好，后续按平台差异处理" }}</span>
+              </button>
             </div>
             <div class="setting-list">
-              <div><span>大小比例</span><strong>{{ scaleValue.toFixed(2) }}</strong></div>
-              <div><span>桌宠窗口</span><strong>{{ petWindowSizeLabel }}</strong></div>
-              <div><span>动画速度</span><strong>{{ animationSpeedValue.toFixed(2) }}</strong></div>
-              <div><span>拖动灵敏度</span><strong>{{ dragSensitivityValue.toFixed(2) }}</strong></div>
-              <div><span>拖动惯性</span><strong>{{ inertiaValue.toFixed(2) }}</strong></div>
-              <div><span>巡游速度</span><strong>{{ roamSpeedValue.toFixed(0) }} px/s</strong></div>
-              <div><span>巡游距离</span><strong>{{ Math.round(roamDistanceValue * 100) }}%</strong></div>
-              <div><span>自动说话间隔</span><strong>{{ talkIntervalValue.toFixed(0) }} 秒</strong></div>
-              <div><span>自动说话</span><strong>{{ talkEnabled ? "开启" : "关闭" }}</strong></div>
-              <div><span>自由巡游</span><strong>{{ roamEnabled ? "开启" : "关闭" }}</strong></div>
-              <div><span>鼠标穿透</span><strong>{{ clickThroughEnabled ? "开启" : "关闭" }}</strong></div>
-              <div><span>屏幕中活动</span><strong>{{ roamAllowCenter ? "允许" : "关闭" }}</strong></div>
-              <div><span>多屏策略</span><strong>{{ multiMonitorRoam ? "开启" : "关闭" }}</strong></div>
-              <div><span>置顶</span><strong>{{ petPinned ? "开启" : "关闭" }}</strong></div>
+              <div>
+                <span>大小比例</span><strong>{{ scaleValue.toFixed(2) }}</strong>
+              </div>
+              <div>
+                <span>桌宠窗口</span><strong>{{ petWindowSizeLabel }}</strong>
+              </div>
+              <div>
+                <span>动画速度</span><strong>{{ animationSpeedValue.toFixed(2) }}</strong>
+              </div>
+              <div>
+                <span>拖动灵敏度</span><strong>{{ dragSensitivityValue.toFixed(2) }}</strong>
+              </div>
+              <div>
+                <span>拖动惯性</span><strong>{{ inertiaValue.toFixed(2) }}</strong>
+              </div>
+              <div>
+                <span>巡游速度</span><strong>{{ roamSpeedValue.toFixed(0) }} px/s</strong>
+              </div>
+              <div>
+                <span>巡游距离</span><strong>{{ Math.round(roamDistanceValue * 100) }}%</strong>
+              </div>
+              <div>
+                <span>自动说话间隔</span><strong>{{ talkIntervalValue.toFixed(0) }} 秒</strong>
+              </div>
+              <div>
+                <span>自动说话</span><strong>{{ talkEnabled ? "开启" : "关闭" }}</strong>
+              </div>
+              <div>
+                <span>自由巡游</span><strong>{{ roamEnabled ? "开启" : "关闭" }}</strong>
+              </div>
+              <div>
+                <span>鼠标穿透</span><strong>{{ clickThroughEnabled ? "开启" : "关闭" }}</strong>
+              </div>
+              <div>
+                <span>屏幕中活动</span><strong>{{ roamAllowCenter ? "允许" : "关闭" }}</strong>
+              </div>
+              <div>
+                <span>多屏策略</span><strong>{{ multiMonitorRoam ? "开启" : "关闭" }}</strong>
+              </div>
+              <div>
+                <span>当前屏限制</span><strong>{{ roamCurrentMonitorOnly ? "开启" : "关闭" }}</strong>
+              </div>
+              <div>
+                <span>副屏自由</span><strong>{{ secondaryMonitorFullRoam ? "开启" : "关闭" }}</strong>
+              </div>
+              <div>
+                <span>跨屏尺寸锁定</span><strong>{{ lockSizeAcrossMonitors ? "开启" : "关闭" }}</strong>
+              </div>
+              <div>
+                <span>置顶</span><strong>{{ petPinned ? "开启" : "关闭" }}</strong>
+              </div>
             </div>
             <div class="button-row panel-actions">
               <button class="button primary" type="button" :disabled="settingsSaving" @click="saveBehaviorSettings">
@@ -3815,7 +4246,9 @@ onBeforeUnmount(() => {
               <button class="button ghost" type="button" :disabled="clickThroughBusy" @click="setClickThrough(!clickThroughEnabled, { persist: true })">
                 {{ clickThroughEnabled ? "恢复桌宠交互" : "开启鼠标穿透" }}
               </button>
-              <button class="button ghost" type="button" @click="setPinned(!petPinned)">{{ petPinned ? "取消置顶" : "窗口置顶" }}</button>
+              <button class="button ghost" type="button" @click="setPinned(!petPinned)">
+                {{ petPinned ? "取消置顶" : "窗口置顶" }}
+              </button>
             </div>
           </article>
         </section>
@@ -3830,9 +4263,18 @@ onBeforeUnmount(() => {
               <ShieldCheck :size="22" />
             </div>
             <div class="privacy-matrix">
-              <div><StatusPill label="默认排除" tone="sage" /><p>聊天、待办、提醒历史、陪伴状态、日志。</p></div>
-              <div><StatusPill label="永不导出" tone="danger-soft" /><p>API Key、Token、DPAPI、本机绝对路径。</p></div>
-              <div><StatusPill label="可选导出" tone="info" /><p>默认形象、动作素材、公开说明和新用户模板。</p></div>
+              <div>
+                <StatusPill label="默认排除" tone="sage" />
+                <p>聊天、待办、提醒历史、陪伴状态、日志。</p>
+              </div>
+              <div>
+                <StatusPill label="永不导出" tone="danger-soft" />
+                <p>API Key、Token、DPAPI、本机绝对路径。</p>
+              </div>
+              <div>
+                <StatusPill label="可选导出" tone="info" />
+                <p>默认形象、动作素材、公开说明和新用户模板。</p>
+              </div>
             </div>
           </article>
           <article class="panel">
@@ -3868,9 +4310,18 @@ onBeforeUnmount(() => {
         </header>
         <div class="form-stack">
           <div class="privacy-matrix">
-            <div><StatusPill label="只写本机" tone="sage" /><p>Key 只传给 Rust，写入 DPAPI 加密字段。</p></div>
-            <div><StatusPill label="不回显" tone="info" /><p>保存后前端只刷新“已保存”状态，不读取真实值。</p></div>
-            <div><StatusPill label="不进仓库" tone="danger-soft" /><p>运行镜像、DPAPI 和 Key 文件默认被 Git 排除。</p></div>
+            <div>
+              <StatusPill label="只写本机" tone="sage" />
+              <p>Key 只传给 Rust，写入 DPAPI 加密字段。</p>
+            </div>
+            <div>
+              <StatusPill label="不回显" tone="info" />
+              <p>保存后前端只刷新“已保存”状态，不读取真实值。</p>
+            </div>
+            <div>
+              <StatusPill label="不进仓库" tone="danger-soft" />
+              <p>运行镜像、DPAPI 和 Key 文件默认被 Git 排除。</p>
+            </div>
           </div>
           <label v-if="providerKeyModalMode === 'replace'">
             <span>新的 API Key</span>
