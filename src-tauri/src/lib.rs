@@ -777,6 +777,12 @@ struct RuntimeAsset {
 fn product_root() -> Result<PathBuf, String> {
     let mut candidates = Vec::new();
 
+    if let Ok(product_root) = std::env::var("DANHUANG_PRODUCT_ROOT") {
+        if !product_root.trim().is_empty() {
+            candidates.push(PathBuf::from(product_root.trim()));
+        }
+    }
+
     if let Ok(current_dir) = std::env::current_dir() {
         candidates.push(current_dir);
     }
@@ -798,7 +804,7 @@ fn product_root() -> Result<PathBuf, String> {
         }
     }
 
-    Err("未找到 DanhuangProduct 产品根目录".to_string())
+    Err("未找到 DanhuangProduct 产品根目录；请设置 DANHUANG_PRODUCT_ROOT 指向包含 data-dev/current-runtime/danhuang 的产品根".to_string())
 }
 
 fn read_json_file<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {

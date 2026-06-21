@@ -13,6 +13,14 @@ Rust 命令只通过白名单路径读取产品根目录下的 `data-dev/current
 
 前端不直接扫描任意本机目录；API Key 只在 Rust 侧从 DPAPI 加密字段或环境变量读取，不向 Vue 返回、不写日志。
 
+如果本仓库被单独 clone 到另一台电脑，请设置：
+
+```powershell
+$env:DANHUANG_PRODUCT_ROOT="D:\DanhuangProduct"
+```
+
+该目录需要包含 `data-dev/current-runtime/danhuang/`。也可以把完整产品根和本仓库保持原来的父子目录结构，让程序自动向上查找运行镜像。
+
 ## 开发命令
 
 ```powershell
@@ -20,6 +28,12 @@ npm install
 npm run type-check
 npm run build
 npm run tauri dev
+```
+
+开发环境检查：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\check-dev.ps1
 ```
 
 ## 调试打包
