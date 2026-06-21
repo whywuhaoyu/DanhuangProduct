@@ -131,6 +131,7 @@ const mockRuntime: RuntimeSummary = {
     roam_current_monitor_only: false,
     keep_on_screen: true,
     lock_size_across_monitors: true,
+    click_through_enabled: false,
     quick_menu_action_count: 5,
     quick_menu_actions: [
       "idle",
@@ -641,6 +642,14 @@ export const runtimeApi: RuntimeApi = {
   async setPetAlwaysOnTop(enabled: boolean) {
     if (!isTauri()) return;
     await invoke("set_pet_always_on_top", { enabled });
+  },
+
+  async setPetClickThrough(enabled: boolean) {
+    if (!isTauri()) {
+      mockRuntime.settings.click_through_enabled = enabled;
+      return;
+    }
+    await invoke("set_pet_click_through", { enabled });
   },
 
   async quitApp() {

@@ -141,6 +141,8 @@ struct RuntimeSettingsFile {
     #[serde(default)]
     lock_size_across_monitors: Option<bool>,
     #[serde(default)]
+    click_through_enabled: Option<bool>,
+    #[serde(default)]
     quick_menu_actions: Vec<String>,
     #[serde(flatten)]
     extra: HashMap<String, Value>,
@@ -198,6 +200,8 @@ struct UpdateSettingsInput {
     keep_on_screen: Option<bool>,
     #[serde(default)]
     lock_size_across_monitors: Option<bool>,
+    #[serde(default)]
+    click_through_enabled: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -736,6 +740,7 @@ struct SafeSettingsSummary {
     roam_current_monitor_only: Option<bool>,
     keep_on_screen: Option<bool>,
     lock_size_across_monitors: Option<bool>,
+    click_through_enabled: Option<bool>,
     quick_menu_action_count: usize,
     quick_menu_actions: Vec<String>,
 }
@@ -959,6 +964,7 @@ fn safe_settings_summary(settings: &RuntimeSettingsFile) -> SafeSettingsSummary 
         roam_current_monitor_only: settings.roam_current_monitor_only,
         keep_on_screen: settings.keep_on_screen,
         lock_size_across_monitors: settings.lock_size_across_monitors,
+        click_through_enabled: settings.click_through_enabled,
         quick_menu_action_count: settings.quick_menu_actions.len(),
         quick_menu_actions: settings.quick_menu_actions.clone(),
     }
@@ -3980,6 +3986,9 @@ fn update_settings(input: UpdateSettingsInput) -> Result<SafeSettingsSummary, St
     if let Some(lock_size_across_monitors) = input.lock_size_across_monitors {
         settings.lock_size_across_monitors = Some(lock_size_across_monitors);
     }
+    if let Some(click_through_enabled) = input.click_through_enabled {
+        settings.click_through_enabled = Some(click_through_enabled);
+    }
 
     write_json_file(&path, &settings)?;
     Ok(safe_settings_summary(&settings))
@@ -4771,6 +4780,16 @@ fn set_pet_always_on_top(app: AppHandle, enabled: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn set_pet_click_through(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("pet")
+        .ok_or_else(|| "窗口不存在: pet".to_string())?;
+    window
+        .set_ignore_cursor_events(enabled)
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 fn quit_app(app: AppHandle) {
     app.exit(0);
 }
@@ -4845,6 +4864,7 @@ pub fn run() {
             show_pet,
             hide_pet,
             set_pet_always_on_top,
+            set_pet_click_through,
             quit_app
         ])
         .run(tauri::generate_context!())

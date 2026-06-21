@@ -430,6 +430,8 @@ const secondaryMonitorFullRoam = ref(false);
 const roamCurrentMonitorOnly = ref(false);
 const keepOnScreen = ref(true);
 const lockSizeAcrossMonitors = ref(true);
+const clickThroughEnabled = ref(false);
+const clickThroughBusy = ref(false);
 const settingsSaving = ref(false);
 const petSwitchingId = ref("");
 const petProfileSaving = ref(false);
@@ -988,7 +990,9 @@ function applySettings(settings: SafeSettingsSummary) {
   roamCurrentMonitorOnly.value = settings.roam_current_monitor_only ?? roamCurrentMonitorOnly.value;
   keepOnScreen.value = settings.keep_on_screen ?? keepOnScreen.value;
   lockSizeAcrossMonitors.value = settings.lock_size_across_monitors ?? lockSizeAcrossMonitors.value;
+  clickThroughEnabled.value = settings.click_through_enabled ?? clickThroughEnabled.value;
   void syncPetWindowSize();
+  void syncPetClickThrough();
 }
 
 function commitRuntimeSettings(settings: SafeSettingsSummary) {
@@ -1051,6 +1055,7 @@ async function saveBehaviorSettings() {
       keep_on_screen: keepOnScreen.value,
       lock_size_across_monitors: lockSizeAcrossMonitors.value,
       always_on_top: petPinned.value,
+      click_through_enabled: clickThroughEnabled.value,
     },
     "行为设置已写入 E 盘运行镜像",
   );
@@ -2069,6 +2074,41 @@ async function setPinned(enabled: boolean) {
   }
 }
 
+async function syncPetClickThrough(enabled = clickThroughEnabled.value) {
+  if (clickThroughBusy.value) return;
+  try {
+    await runtimeApi.setPetClickThrough(enabled);
+  } catch {
+    // The panel can be previewed without native window control; explicit user toggles still report errors.
+  }
+}
+
+async function setClickThrough(enabled: boolean, options: { persist?: boolean } = {}) {
+  const previous = clickThroughEnabled.value;
+  clickThroughBusy.value = true;
+  try {
+    clickThroughEnabled.value = enabled;
+    if (enabled) {
+      quickMenuOpen.value = false;
+      petSwitcherOpen.value = false;
+    }
+    await runtimeApi.setPetClickThrough(enabled);
+    if (options.persist) {
+      await saveRuntimeSettings(
+        { click_through_enabled: enabled },
+        enabled ? "鼠标穿透已开启并保存" : "鼠标穿透已关闭并保存",
+      );
+    } else {
+      showToast(enabled ? "鼠标穿透已开启，可从控制面板关闭" : "鼠标穿透已关闭");
+    }
+  } catch (error) {
+    clickThroughEnabled.value = previous;
+    showToast(error instanceof Error ? error.message : String(error));
+  } finally {
+    clickThroughBusy.value = false;
+  }
+}
+
 async function startPetDrag(event: MouseEvent) {
   if (event.button !== 0 || quickMenuOpen.value) return;
   event.preventDefault();
@@ -2624,6 +2664,7 @@ onBeforeUnmount(() => {
       </div>
       <footer class="quick-menu__footer">
         <button class="button ghost" type="button" @click="setPinned(!petPinned)">{{ petPinned ? "取消置顶" : "窗口置顶" }}</button>
+        <button class="button ghost" type="button" :disabled="clickThroughBusy" @click="setClickThrough(true, { persist: true })">鼠标穿透</button>
         <button class="button ghost" type="button" @click="hidePetWindow">隐藏</button>
       </footer>
     </section>
@@ -3649,6 +3690,17 @@ onBeforeUnmount(() => {
                 <strong>自由巡游</strong>
                 <span>{{ roamEnabled ? "开启，按运行镜像策略移动" : "关闭，停留在当前位置" }}</span>
               </button>
+              <button
+                class="switch-card"
+                :class="{ selected: clickThroughEnabled }"
+                type="button"
+                :disabled="clickThroughBusy"
+                @click="setClickThrough(!clickThroughEnabled, { persist: true })"
+              >
+                <ShieldCheck :size="19" />
+                <strong>鼠标穿透</strong>
+                <span>{{ clickThroughEnabled ? "开启，桌宠不挡桌面；从控制面板关闭" : "关闭，可拖动和右键互动" }}</span>
+              </button>
             </div>
             <div class="movement-summary">
               <div>
@@ -3670,6 +3722,11 @@ onBeforeUnmount(() => {
                 <StatusPill label="尺寸同步" tone="sage" />
                 <strong>大小比例会真实生效</strong>
                 <span>保存或拖动滑杆后，透明桌宠窗口和精灵图会按当前比例同步调整。</span>
+              </div>
+              <div>
+                <StatusPill :label="clickThroughEnabled ? '穿透开启' : '可交互'" :tone="clickThroughEnabled ? 'info' : 'sage'" />
+                <strong>鼠标穿透可切换</strong>
+                <span>{{ clickThroughEnabled ? "桌宠不会挡住下面的软件，恢复交互请回到控制面板关闭。" : "桌宠可拖动、右键打开快捷菜单，也能响应摸摸和说句话。" }}</span>
               </div>
               <div>
                 <StatusPill label="Tk 设置接入" tone="sage" />
@@ -3744,6 +3801,7 @@ onBeforeUnmount(() => {
               <div><span>自动说话间隔</span><strong>{{ talkIntervalValue.toFixed(0) }} 秒</strong></div>
               <div><span>自动说话</span><strong>{{ talkEnabled ? "开启" : "关闭" }}</strong></div>
               <div><span>自由巡游</span><strong>{{ roamEnabled ? "开启" : "关闭" }}</strong></div>
+              <div><span>鼠标穿透</span><strong>{{ clickThroughEnabled ? "开启" : "关闭" }}</strong></div>
               <div><span>屏幕中活动</span><strong>{{ roamAllowCenter ? "允许" : "关闭" }}</strong></div>
               <div><span>多屏策略</span><strong>{{ multiMonitorRoam ? "开启" : "关闭" }}</strong></div>
               <div><span>置顶</span><strong>{{ petPinned ? "开启" : "关闭" }}</strong></div>
@@ -3754,6 +3812,9 @@ onBeforeUnmount(() => {
                 {{ settingsSaving ? "保存中" : "保存行为设置" }}
               </button>
               <button class="button ghost" type="button" @click="previewAutoTalk">预览自动说话</button>
+              <button class="button ghost" type="button" :disabled="clickThroughBusy" @click="setClickThrough(!clickThroughEnabled, { persist: true })">
+                {{ clickThroughEnabled ? "恢复桌宠交互" : "开启鼠标穿透" }}
+              </button>
               <button class="button ghost" type="button" @click="setPinned(!petPinned)">{{ petPinned ? "取消置顶" : "窗口置顶" }}</button>
             </div>
           </article>

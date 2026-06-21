@@ -51,6 +51,7 @@ export interface SafeSettingsSummary {
   roam_current_monitor_only: boolean | null;
   keep_on_screen: boolean | null;
   lock_size_across_monitors: boolean | null;
+  click_through_enabled: boolean | null;
   quick_menu_action_count: number;
   quick_menu_actions: string[];
 }
@@ -244,6 +245,7 @@ export interface UpdateSettingsInput {
   roam_current_monitor_only?: boolean;
   keep_on_screen?: boolean;
   lock_size_across_monitors?: boolean;
+  click_through_enabled?: boolean;
 }
 
 export interface SwitchPetInput {
@@ -317,5 +319,6 @@ export interface RuntimeApi {
   showPet(): Promise<void>;
   hidePet(): Promise<void>;
   setPetAlwaysOnTop(enabled: boolean): Promise<void>;
+  setPetClickThrough(enabled: boolean): Promise<void>;
   quitApp(): Promise<void>;
 }
