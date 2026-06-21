@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   availableMonitors,
@@ -78,6 +78,7 @@ const viewMode = params.get("window") === "pet" ? "pet" : "panel";
 const requestedPanelPage = params.get("page") ?? "";
 document.documentElement.dataset.window = viewMode;
 const PANEL_PAGE_KEY = "danhuang-panel-page";
+const pageScrollRef = ref<HTMLElement | null>(null);
 const THEME_KEY = "danhuang-panel-theme";
 const PET_REFRESH_KEY = "danhuang-runtime-refresh";
 const REMINDER_SIGNAL_KEY = "danhuang-reminder-signal";
@@ -2328,9 +2329,19 @@ function isKnownPage(page: string) {
   return navGroups.some((group) => group.items.some((item) => item.id === page));
 }
 
+function resetPageScroll() {
+  if (viewMode !== "panel") return;
+  void nextTick(() => {
+    const scroller = pageScrollRef.value;
+    if (!scroller) return;
+    scroller.scrollTo({ top: 0, left: 0 });
+  });
+}
+
 function switchPage(page: string) {
   if (!isKnownPage(page)) return;
   activePage.value = page;
+  resetPageScroll();
   if (page === "chat") {
     void refreshChatMessages();
   }
@@ -2346,6 +2357,7 @@ function openPanelPage(page: string) {
   if (isKnownPage(page)) {
     localStorage.setItem(PANEL_PAGE_KEY, page);
     activePage.value = page;
+    resetPageScroll();
     if (page === "chat") {
       void refreshChatMessages();
     }
@@ -2972,7 +2984,7 @@ onBeforeUnmount(() => {
         <span>正在读取 E 盘运行镜像...</span>
       </div>
 
-      <div v-else class="page-scroll">
+      <div v-else ref="pageScrollRef" class="page-scroll">
         <section v-if="activePage === 'overview'" class="dashboard-grid">
           <article class="panel hero-panel">
             <div class="hero-copy">

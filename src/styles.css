@@ -223,7 +223,7 @@ input:focus-visible {
 
 .nav {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
   flex-direction: column;
   gap: 17px;
   min-height: 0;
@@ -500,11 +500,13 @@ input:focus-visible {
 }
 
 .page-scroll {
-  flex: 1 1 auto;
+  flex: 1 1 0;
+  height: 0;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: scroll;
   padding: 0 8px 28px 0;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -525,6 +527,10 @@ input:focus-visible {
 
 .content-grid {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
+}
+
+.page-scroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--surface-card-alt) 58%, transparent);
 }
 
 .content-grid--identity,
@@ -2524,5 +2530,72 @@ input:focus-visible {
 
   .message {
     max-width: 92%;
+  }
+}
+
+@media (max-height: 700px) {
+  .sidebar {
+    gap: 12px;
+    padding: 14px 12px;
+  }
+
+  .brand {
+    min-height: 42px;
+  }
+
+  .workspace {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .topbar {
+    gap: 12px;
+  }
+
+  .topbar h1 {
+    margin-bottom: 2px;
+    font-size: 21px;
+  }
+
+  .theme-switcher button {
+    min-height: 28px;
+    padding: 4px 7px;
+  }
+
+  .button,
+  .icon-button,
+  .mobile-nav button {
+    min-height: 34px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .panel-header {
+    margin-bottom: 10px;
+  }
+
+  .page-scroll {
+    padding-bottom: 18px;
+  }
+}
+
+@media (max-height: 560px) {
+  .workspace {
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .sidebar {
+    padding: 10px;
+  }
+
+  .topbar p {
+    display: none;
+  }
+
+  .mobile-nav {
+    gap: 6px;
   }
 }
