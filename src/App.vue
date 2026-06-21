@@ -84,6 +84,9 @@ const PET_DRAG_IDLE_RESET_MS = 650;
 const PET_DRAG_SAFETY_MS = 8_000;
 const AUTO_TALK_MIN_MS = 90_000;
 const AUTO_TALK_MAX_MS = 180_000;
+const PET_BUBBLE_TYPE_INTERVAL_MS = 28;
+const PET_BUBBLE_MAX_QUEUE = 8;
+const PET_BUBBLE_RECENT_SIGNAL_MS = 120_000;
 
 type PanelThemeId = "studio" | "garden" | "daylight" | "soft-blue";
 type ReminderTone = "sage" | "info" | "danger-soft" | "warn";
@@ -158,6 +161,14 @@ interface PetBubbleSignal {
   time: string;
 }
 
+interface PetBubbleQueueItem {
+  id: string;
+  message: string;
+  actionId: string;
+  source: string;
+  time: string;
+}
+
 interface ProviderCard {
   id: string;
   name: string;
@@ -187,6 +198,7 @@ const activePetActionId = ref("idle");
 const spriteFrame = ref(0);
 let spriteFrameTimer: number | undefined;
 let petBubbleTimer: number | undefined;
+let petBubbleTypingTimer: number | undefined;
 let reminderCheckTimer: number | undefined;
 let petRoamTimer: number | undefined;
 let autoTalkTimer: number | undefined;
@@ -213,6 +225,7 @@ let unlistenChatReply: UnlistenFn | undefined;
 let lastHandledReminderSignal = "";
 let lastHandledChatSignal = "";
 let lastHandledPetBubbleSignal = "";
+const activePetBubbleId = ref("");
 const SPRITE_CELL_WIDTH = 192;
 const SPRITE_CELL_HEIGHT = 208;
 const themeOptions: ThemeOption[] = [
@@ -394,8 +407,10 @@ const bubbleFill = ref("#fffaf0");
 const bubbleOutline = ref("#d8a760");
 const bubbleTextColor = ref("#3b3024");
 const bubbleDuration = ref(6);
-const petBubbleVisible = ref(true);
+const petBubbleVisible = ref(false);
 const petBubbleText = ref("我在这里，主人。");
+const petBubbleFullText = ref("我在这里，主人。");
+const petBubbleQueue = ref<PetBubbleQueueItem[]>([]);
 const talkEnabled = ref(true);
 const roamEnabled = ref(true);
 const scaleValue = ref(0.46);
@@ -664,6 +679,7 @@ const activeBubblePaletteId = computed(
         palette.text.toLowerCase() === bubbleTextColor.value.toLowerCase(),
     )?.id ?? "",
 );
+const petBubbleQueueCount = computed(() => petBubbleQueue.value.length + (activePetBubbleId.value ? 1 : 0));
 
 function showToast(message: string) {
   toast.value = message;
@@ -679,16 +695,103 @@ function clearPetBubbleTimer() {
   }
 }
 
-function showPetBubble(message = petBubbleText.value) {
-  petBubbleText.value = message;
+function clearPetBubbleTypingTimer() {
+  if (petBubbleTypingTimer !== undefined) {
+    window.clearInterval(petBubbleTypingTimer);
+    petBubbleTypingTimer = undefined;
+  }
+}
+
+function clearPetBubbleLifecycle() {
+  clearPetBubbleTimer();
+  clearPetBubbleTypingTimer();
+  activePetBubbleId.value = "";
+}
+
+function normalizeBubbleMessage(message: string) {
+  return message.split(/\s+/).join(" ").trim().slice(0, 240);
+}
+
+function finishActivePetBubble() {
+  clearPetBubbleTimer();
+  clearPetBubbleTypingTimer();
+  petBubbleVisible.value = false;
+  activePetBubbleId.value = "";
+  window.setTimeout(() => {
+    startNextPetBubble();
+  }, 180);
+}
+
+function schedulePetBubbleHide(fullText: string) {
+  clearPetBubbleTimer();
+  const baseDuration = Math.min(Math.max(bubbleDuration.value || 6, 2), 20) * 1000;
+  const readingBonus = Math.min(Math.max(fullText.length * 18, 0), 2600);
+  petBubbleTimer = window.setTimeout(finishActivePetBubble, baseDuration + readingBonus);
+}
+
+function startNextPetBubble() {
+  if (activePetBubbleId.value || !petBubbleQueue.value.length) return;
+  const next = petBubbleQueue.value.shift();
+  if (!next) return;
+
+  activePetBubbleId.value = next.id;
+  petBubbleFullText.value = next.message;
+  petBubbleText.value = "";
   petBubbleVisible.value = true;
   pausePetRoam(1_600);
-  clearPetBubbleTimer();
-  const duration = Math.min(Math.max(bubbleDuration.value || 6, 2), 20) * 1000;
-  petBubbleTimer = window.setTimeout(() => {
+
+  if (next.actionId) {
+    const action = playableActions.value.find((item) => item.id === next.actionId);
+    void setPetActionSilently(action);
+  }
+
+  const chars = Array.from(next.message);
+  let index = 0;
+  const reveal = () => {
+    index += 1;
+    petBubbleText.value = chars.slice(0, index).join("");
+    if (index >= chars.length) {
+      clearPetBubbleTypingTimer();
+      schedulePetBubbleHide(next.message);
+    }
+  };
+
+  reveal();
+  if (chars.length > 1) {
+    petBubbleTypingTimer = window.setInterval(reveal, PET_BUBBLE_TYPE_INTERVAL_MS);
+  }
+}
+
+function showPetBubble(
+  message = petBubbleFullText.value || petBubbleText.value,
+  options: { source?: string; actionId?: string; replace?: boolean } = {},
+) {
+  const normalized = normalizeBubbleMessage(message);
+  if (!normalized) return;
+
+  if (options.replace) {
+    clearPetBubbleLifecycle();
+    petBubbleQueue.value = [];
     petBubbleVisible.value = false;
-    petBubbleTimer = undefined;
-  }, duration);
+  }
+
+  if (petBubbleQueue.value.length >= PET_BUBBLE_MAX_QUEUE) {
+    const autoIndex = petBubbleQueue.value.findIndex((item) => item.source === "auto-talk");
+    if (autoIndex >= 0) {
+      petBubbleQueue.value.splice(autoIndex, 1);
+    } else {
+      petBubbleQueue.value.shift();
+    }
+  }
+
+  petBubbleQueue.value.push({
+    id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    message: normalized,
+    actionId: options.actionId ?? "",
+    source: options.source ?? "local-preview",
+    time: nowIso(),
+  });
+  startNextPetBubble();
 }
 
 function autoTalkMessages() {
@@ -740,11 +843,10 @@ function showPetBubbleSignal(signal: PetBubbleSignal) {
   const key = petBubbleSignalKey(signal);
   if (lastHandledPetBubbleSignal === key) return;
   lastHandledPetBubbleSignal = key;
-  showPetBubble(signal.message);
-  const action =
-    playableActions.value.find((item) => item.id === signal.action_id) ??
-    (signal.source === "auto-talk" ? pickAutoTalkAction() : null);
-  void setPetActionSilently(action);
+  showPetBubble(signal.message, {
+    source: signal.source,
+    actionId: signal.action_id || (signal.source === "auto-talk" ? pickAutoTalkAction()?.id : ""),
+  });
 }
 
 function publishPetBubbleSignal(message: string, source = "manual-preview", actionId = "") {
@@ -797,7 +899,7 @@ function scheduleAutoTalk(delayMs = nextAutoTalkDelay()) {
   if (!talkEnabled.value) return;
   autoTalkTimer = window.setTimeout(() => {
     if (!talkEnabled.value) return;
-    if (quickMenuOpen.value || petBubbleVisible.value) {
+    if (quickMenuOpen.value || petBubbleVisible.value || petBubbleQueue.value.length) {
       const delay = Math.min(Math.max(Number(talkAfterInteractionDelayValue.value) || 10, 2), 120) * 1000;
       scheduleAutoTalk(delay);
       return;
@@ -848,7 +950,7 @@ function selectBubblePalette(palette: BubblePaletteOption) {
   bubbleFill.value = palette.fill;
   bubbleOutline.value = palette.outline;
   bubbleTextColor.value = palette.text;
-  showPetBubble("气泡颜色已预览。");
+  showPetBubble("气泡颜色已预览。", { replace: true, source: "appearance-preview" });
   showToast(`气泡配色已切换为${palette.label}`);
 }
 
@@ -1137,12 +1239,11 @@ function showChatFeedback(signal: ChatSignal) {
   const key = chatSignalKey(signal);
   if (lastHandledChatSignal === key) return;
   lastHandledChatSignal = key;
-  showPetBubble(signal.reply);
   const action =
     playableActions.value.find((item) => item.id === "waving") ??
     playableActions.value.find((item) => item.id === "idle") ??
     pickAutoTalkAction();
-  void setPetActionSilently(action);
+  showPetBubble(signal.reply, { source: signal.source || "chat", actionId: action?.id ?? "" });
 }
 
 function publishChatSignal(message: ChatMessageSummary) {
@@ -1474,7 +1575,7 @@ function showDueReminderFeedback(signal: ReminderSignal) {
   if (matched) activeDueReminder.value = matched;
 
   const message = `${signal.title} 到点了。`;
-  showPetBubble(message);
+  showPetBubble(message, { source: "reminder", actionId: pickReminderCueAction()?.id ?? "" });
   void playReminderCueAction();
   if (viewMode === "panel") {
     showToast(`提醒到点：${signal.title}`);
@@ -1597,7 +1698,7 @@ async function setPetAction(action: PetActionSummary) {
   activePetActionId.value = action.id;
   spriteFrame.value = 0;
   await loadPetSpriteForAction(action);
-  showPetBubble(`${action.label}，主人。`);
+  showPetBubble(`${action.label}，主人。`, { replace: true, source: "action", actionId: action.id });
   showToast(`${action.label} 正在播放`);
 }
 
@@ -2228,7 +2329,7 @@ async function switchCurrentPet(pet: PetSummary) {
       await refreshPetState();
     }
     localStorage.setItem(PET_REFRESH_KEY, `${Date.now()}:${pet.id}`);
-    showPetBubble(`已切换为${pet.display_name}。`);
+    showPetBubble(`已切换为${pet.display_name}。`, { replace: true, source: "pet-switch" });
     showToast(`已切换为 ${pet.display_name}`);
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
@@ -2277,6 +2378,40 @@ function handleStorage(event: StorageEvent) {
   }
 }
 
+function isRecentSignalTime(raw: string) {
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) && Date.now() - time <= PET_BUBBLE_RECENT_SIGNAL_MS;
+}
+
+function readStoredSignal<T>(key: string, parse: (payload: unknown) => T | null) {
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    return parse(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+function hydrateRecentPetSignals() {
+  if (viewMode !== "pet") return;
+
+  const petSignal = readStoredSignal(PET_BUBBLE_SIGNAL_KEY, petBubbleSignalFromPayload);
+  if (petSignal && isRecentSignalTime(petSignal.time)) {
+    showPetBubbleSignal(petSignal);
+  }
+
+  const chatSignal = readStoredSignal(CHAT_SIGNAL_KEY, chatSignalFromPayload);
+  if (chatSignal && isRecentSignalTime(chatSignal.time)) {
+    showChatFeedback(chatSignal);
+  }
+
+  const reminderSignal = readStoredSignal(REMINDER_SIGNAL_KEY, reminderSignalFromPayload);
+  if (reminderSignal && isRecentSignalTime(reminderSignal.time)) {
+    showDueReminderFeedback(reminderSignal);
+  }
+}
+
 onMounted(() => {
   if (viewMode === "panel") {
     const storedPage = localStorage.getItem(PANEL_PAGE_KEY);
@@ -2319,7 +2454,8 @@ onMounted(() => {
   startReminderCheckTimer();
   startPetRoamTimer();
   if (viewMode === "pet") {
-    showPetBubble(petBubbleText.value);
+    showPetBubble(petBubbleFullText.value || petBubbleText.value, { replace: true, source: "startup" });
+    hydrateRecentPetSignals();
     scheduleAutoTalk(45_000);
   }
   void refreshRuntime().then(() => {
@@ -2377,6 +2513,7 @@ watch(
 onBeforeUnmount(() => {
   clearSpriteTimer();
   clearPetBubbleTimer();
+  clearPetBubbleTypingTimer();
   clearReminderCheckTimer();
   clearPetRoamTimer();
   clearAutoTalkTimer();
@@ -2404,7 +2541,7 @@ onBeforeUnmount(() => {
     class="pet-window"
     @mousedown="startPetDrag"
     @contextmenu.prevent="openQuickMenu"
-    @dblclick="showPetBubble('摸摸头，蛋黄摇了摇尾巴。')"
+    @dblclick="showPetBubble('摸摸头，蛋黄摇了摇尾巴。', { source: 'touch', actionId: pickAutoTalkAction()?.id ?? '' })"
   >
     <div
       v-if="petBubbleVisible"
@@ -3370,6 +3507,7 @@ onBeforeUnmount(() => {
               <MetricCard label="透明度" value="100%" />
               <MetricCard label="气泡" :value="selectedBubbleStyle" />
               <MetricCard label="时长" :value="`${bubbleDuration.toFixed(0)} 秒`" />
+              <MetricCard label="队列" :value="`${petBubbleQueueCount} 条`" />
               <MetricCard label="背景" :value="activeTheme.label" />
             </div>
             <div class="bubble-preview" :class="`bubble-preview--${selectedBubbleStyle}`" :style="bubbleCssVars">
@@ -3415,7 +3553,7 @@ onBeforeUnmount(() => {
                 :key="style.id"
                 type="button"
                 :class="{ selected: selectedBubbleStyle === style.id }"
-                @click="selectedBubbleStyle = style.id; showPetBubble(`气泡样式已切换为${style.label}。`); showToast(`气泡样式预览切换为 ${style.label}`)"
+                @click="selectedBubbleStyle = style.id; showPetBubble(`气泡样式已切换为${style.label}。`, { replace: true, source: 'appearance-preview' }); showToast(`气泡样式预览切换为 ${style.label}`)"
               >
                 <span>{{ style.label }}</span>
                 <strong>{{ style.id }}</strong>
@@ -3443,19 +3581,19 @@ onBeforeUnmount(() => {
               <div class="bubble-control-grid">
                 <label>
                   <span>背景</span>
-                  <input v-model="bubbleFill" type="color" aria-label="气泡背景色" @input="showPetBubble('气泡背景已预览。')" />
+                  <input v-model="bubbleFill" type="color" aria-label="气泡背景色" @input="showPetBubble('气泡背景已预览。', { replace: true, source: 'appearance-preview' })" />
                 </label>
                 <label>
                   <span>描边</span>
-                  <input v-model="bubbleOutline" type="color" aria-label="气泡描边色" @input="showPetBubble('气泡描边已预览。')" />
+                  <input v-model="bubbleOutline" type="color" aria-label="气泡描边色" @input="showPetBubble('气泡描边已预览。', { replace: true, source: 'appearance-preview' })" />
                 </label>
                 <label>
                   <span>文字</span>
-                  <input v-model="bubbleTextColor" type="color" aria-label="气泡文字色" @input="showPetBubble('气泡文字已预览。')" />
+                  <input v-model="bubbleTextColor" type="color" aria-label="气泡文字色" @input="showPetBubble('气泡文字已预览。', { replace: true, source: 'appearance-preview' })" />
                 </label>
                 <label class="bubble-duration-control">
                   <span>显示时长 <strong>{{ bubbleDuration.toFixed(0) }} 秒</strong></span>
-                  <input v-model.number="bubbleDuration" type="range" min="2" max="20" step="1" @input="showPetBubble('显示时长已预览。')" />
+                  <input v-model.number="bubbleDuration" type="range" min="2" max="20" step="1" @input="showPetBubble('显示时长已预览。', { replace: true, source: 'appearance-preview' })" />
                 </label>
               </div>
             </div>
@@ -3464,7 +3602,7 @@ onBeforeUnmount(() => {
                 <Save :size="16" />
                 {{ settingsSaving ? "保存中" : "保存外观偏好" }}
               </button>
-              <button class="button ghost" type="button" @click="showPetBubble('这是保存前的气泡预览。')">预览桌宠气泡</button>
+              <button class="button ghost" type="button" @click="showPetBubble('这是保存前的气泡预览。', { replace: true, source: 'appearance-preview' })">预览桌宠气泡</button>
               <button class="button ghost" type="button" @click="selectTheme('studio')">恢复清透工作台</button>
             </div>
           </article>
