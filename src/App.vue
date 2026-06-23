@@ -2448,6 +2448,35 @@ function resetPageScroll() {
   });
 }
 
+function isVerticallyScrollableElement(element: HTMLElement) {
+  const style = window.getComputedStyle(element);
+  if (!/(auto|scroll|overlay)/.test(style.overflowY)) return false;
+  return element.scrollHeight > element.clientHeight + 1;
+}
+
+function findPanelScrollableElement(target: EventTarget | null, boundary: HTMLElement) {
+  let element = target instanceof HTMLElement ? target : null;
+  while (element && element !== boundary) {
+    if (isVerticallyScrollableElement(element)) return element;
+    element = element.parentElement;
+  }
+  return null;
+}
+
+function handleWorkspaceWheel(event: WheelEvent) {
+  if (viewMode !== "panel" || !event.deltaY) return;
+  const scroller = pageScrollRef.value;
+  if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 1) return;
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  if (target && scroller.contains(target)) return;
+  const localScroller = findPanelScrollableElement(target, scroller.parentElement ?? scroller);
+  if (localScroller && localScroller !== scroller) return;
+
+  const deltaUnit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scroller.clientHeight : 1;
+  scroller.scrollTop += event.deltaY * deltaUnit;
+  event.preventDefault();
+}
+
 function switchPage(page: string) {
   if (!isKnownPage(page)) return;
   activePage.value = page;
@@ -3050,7 +3079,7 @@ onBeforeUnmount(() => {
       </div>
     </aside>
 
-    <section class="workspace">
+    <section class="workspace" @wheel="handleWorkspaceWheel">
       <header class="topbar">
         <div>
           <span class="eyebrow">Tauri/Vue 产品版</span>
@@ -3098,7 +3127,7 @@ onBeforeUnmount(() => {
         <span>正在读取 E 盘运行镜像...</span>
       </div>
 
-      <div v-else ref="pageScrollRef" class="page-scroll">
+      <div v-else ref="pageScrollRef" class="page-scroll" tabindex="0" aria-label="页面内容">
         <section v-if="activePage === 'overview'" class="dashboard-grid">
           <article class="panel hero-panel">
             <div class="hero-copy">

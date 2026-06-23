@@ -234,6 +234,9 @@ input:focus-visible {
 .nav,
 .workspace,
 .page-scroll,
+.topbar-actions,
+.theme-switcher,
+.mobile-nav,
 .content-grid,
 .dashboard-grid,
 .quick-menu {
@@ -244,6 +247,9 @@ input:focus-visible {
 .nav::-webkit-scrollbar,
 .workspace::-webkit-scrollbar,
 .page-scroll::-webkit-scrollbar,
+.topbar-actions::-webkit-scrollbar,
+.theme-switcher::-webkit-scrollbar,
+.mobile-nav::-webkit-scrollbar,
 .content-grid::-webkit-scrollbar,
 .dashboard-grid::-webkit-scrollbar,
 .quick-menu::-webkit-scrollbar {
@@ -254,6 +260,9 @@ input:focus-visible {
 .nav::-webkit-scrollbar-track,
 .workspace::-webkit-scrollbar-track,
 .page-scroll::-webkit-scrollbar-track,
+.topbar-actions::-webkit-scrollbar-track,
+.theme-switcher::-webkit-scrollbar-track,
+.mobile-nav::-webkit-scrollbar-track,
 .content-grid::-webkit-scrollbar-track,
 .dashboard-grid::-webkit-scrollbar-track,
 .quick-menu::-webkit-scrollbar-track {
@@ -263,6 +272,9 @@ input:focus-visible {
 .nav::-webkit-scrollbar-thumb,
 .workspace::-webkit-scrollbar-thumb,
 .page-scroll::-webkit-scrollbar-thumb,
+.topbar-actions::-webkit-scrollbar-thumb,
+.theme-switcher::-webkit-scrollbar-thumb,
+.mobile-nav::-webkit-scrollbar-thumb,
 .content-grid::-webkit-scrollbar-thumb,
 .dashboard-grid::-webkit-scrollbar-thumb,
 .quick-menu::-webkit-scrollbar-thumb {
@@ -511,6 +523,11 @@ input:focus-visible {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
+}
+
+.page-scroll:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand-primary) 38%, transparent);
+  outline-offset: 2px;
 }
 
 .dashboard-grid,
@@ -2615,7 +2632,36 @@ input:focus-visible {
     display: none;
   }
 
+  .topbar {
+    gap: 7px;
+  }
+
+  .topbar h1 {
+    font-size: 19px;
+  }
+
+  .topbar-actions {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .theme-switcher {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: min(50vw, 280px);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .topbar-actions .button,
+  .theme-switcher button {
+    flex: 0 0 auto;
+  }
+
   .mobile-nav {
     gap: 6px;
+    min-height: 32px;
   }
 }
