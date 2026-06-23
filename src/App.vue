@@ -181,6 +181,7 @@ interface PetBubbleQueueItem {
   message: string;
   actionId: string;
   source: string;
+  priority: number;
   time: string;
 }
 
@@ -763,6 +764,16 @@ const activeBubblePaletteId = computed(
     )?.id ?? "",
 );
 const petBubbleQueueCount = computed(() => petBubbleQueue.value.length + (activePetBubbleId.value ? 1 : 0));
+const petBubblePriorityLabel = computed(() => {
+  const top = petBubbleQueue.value.slice().sort((a, b) => b.priority - a.priority)[0];
+  if (!top && activePetBubbleId.value) return "当前播放";
+  if (!top) return "空闲";
+  if (top.priority >= 90) return "提醒优先";
+  if (top.priority >= 76) return "对话优先";
+  if (top.priority >= 68) return "互动优先";
+  if (top.priority <= 20) return "自动说话";
+  return "普通";
+});
 
 function showToast(message: string) {
   toast.value = message;
@@ -793,6 +804,52 @@ function clearPetBubbleLifecycle() {
 
 function normalizeBubbleMessage(message: string) {
   return message.split(/\s+/).join(" ").trim().slice(0, 240);
+}
+
+function petBubblePriority(source = "local-preview") {
+  const normalizedSource = source.toLowerCase();
+  if (source === "reminder") return 90;
+  if (
+    source === "chat" ||
+    source === "cloud" ||
+    source === "local" ||
+    source === "tool" ||
+    normalizedSource.includes("chat") ||
+    normalizedSource.includes("reply") ||
+    normalizedSource.includes("fallback") ||
+    normalizedSource.includes("weather") ||
+    normalizedSource.includes("exchange") ||
+    normalizedSource.includes("research")
+  )
+    return 76;
+  if (source === "quick-menu" || source === "manual-preview" || source === "touch" || source === "action") return 68;
+  if (source === "appearance") return 58;
+  if (source === "auto-talk") return 20;
+  return 50;
+}
+
+function trimPetBubbleQueueForIncoming(priority: number) {
+  if (petBubbleQueue.value.length < PET_BUBBLE_MAX_QUEUE) return;
+  const lowerPriorityIndex = petBubbleQueue.value.findIndex((item) => item.priority < priority);
+  if (lowerPriorityIndex >= 0) {
+    petBubbleQueue.value.splice(lowerPriorityIndex, 1);
+    return;
+  }
+  const autoIndex = petBubbleQueue.value.findIndex((item) => item.source === "auto-talk");
+  if (autoIndex >= 0) {
+    petBubbleQueue.value.splice(autoIndex, 1);
+    return;
+  }
+  petBubbleQueue.value.shift();
+}
+
+function enqueuePetBubble(item: PetBubbleQueueItem) {
+  const insertIndex = petBubbleQueue.value.findIndex((queued) => queued.priority < item.priority);
+  if (insertIndex >= 0) {
+    petBubbleQueue.value.splice(insertIndex, 0, item);
+  } else {
+    petBubbleQueue.value.push(item);
+  }
 }
 
 function finishActivePetBubble() {
@@ -866,6 +923,8 @@ function startNextPetBubble() {
 function showPetBubble(message = petBubbleFullText.value || petBubbleText.value, options: { source?: string; actionId?: string; replace?: boolean } = {}) {
   const normalized = normalizeBubbleMessage(message);
   if (!normalized) return;
+  const source = options.source ?? "local-preview";
+  const priority = petBubblePriority(source);
 
   if (options.replace) {
     clearPetBubbleLifecycle();
@@ -873,20 +932,14 @@ function showPetBubble(message = petBubbleFullText.value || petBubbleText.value,
     petBubbleVisible.value = false;
   }
 
-  if (petBubbleQueue.value.length >= PET_BUBBLE_MAX_QUEUE) {
-    const autoIndex = petBubbleQueue.value.findIndex((item) => item.source === "auto-talk");
-    if (autoIndex >= 0) {
-      petBubbleQueue.value.splice(autoIndex, 1);
-    } else {
-      petBubbleQueue.value.shift();
-    }
-  }
+  trimPetBubbleQueueForIncoming(priority);
 
-  petBubbleQueue.value.push({
+  enqueuePetBubble({
     id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
     message: normalized,
     actionId: options.actionId ?? "",
-    source: options.source ?? "local-preview",
+    source,
+    priority,
     time: nowIso(),
   });
   startNextPetBubble();
@@ -3892,6 +3945,7 @@ onBeforeUnmount(() => {
               <MetricCard label="气泡" :value="selectedBubbleStyle" />
               <MetricCard label="时长" :value="`${bubbleDuration.toFixed(0)} 秒`" />
               <MetricCard label="队列" :value="`${petBubbleQueueCount} 条`" />
+              <MetricCard label="优先级" :value="petBubblePriorityLabel" />
               <MetricCard label="背景" :value="activeTheme.label" />
             </div>
             <div class="button-row">
