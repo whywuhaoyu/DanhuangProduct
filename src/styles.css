@@ -2191,9 +2191,10 @@ input:focus-visible {
   position: absolute;
   top: 18px;
   left: 50%;
+  z-index: 5;
   max-width: 256px;
   transform: translateX(-50%);
-  padding: 10px 13px;
+  padding: 10px 34px 10px 13px;
   color: var(--bubble-text, #3b3024);
   border: 1px solid var(--bubble-outline, rgba(216, 167, 96, 0.88));
   border-radius: 16px;
@@ -2201,6 +2202,25 @@ input:focus-visible {
   box-shadow: 0 8px 28px rgba(96, 70, 49, 0.12);
   font-size: 14px;
   line-height: 1.45;
+}
+
+.pet-bubble__close {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  color: color-mix(in srgb, var(--bubble-text, #3b3024) 74%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bubble-outline, #d8a760) 64%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bubble-fill, #fffaf0) 82%, white);
+  opacity: 0.72;
+}
+
+.pet-bubble__close:hover {
+  opacity: 1;
 }
 
 .pet-bubble--cloud,

@@ -805,6 +805,24 @@ function finishActivePetBubble() {
   }, 180);
 }
 
+function dismissCurrentPetBubble() {
+  if (!petBubbleVisible.value && !activePetBubbleId.value) return;
+  finishActivePetBubble();
+}
+
+function clearAllPetBubbles() {
+  clearPetBubbleLifecycle();
+  petBubbleQueue.value = [];
+  petBubbleVisible.value = false;
+  petBubbleText.value = "";
+  activePetBubbleId.value = "";
+}
+
+function quickClearPetBubbles() {
+  quickMenuOpen.value = false;
+  clearAllPetBubbles();
+}
+
 function schedulePetBubbleHide(fullText: string) {
   clearPetBubbleTimer();
   const baseDuration = Math.min(Math.max(bubbleDuration.value || 6, 2), 20) * 1000;
@@ -2341,6 +2359,8 @@ async function setClickThrough(enabled: boolean, options: { persist?: boolean } 
 
 async function startPetDrag(event: MouseEvent) {
   if (event.button !== 0 || quickMenuOpen.value) return;
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  if (target?.closest("button, input, textarea, select, a, .quick-menu, .pet-bubble")) return;
   event.preventDefault();
   pausePetRoam(4_000);
   try {
@@ -2850,6 +2870,9 @@ onBeforeUnmount(() => {
   >
     <div v-if="petBubbleVisible" class="pet-bubble" :class="`pet-bubble--${selectedBubbleStyle}`" :style="bubbleCssVars" aria-live="polite">
       <span>{{ petBubbleText }}</span>
+      <button class="pet-bubble__close" type="button" title="关闭气泡" @mousedown.stop @mouseup.stop @click.stop="clearAllPetBubbles">
+        <X :size="13" />
+      </button>
     </div>
     <div class="pet-stage" :class="{ 'pet-stage--fallback': !petSpriteAsset && !currentAsset }" :style="petStageStyle">
       <div
@@ -2885,6 +2908,7 @@ onBeforeUnmount(() => {
           <button type="button" @click="quickPetTouch">摸摸</button>
           <button type="button" @click="openPanelPage('chat')">对话</button>
           <button type="button" @click="openPanelPage('reminders')">提醒</button>
+          <button type="button" @click="quickClearPetBubbles">清空气泡</button>
           <button type="button" :class="{ active: petSwitcherOpen }" @click="petSwitcherOpen = !petSwitcherOpen">切换形象</button>
           <button type="button" @click="openPanelPage('overview')">控制面板</button>
         </div>
@@ -3869,6 +3893,19 @@ onBeforeUnmount(() => {
               <MetricCard label="时长" :value="`${bubbleDuration.toFixed(0)} 秒`" />
               <MetricCard label="队列" :value="`${petBubbleQueueCount} 条`" />
               <MetricCard label="背景" :value="activeTheme.label" />
+            </div>
+            <div class="button-row">
+              <button class="button ghost" type="button" @click="previewAutoTalk">
+                <MessageCircle :size="16" />
+                发一条预览
+              </button>
+              <button class="button ghost" type="button" :disabled="!petBubbleVisible" @click="dismissCurrentPetBubble">
+                <X :size="16" />
+                跳过当前
+              </button>
+              <button class="button ghost" type="button" :disabled="!petBubbleVisible && !petBubbleQueue.length" @click="clearAllPetBubbles">
+                清空队列
+              </button>
             </div>
             <div class="bubble-preview" :class="`bubble-preview--${selectedBubbleStyle}`" :style="bubbleCssVars">
               <span>我会轻轻说话，不挡住你。</span>
