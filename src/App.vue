@@ -93,6 +93,10 @@ const PET_DRAG_DIRECTION_THRESHOLD = 6;
 const PET_DRAG_FEEDBACK_INTERVAL_MS = 16;
 const PET_DRAG_IDLE_RESET_MS = 650;
 const PET_DRAG_SAFETY_MS = 8_000;
+const PET_DRAG_DIRECTION_SCORE_DECAY = 0.62;
+const PET_DRAG_DIRECTION_TRIGGER_MULTIPLIER = 1.55;
+const PET_DRAG_QUIET_MS = 180;
+const PET_WINDOW_MIN_POSITION_DELTA = 1;
 const AUTO_TALK_MIN_MS = 90_000;
 const AUTO_TALK_MAX_MS = 180_000;
 const PET_BUBBLE_TYPE_INTERVAL_MS = 28;
@@ -241,8 +245,11 @@ let petDragSafetyTimer: number | undefined;
 let petDragStartCursor: { x: number; y: number } | null = null;
 let petDragStartWindow: { x: number; y: number } | null = null;
 let petDragLastCursorX: number | null = null;
-let petDragLastClientX = 0;
 let petDragDirection: "left" | "right" | "idle" = "idle";
+let petDragDirectionScore = 0;
+let petDragLastMoveAt = 0;
+let petDragLastWindowX: number | null = null;
+let petDragLastWindowY: number | null = null;
 let spriteLoadVersion = 0;
 let unlistenRuntimeChanged: UnlistenFn | undefined;
 let unlistenReminderTriggered: UnlistenFn | undefined;
@@ -1001,6 +1008,10 @@ function petDragIdleResetDelay() {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function shouldMoveWindow(nextX: number, nextY: number, lastX: number | null, lastY: number | null, minDelta = PET_WINDOW_MIN_POSITION_DELTA) {
+  return lastX === null || lastY === null || Math.abs(nextX - lastX) >= minDelta || Math.abs(nextY - lastY) >= minDelta;
 }
 
 function monitorKey(monitor: Monitor) {
@@ -1953,13 +1964,29 @@ function schedulePetDragIdleReset(delay = PET_DRAG_IDLE_RESET_MS) {
   petDragIdleTimer = window.setTimeout(() => {
     petDragIdleTimer = undefined;
     petDragDirection = "idle";
+    petDragDirectionScore = 0;
     void settlePetRoamIdle();
   }, delay);
 }
 
 function updatePetDragAction(deltaX: number) {
-  if (Math.abs(deltaX) < petDragDirectionThreshold()) return;
-  const nextDirection = deltaX > 0 ? "right" : "left";
+  const threshold = petDragDirectionThreshold();
+  const quietDelta = Math.max(1, threshold * 0.42);
+  const now = Date.now();
+  if (Math.abs(deltaX) < quietDelta) {
+    petDragDirectionScore *= PET_DRAG_DIRECTION_SCORE_DECAY;
+    if (Math.abs(petDragDirectionScore) < 1 && now - petDragLastMoveAt > PET_DRAG_QUIET_MS && petDragDirection !== "idle") {
+      petDragDirection = "idle";
+      void setPetActionSilently(actionForRoam("idle"));
+    }
+    return;
+  }
+
+  petDragLastMoveAt = now;
+  petDragDirectionScore = clamp(petDragDirectionScore * PET_DRAG_DIRECTION_SCORE_DECAY + deltaX, -threshold * 3, threshold * 3);
+  if (Math.abs(petDragDirectionScore) < threshold * PET_DRAG_DIRECTION_TRIGGER_MULTIPLIER) return;
+
+  const nextDirection = petDragDirectionScore > 0 ? "right" : "left";
   if (nextDirection === petDragDirection) return;
   petDragDirection = nextDirection;
   void setPetActionSilently(actionForRoam(nextDirection));
@@ -1971,12 +1998,13 @@ async function pollPetDragCursor() {
   try {
     const position = await cursorPosition();
     if (petDragStartCursor && petDragStartWindow) {
-      await getCurrentWindow().setPosition(
-        new PhysicalPosition(
-          Math.round(petDragStartWindow.x + position.x - petDragStartCursor.x),
-          Math.round(petDragStartWindow.y + position.y - petDragStartCursor.y),
-        ),
-      );
+      const nextX = Math.round(petDragStartWindow.x + position.x - petDragStartCursor.x);
+      const nextY = Math.round(petDragStartWindow.y + position.y - petDragStartCursor.y);
+      if (shouldMoveWindow(nextX, nextY, petDragLastWindowX, petDragLastWindowY)) {
+        await getCurrentWindow().setPosition(new PhysicalPosition(nextX, nextY));
+        petDragLastWindowX = nextX;
+        petDragLastWindowY = nextY;
+      }
     }
     if (petDragLastCursorX !== null) {
       updatePetDragAction(position.x - petDragLastCursorX);
@@ -1989,12 +2017,6 @@ async function pollPetDragCursor() {
   }
 }
 
-function handlePetDragMove(event: MouseEvent) {
-  if (!petDragActive) return;
-  updatePetDragAction(event.clientX - petDragLastClientX);
-  petDragLastClientX = event.clientX;
-}
-
 function finishPetDragFeedback() {
   if (!petDragActive && petDragFeedbackTimer === undefined && petDragSafetyTimer === undefined) return;
   petDragActive = false;
@@ -2002,7 +2024,10 @@ function finishPetDragFeedback() {
   petDragStartCursor = null;
   petDragStartWindow = null;
   petDragLastCursorX = null;
-  window.removeEventListener("mousemove", handlePetDragMove);
+  petDragDirectionScore = 0;
+  petDragLastMoveAt = 0;
+  petDragLastWindowX = null;
+  petDragLastWindowY = null;
   window.removeEventListener("mouseup", finishPetDragFeedback);
   window.removeEventListener("blur", finishPetDragFeedback);
   clearPetDragFeedbackTimer();
@@ -2011,11 +2036,14 @@ function finishPetDragFeedback() {
   schedulePetDragIdleReset(petDragIdleResetDelay());
 }
 
-async function beginPetDragFeedback(event: MouseEvent) {
+async function beginPetDragFeedback(_event: MouseEvent) {
   petDragActive = true;
   petDragDirection = "idle";
-  petDragLastClientX = event.clientX;
   petDragLastCursorX = null;
+  petDragDirectionScore = 0;
+  petDragLastMoveAt = Date.now();
+  petDragLastWindowX = null;
+  petDragLastWindowY = null;
   petDragStartCursor = null;
   petDragStartWindow = null;
   clearPetDragIdleTimer();
@@ -2026,7 +2054,8 @@ async function beginPetDragFeedback(event: MouseEvent) {
   petDragStartCursor = { x: position.x, y: position.y };
   petDragStartWindow = { x: windowPosition.x, y: windowPosition.y };
   petDragLastCursorX = position.x;
-  window.addEventListener("mousemove", handlePetDragMove);
+  petDragLastWindowX = windowPosition.x;
+  petDragLastWindowY = windowPosition.y;
   window.addEventListener("mouseup", finishPetDragFeedback);
   window.addEventListener("blur", finishPetDragFeedback);
   petDragFeedbackTimer = window.setInterval(() => {
@@ -2071,7 +2100,11 @@ async function tickPetRoam() {
     const currentX = roamArea.clampCurrentPosition ? clamp(position.x, roamArea.minX, roamArea.maxX) : position.x;
     const currentY = roamArea.clampCurrentPosition ? clamp(position.y, roamArea.minY, roamArea.maxY) : position.y;
     if (roamArea.clampCurrentPosition && (currentX !== position.x || currentY !== position.y)) {
-      await windowRef.setPosition(new PhysicalPosition(Math.round(currentX), Math.round(currentY)));
+      const clampedCurrentX = Math.round(currentX);
+      const clampedCurrentY = Math.round(currentY);
+      if (shouldMoveWindow(clampedCurrentX, clampedCurrentY, Math.round(position.x), Math.round(position.y))) {
+        await windowRef.setPosition(new PhysicalPosition(clampedCurrentX, clampedCurrentY));
+      }
     }
 
     if (petRoamTargetX === null || Math.abs(petRoamTargetX - currentX) < 8) {
@@ -2115,7 +2148,11 @@ async function tickPetRoam() {
     const shouldClampNext = keepOnScreen.value && (roamArea.clampCurrentPosition || nextInsideTarget);
     const clampedNextX = shouldClampNext ? clamp(nextX, roamArea.minX, roamArea.maxX) : nextX;
     const clampedNextY = shouldClampNext ? clamp(nextY, roamArea.minY, roamArea.maxY) : nextY;
-    await windowRef.setPosition(new PhysicalPosition(Math.round(clampedNextX), Math.round(clampedNextY)));
+    const roundedNextX = Math.round(clampedNextX);
+    const roundedNextY = Math.round(clampedNextY);
+    if (shouldMoveWindow(roundedNextX, roundedNextY, Math.round(currentX), Math.round(currentY))) {
+      await windowRef.setPosition(new PhysicalPosition(roundedNextX, roundedNextY));
+    }
 
     if (Math.abs(clampedNextX - petRoamTargetX) < 2 && Math.abs(clampedNextY - targetY) < 2) {
       petRoamTargetX = null;
