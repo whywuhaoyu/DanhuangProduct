@@ -118,7 +118,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.45"
+APP_VERSION = "0.11.46"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -15939,6 +15939,23 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             tk.Label(cell, text=hint, bg=fill, fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(anchor="w", padx=10, pady=(1, 7))
             return cell
 
+        def panel_button_grid(parent, items, columns=4, width=112, height=30, row_gap=4):
+            for column in range(max(1, columns)):
+                parent.grid_columnconfigure(column, weight=1, uniform="panel_button_grid")
+            for index, item in enumerate(items):
+                text, command = item[:2]
+                variant = item[2] if len(item) > 2 else "neutral"
+                selected = item[3] if len(item) > 3 else False
+                button = panel_button(parent, text, command, width=width, height=height, variant=variant, selected=selected)
+                button.grid(
+                    row=index // columns,
+                    column=index % columns,
+                    sticky="ew",
+                    padx=(0 if index % columns == 0 else 6, 0),
+                    pady=(0, row_gap),
+                )
+            return parent
+
         def add_slider(parent, label, key, from_, to_, resolution, formatter, on_change=None):
             row = tk.Frame(parent, bg="#fff8ec", highlightthickness=1, highlightbackground="#ead7bd")
             row.pack(fill="x", padx=12, pady=6)
@@ -16374,6 +16391,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
             quick_row = tk.Frame(chat_card, bg="#fffdf7")
             quick_row.pack(fill="x", padx=12, pady=(0, 12))
+            quick_items = []
             for label, value in [
                 ("累了", "主人有点累了"),
                 ("难过", "主人有点难过"),
@@ -16382,7 +16400,8 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 ("打开聊天窗", ""),
             ]:
                 command = self.open_chat_panel if not value else (lambda v=value: self.handle_chat_message(v))
-                panel_button(quick_row, label, command, width=78, height=28).pack(side="left", padx=(0, 7))
+                quick_items.append((label, command, "primary" if not value else "neutral"))
+            panel_button_grid(quick_row, quick_items, columns=4, width=118, height=28)
 
             ai_card = make_card(parent, "AI 与记忆")
             state_title, state_hint, state_bg, state_fg = ai_mode_info()
@@ -16399,11 +16418,19 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
             ai_buttons = tk.Frame(ai_card, bg="#fffdf7")
             ai_buttons.pack(fill="x", padx=12, pady=(0, 10))
-            panel_button(ai_buttons, "刷新状态", lambda: self.set_ai_status(""), width=82).pack(side="left")
-            panel_button(ai_buttons, "AI 配置", lambda: switch_page("AI"), width=82, variant="primary").pack(side="left", padx=7)
-            panel_button(ai_buttons, "测试连接", self.test_active_ai_provider_async, width=82).pack(side="left")
-            panel_button(ai_buttons, "询问模型", self.ask_active_ai_model_async, width=82).pack(side="left", padx=7)
-            panel_button(ai_buttons, "查看记忆", self.open_memory_window, width=82).pack(side="left")
+            panel_button_grid(
+                ai_buttons,
+                [
+                    ("刷新状态", lambda: self.set_ai_status(""), "neutral"),
+                    ("AI 配置", lambda: switch_page("AI"), "primary"),
+                    ("测试连接", self.test_active_ai_provider_async, "neutral"),
+                    ("询问模型", self.ask_active_ai_model_async, "neutral"),
+                    ("查看记忆", self.open_memory_window, "neutral"),
+                ],
+                columns=4,
+                width=118,
+                height=30,
+            )
             tk.Label(ai_card, text=self.memory_status_text(), bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=12, pady=(0, 10))
 
             card = make_card(parent, "自动说话")
