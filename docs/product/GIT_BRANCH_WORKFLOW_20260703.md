@@ -93,6 +93,8 @@ git push -u origin backup/tk-20260703-current-pc
 
 另一台电脑不要在当前 Tk 分支上直接覆盖 `src-tauri-vue/`。推荐新克隆仓库，再把那台电脑的 Vue 最新代码复制进 `src-tauri-vue/`：
 
+详细命令见：[Vue 版本跨电脑推送操作文档](Vue版本跨电脑推送操作文档_20260703.md)。
+
 ```powershell
 git clone https://github.com/whywuhaoyu/DanhuangProduct.git
 cd DanhuangProduct
