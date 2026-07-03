@@ -1,0 +1,298 @@
+# 另一台电脑 Vue 版本推送操作文档
+
+日期：2026-07-03
+
+目标仓库：https://github.com/whywuhaoyu/DanhuangProduct.git
+
+目标分支：`vue/main`
+
+## 先记住三条原则
+
+1. 另一台电脑的 Vue/Tauri 进度只推到 `vue/main`，不要推到 `main` 或 `tk/main`。
+2. 只提交 `src-tauri-vue/` 里的源码、配置、锁文件和必要图标，不提交 `node_modules/`、`dist/`、`src-tauri/target/`、`src-tauri/gen/`。
+3. API Key、聊天记录、待办、提醒历史、运行数据、本机路径和打包产物都不能进 GitHub。
+
+## 当前 GitHub 状态
+
+当前这台电脑已经推上去：
+
+- `main`：仓库骨架、产品文档、Tk/Vue 分支说明。
+- `tk/main`：当前 Tk 版本基线。
+- `tk-v0.11.43`：当前 Tk 版本标签。
+
+另一台电脑要做的是：基于 `origin/main` 新建 `vue/main`，然后把那台电脑最新 Vue/Tauri 代码放进 `src-tauri-vue/` 并推送。
+
+## 准备工作
+
+确认另一台电脑已经有 Git：
+
+```powershell
+git --version
+```
+
+如果没有 Git，先安装 Git for Windows。安装后重新打开 PowerShell。
+
+确认能访问 GitHub：
+
+```powershell
+git ls-remote https://github.com/whywuhaoyu/DanhuangProduct.git
+```
+
+如果这里要求登录，按 GitHub 弹窗或命令行提示登录即可。
+
+## 推荐方案：新克隆一份干净仓库
+
+不要直接在原 Vue 项目里硬改 Git 历史。先克隆一份干净仓库，再把 Vue 最新代码复制进去。
+
+选择一个工作目录，例如：
+
+```powershell
+cd E:\ProgrammingAlgorithm\VSCodeProjects
+git clone https://github.com/whywuhaoyu/DanhuangProduct.git
+cd DanhuangProduct
+```
+
+确认远端分支：
+
+```powershell
+git fetch origin
+git branch -r
+```
+
+第一次推 Vue 分支时执行：
+
+```powershell
+git switch -c vue/main origin/main
+```
+
+如果以后 `vue/main` 已经存在，则执行：
+
+```powershell
+git switch -c vue/main --track origin/vue/main
+git pull --ff-only
+```
+
+## 复制 Vue/Tauri 最新代码
+
+假设另一台电脑上 Vue 最新代码在：
+
+```text
+D:\YourCurrentVueProject
+```
+
+先把克隆仓库里已有的 `src-tauri-vue` 临时改名留底：
+
+```powershell
+$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+Rename-Item .\src-tauri-vue ".\src-tauri-vue-from-main-$stamp"
+New-Item -ItemType Directory .\src-tauri-vue | Out-Null
+```
+
+再复制最新 Vue 代码，排除构建产物、依赖目录和本机私有文件：
+
+```powershell
+robocopy "D:\YourCurrentVueProject" ".\src-tauri-vue" /E `
+  /XD node_modules dist dist-ssr target gen .git .vscode `
+  /XF .env .env.* *.local *.log desktop-pet-settings.json *ai-providers*.json *chat-memory*.json *memory-summary*.json *reminder-history*.json *todos*.json companion-state.json
+
+if ($LASTEXITCODE -le 7) { $global:LASTEXITCODE = 0 }
+```
+
+把 `D:\YourCurrentVueProject` 改成另一台电脑真实的 Vue 项目目录。
+
+如果你的 Vue 代码本身已经在 `DanhuangProduct\src-tauri-vue\`，可以跳过复制步骤，但仍要执行后面的检查命令。
+
+## 提交前检查
+
+先看 Git 状态：
+
+```powershell
+git status --short
+```
+
+应该主要看到 `src-tauri-vue/` 下面的变更。
+
+暂存 Vue 代码：
+
+```powershell
+git add src-tauri-vue
+```
+
+看暂存统计：
+
+```powershell
+git diff --cached --stat
+```
+
+执行禁止文件检查：
+
+```powershell
+$bad = git diff --cached --name-only | Select-String -Pattern '(^|[\\/])(node_modules|target|dist|dist-ssr|data-dev|packages|archives|archive-staging|qa|current-audit)([\\/]|$)|\.env|desktop-pet-settings|ai-providers|chat-memory|memory-summary|reminder-history|todos|companion-state|\.log$|\.pfx$|\.p12$|\.pem$|\.key$'
+if ($bad) {
+  $bad
+  throw "停止：暂存区包含不应提交的文件"
+}
+```
+
+如果这一步报错，不要提交。先执行：
+
+```powershell
+git restore --staged .
+git status --short --ignored
+```
+
+确认 `.gitignore` 是否挡住了这些文件，再重新 `git add src-tauri-vue`。
+
+## Vue 构建检查
+
+进入 Vue 目录：
+
+```powershell
+cd src-tauri-vue
+```
+
+安装依赖：
+
+```powershell
+npm install
+```
+
+做类型检查：
+
+```powershell
+npm run type-check
+```
+
+做前端构建：
+
+```powershell
+npm run build
+```
+
+如果那台电脑 Tauri/Rust 环境完整，可以再做桌面包构建：
+
+```powershell
+npm run tauri build
+```
+
+构建完成后回到仓库根目录：
+
+```powershell
+cd ..
+```
+
+构建会产生 `dist/`、`src-tauri/target/` 等目录，它们应该被 `.gitignore` 忽略。再次检查：
+
+```powershell
+git status --short --ignored
+```
+
+## 提交并推送
+
+确认暂存区没问题：
+
+```powershell
+git diff --cached --check
+git diff --cached --stat
+```
+
+提交：
+
+```powershell
+git commit -m "feat(vue): add current Vue Tauri baseline"
+```
+
+推送 `vue/main`：
+
+```powershell
+git push -u origin vue/main
+```
+
+打一个快照标签：
+
+```powershell
+git tag vue-snapshot-20260703
+git push origin vue-snapshot-20260703
+```
+
+如果标签名已存在，换成带时间的标签：
+
+```powershell
+$tag = "vue-snapshot-" + (Get-Date -Format "yyyyMMdd-HHmmss")
+git tag $tag
+git push origin $tag
+```
+
+## 推送后验证
+
+确认远端分支存在：
+
+```powershell
+git ls-remote --heads origin vue/main
+```
+
+确认标签存在：
+
+```powershell
+git ls-remote --tags origin "vue-snapshot-*"
+```
+
+打开 GitHub 仓库页面，切换到 `vue/main` 分支，确认 `src-tauri-vue/` 是另一台电脑的最新 Vue 代码。
+
+## 常见问题处理
+
+### push 被拒绝
+
+如果看到 non-fast-forward 或 rejected：
+
+```powershell
+git fetch origin
+git log --oneline --left-right --graph vue/main...origin/vue/main
+```
+
+不要执行 `git push --force`。先确认远端是否已经有另一份 Vue 提交。
+
+### 误暂存了大目录
+
+如果 `git diff --cached --stat` 里出现 `node_modules`、`target`、`dist`：
+
+```powershell
+git restore --staged .
+git status --short --ignored
+git add src-tauri-vue
+```
+
+然后重新执行禁止文件检查。
+
+### 本地 Vue 项目已经是 Git 仓库
+
+不要把它的 `.git` 目录复制进新仓库。`robocopy` 命令里的 `/XD .git` 会排除它。
+
+如果你想保留那边原来的 Git 历史，先不要合并历史，先按本操作文档把当前代码状态推到 `vue/main`。历史迁移以后再单独处理。
+
+## 后续日常开发
+
+另一台电脑做 Vue：
+
+```powershell
+git switch vue/main
+git pull --ff-only
+# 修改 Vue/Tauri 代码
+git add src-tauri-vue docs
+git diff --cached --stat
+git commit -m "fix/vue: describe change"
+git push
+```
+
+当前这台电脑做 Tk：
+
+```powershell
+git switch tk/main
+git pull --ff-only
+# 修改 Tk 代码
+git add src-prototype docs
+git commit -m "fix(tk): describe change"
+git push
+```
+
+共享文档或产品规则改动，可以从 `tk/main` 或 `vue/main` 提 Pull Request 合到 `main`。不要把 Tk 代码直接合进 `vue/main`，也不要把 Vue 代码直接合进 `tk/main`。

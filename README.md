@@ -50,5 +50,6 @@ Get-CimInstance Win32_Process | Where-Object { ($_.Name -in @("python.exe","pyth
 - UI 重构：[docs/product/UI_REDESIGN_SPEC.md](docs/product/UI_REDESIGN_SPEC.md)
 - 目录治理：[docs/product/DIRECTORY_GOVERNANCE.md](docs/product/DIRECTORY_GOVERNANCE.md)
 - Git 分支维护：[docs/product/GIT_BRANCH_WORKFLOW_20260703.md](docs/product/GIT_BRANCH_WORKFLOW_20260703.md)
+- 另一台电脑 Vue 推送：[docs/product/VUE_BRANCH_PUSH_RUNBOOK_20260703.md](docs/product/VUE_BRANCH_PUSH_RUNBOOK_20260703.md)
 - 隐私和商业化：[docs/product/PRIVACY_COMMERCIALIZATION.md](docs/product/PRIVACY_COMMERCIALIZATION.md)
 - 执行追踪：[docs/product/IMPLEMENTATION_TRACKER.md](docs/product/IMPLEMENTATION_TRACKER.md)
