@@ -16,7 +16,7 @@ from core.companion_state import (  # noqa: E402
     fresh_distribution_companion_state,
     load_companion_state,
 )
-from core.pet_model import load_pet_family  # noqa: E402
+from core.pet_model import infer_pet_category, load_pet_family, pet_category_action_profile  # noqa: E402
 from core.settings_store import distribution_settings_snapshot, load_settings  # noqa: E402
 
 
@@ -114,6 +114,16 @@ class Phase1CoreTests(unittest.TestCase):
 
         self.assertEqual(family["version"], 1)
         self.assertEqual(family["pets"][0]["id"], "danhuang")
+
+    def test_pet_category_action_profiles_avoid_cat_dog_motion_for_non_animals(self) -> None:
+        aquatic = pet_category_action_profile(infer_pet_category({"species": "fish", "notes": "金鱼"}))
+        human = pet_category_action_profile(infer_pet_category({"species": "human", "notes": "Q版产品经理"}))
+        robot = pet_category_action_profile(infer_pet_category({"species": "robot", "notes": "盒子机器人"}))
+
+        self.assertIn("不要画腿脚", aquatic["identity_focus"])
+        self.assertIn("两足", human["motion_rules"])
+        self.assertIn("机械臂", robot["identity_focus"])
+        self.assertIn("不要画成四足动物", robot["avoid_rules"])
 
     def test_companion_state_is_loaded_from_pet_scope_and_normalized(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
