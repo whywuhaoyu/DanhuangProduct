@@ -1,0 +1,59 @@
+# Local archives and bulky generated output
+archives/
+packages/
+archive-staging/
+data-dev/
+qa/
+docs/product/current-audit/
+
+# Runtime and private data
+*.log
+*.lock
+!src-tauri-vue/src-tauri/Cargo.lock
+.env
+.env.*
+*.local
+*.pem
+*.key
+*.pfx
+*.p12
+*ai-providers*.json
+*chat-memory*.json
+*memory-summary*.json
+*reminder-history*.json
+*todos*.json
+companion-state.json
+desktop-pet-settings.json
+pet-state/
+
+# Local agent and editor state
+.agents/
+.codex/
+.vscode/
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node / Vue / Tauri generated output
+node_modules/
+dist/
+dist-ssr/
+src-tauri-vue/node_modules/
+src-tauri-vue/dist/
+src-tauri-vue/dist-ssr/
+src-tauri-vue/src-tauri/target/
+src-tauri-vue/src-tauri/gen/
+
+# Rust build output
+target/
+
+# .NET build output
+bin/
+obj/
+
+# Windows and IDE noise
+.vs/
+Thumbs.db
+Desktop.ini

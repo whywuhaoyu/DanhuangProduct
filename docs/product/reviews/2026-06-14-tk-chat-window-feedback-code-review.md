@@ -1,0 +1,46 @@
+# Tk 聊天窗输入反馈优化代码审查
+
+## 审查范围
+
+- `src-prototype/legacy-monolith/run-danhuang-desktop-pet.py`
+- `data-dev/current-runtime/danhuang/run-danhuang-desktop-pet.py`
+- `CHANGELOG.md`
+- `docs/product/CURRENT_TK_UI_OPTIMIZATION_BACKLOG.md`
+- `docs/product/IMPLEMENTATION_TRACKER.md`
+
+## 变更摘要
+
+- 聊天窗底部输入区改为暖色输入卡，增加标题、状态提示、输入框描边和主发送按钮。
+- 新增 `set_chat_composer_feedback()`，统一空输入、发送中、完成和 AI 失败后的输入区反馈。
+- 发送中状态下聊天窗“发送”按钮显示“发送中...”并禁用，Enter 再次触发时给出等待提示。
+- 聊天窗 AI 状态栏按当前文字内容调整颜色，但仍保留明确状态文案，不只用颜色表达状态。
+- AI 失败时保留原本本地兜底或重试提示逻辑，并在输入区给出可恢复反馈。
+
+## 审查结论
+
+Approved。
+
+未发现阻断问题。本次改动集中在聊天窗 UI 反馈层，未改变 AI Provider 配置、Key 存储、聊天记忆结构、待办识别、AI 请求参数和本地兜底回复逻辑。
+
+## 重点核查
+
+| 维度 | 结果 | 说明 |
+| --- | --- | --- |
+| 正确性 | 通过 | 非空消息仍统一进入 `handle_chat_message()`；待办、AI 和本地回复路径保持原有分支。 |
+| 交互反馈 | 通过 | 空输入、发送中、回复完成和 AI 失败都有聊天窗内联状态，不再静默清空输入。 |
+| 并发控制 | 通过 | 聊天窗自身发送按钮在等待回复时禁用，避免同一窗口重复提交。 |
+| 兼容性 | 通过 | 新增状态只挂在 `chat_history_box` 运行期字典中，不写入 JSON，不影响历史聊天数据。 |
+| 可维护性 | 通过 | 反馈更新集中在小方法内，关闭聊天窗时仍通过原有引用清理路径释放状态。 |
+
+## 验证记录
+
+- `python -m py_compile src-prototype/legacy-monolith/run-danhuang-desktop-pet.py data-dev/current-runtime/danhuang/run-danhuang-desktop-pet.py`：通过。
+- 关键运行 JSON 解析通过：设置、宠物家庭、陪伴状态、AI Provider、待办、提醒历史。
+- E 盘源副本已同步到 E 盘运行镜像。
+- 已检查本次触及文件无 UTF-8 BOM。
+- `git status --short` 未执行成功：当前产品目录不是 Git 仓库。
+
+## 剩余风险
+
+- 本轮未启动 Tk GUI 做截图验收；需要后续从 E 盘运行镜像打开聊天窗，确认输入卡宽度、长状态文案和发送中禁用态视觉正常。
+- 控制面板试聊区和聊天窗已对齐反馈模型，但对话页与聊天窗截图基线仍待补。

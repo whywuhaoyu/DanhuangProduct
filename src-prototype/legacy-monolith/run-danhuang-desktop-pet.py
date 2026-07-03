@@ -1,0 +1,19443 @@
+import calendar
+import copy
+import ctypes
+try:
+    from ctypes import wintypes
+except ImportError:
+    class wintypes:
+        BOOL = ctypes.c_int
+        DWORD = ctypes.c_uint32
+        HANDLE = ctypes.c_void_p
+        HWND = ctypes.c_void_p
+        LPCWSTR = ctypes.c_wchar_p
+        LPARAM = ctypes.c_ssize_t
+        UINT = ctypes.c_uint
+        WPARAM = ctypes.c_size_t
+import base64
+import importlib
+import json
+import os
+import random
+import re
+import shutil
+import sys
+import threading
+import time
+import traceback
+import html
+import urllib.error
+import urllib.parse
+import urllib.request
+import webbrowser
+import zipfile
+from datetime import date, datetime, timedelta
+from pathlib import Path
+import tkinter as tk
+from tkinter import colorchooser
+from tkinter import filedialog
+from tkinter import Menu
+from tkinter import messagebox
+from tkinter import ttk
+
+from PIL import Image, ImageDraw, ImageFilter, ImageTk
+
+MODULAR_BUILD_PET_ACTION_MANIFEST = None
+MODULAR_BUILD_PET_SWITCHER_MODEL = None
+MODULAR_BUILD_RIGHT_MENU_MODEL = None
+MODULAR_BUBBLE_PREVIEW_MODEL = None
+MODULAR_COMPUTE_BUBBLE_POSITION = None
+MODULAR_COMPUTE_RIGHT_MENU_POSITION = None
+MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION = None
+MODULAR_PET_WINDOW_SIZE = None
+MODULAR_RIGHT_MENU_POPUP_LAYOUT = None
+MODULAR_RIGHT_MENU_STYLE_TOKENS = None
+MODULAR_RENDER_BUBBLE_IMAGE = None
+MODULAR_WINDOW_BEHAVIOR_MODEL = None
+
+
+def _install_product_modular_path():
+    current = Path(__file__).resolve()
+    for parent in (current.parent, *current.parents):
+        modular_root = parent / "src-prototype" / "modular"
+        if modular_root.exists():
+            text = str(modular_root)
+            if text not in sys.path:
+                sys.path.insert(0, text)
+            return True
+    return False
+
+
+if _install_product_modular_path():
+    try:
+        from assets.manifest import build_pet_action_manifest as MODULAR_BUILD_PET_ACTION_MANIFEST
+        from ui.tk_bubble import bubble_preview_model as MODULAR_BUBBLE_PREVIEW_MODEL
+        from ui.tk_bubble import compute_bubble_position as MODULAR_COMPUTE_BUBBLE_POSITION
+        from ui.tk_pet_window import pet_window_size as MODULAR_PET_WINDOW_SIZE
+        from ui.tk_pet_window import window_behavior_model as MODULAR_WINDOW_BEHAVIOR_MODEL
+        from ui.tk_right_menu import build_pet_switcher_model as MODULAR_BUILD_PET_SWITCHER_MODEL
+        from ui.tk_right_menu import build_right_menu_model as MODULAR_BUILD_RIGHT_MENU_MODEL
+        from ui.tk_right_menu import compute_menu_position as MODULAR_COMPUTE_RIGHT_MENU_POSITION
+        from ui.tk_right_menu import compute_popup_position as MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION
+        from ui.tk_right_menu import right_menu_popup_layout as MODULAR_RIGHT_MENU_POPUP_LAYOUT
+        from ui.tk_right_menu import right_menu_style_tokens as MODULAR_RIGHT_MENU_STYLE_TOKENS
+        try:
+            from ui.tk_bubble_render import render_bubble_image as MODULAR_RENDER_BUBBLE_IMAGE
+        except Exception:
+            MODULAR_RENDER_BUBBLE_IMAGE = None
+    except Exception:
+        MODULAR_BUILD_PET_ACTION_MANIFEST = None
+        MODULAR_BUILD_PET_SWITCHER_MODEL = None
+        MODULAR_BUILD_RIGHT_MENU_MODEL = None
+        MODULAR_BUBBLE_PREVIEW_MODEL = None
+        MODULAR_COMPUTE_BUBBLE_POSITION = None
+        MODULAR_COMPUTE_RIGHT_MENU_POSITION = None
+        MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION = None
+        MODULAR_PET_WINDOW_SIZE = None
+        MODULAR_RIGHT_MENU_POPUP_LAYOUT = None
+        MODULAR_RIGHT_MENU_STYLE_TOKENS = None
+        MODULAR_RENDER_BUBBLE_IMAGE = None
+        MODULAR_WINDOW_BEHAVIOR_MODEL = None
+
+
+CELL_W = 192
+CELL_H = 208
+BG = "#f7f7f2"
+SPRITE_ALPHA_THRESHOLD = 96
+BUBBLE_FILL = "#fffaf0"
+BUBBLE_OUTLINE = "#d8a760"
+BUBBLE_TEXT = "#3b3024"
+BUBBLE_SHADOW = "#d8c2a4"
+SETTINGS_FILE = "desktop-pet-settings.json"
+COMPANION_FILE = "companion-state.json"
+DIALOGUE_FILE = "danhuang-dialogue-library.json"
+CHAT_MEMORY_FILE = "danhuang-chat-memory.json"
+MEMORY_SUMMARY_FILE = "danhuang-memory-summary.json"
+SOUL_PROFILE_FILE = "danhuang-soul-profile.md"
+AI_PROVIDERS_FILE = "danhuang-ai-providers.json"
+TODO_FILE = "danhuang-todos.json"
+REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
+FAMILY_FILE = "pet-family.json"
+APP_ICON_FILE = "danhuang-app-icon.ico"
+APP_VERSION = "0.11.43"
+INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
+INSTANCE_LOCK_HANDLE = None
+SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
+BASE_DPI = 96
+MONITOR_DEFAULTTONEAREST = 2
+MDT_EFFECTIVE_DPI = 0
+SWP_NOZORDER = 0x0004
+SWP_NOACTIVATE = 0x0010
+
+DEFAULT_SETTINGS = {
+    "scale": 0.50,
+    "animation_speed": 0.70,
+    "drag_sensitivity": 0.70,
+    "inertia": 0.55,
+    "idle_action_interval": 9.0,
+    "talk_enabled": True,
+    "talk_interval": 45.0,
+    "bubble_duration": 5.0,
+    "bubble_style": "soft",
+    "bubble_fill": BUBBLE_FILL,
+    "bubble_outline": BUBBLE_OUTLINE,
+    "bubble_text": BUBBLE_TEXT,
+    "position_x": -1,
+    "position_y": -1,
+    "keep_on_screen": True,
+    "always_on_top": True,
+    "opacity": 1.0,
+    "talk_after_interaction_delay": 18.0,
+    "roam_enabled": True,
+    "roam_interval": 28.0,
+    "roam_speed": 115.0,
+    "roam_distance": 0.55,
+    "roam_allow_center": True,
+    "multi_monitor_roam": True,
+    "roam_current_monitor_only": False,
+    "primary_monitor_edge_only": True,
+    "secondary_monitor_full_roam": True,
+    "lock_size_across_monitors": True,
+    "panel_advanced": False,
+    "panel_pinned": False,
+    "ai_enabled": True,
+    "ai_fallback_enabled": True,
+    "ai_model": "",
+    "ai_base_url": "",
+    "ai_timeout": 90.0,
+    "ai_chat_role_skill": "danhuang",
+    "current_pet_id": "danhuang",
+    "quick_menu_actions": [],
+    "default_export_dir": "",
+    "default_upload_dir": "",
+    "default_image_dir": "",
+    "github_repo": "",
+    "github_branch": "main",
+    "github_workflow": "build-macos-app.yml",
+    "github_token_env_key": "DANHUANG_GITHUB_TOKEN",
+    "encrypted_github_token": "",
+}
+
+CHAT_ROLE_SKILLS = {
+    "danhuang": {
+        "label": "蛋黄本色",
+        "short": "家人陪伴",
+        "best_for": "情绪陪伴、日常短聊、主人和宠物的故事",
+        "boundary": "优先保留蛋黄的家人感，不把聊天变成客服、老师或工具。",
+        "prompt": "保持蛋黄本来的家人陪伴语气：短句、安静、亲近，不像客服或老师。复杂问题可以回答，但先照顾主人的感受。",
+    },
+    "tech_mentor": {
+        "label": "技术导师",
+        "short": "讲透原理",
+        "best_for": "技术概念、代码思路、排错步骤",
+        "boundary": "只借用清楚拆解的表达方式，不冒充任何真实技术博主或老师。",
+        "prompt": "借用技术导师风格：先给结论，再拆概念、步骤、例子和坑点。语气清楚耐心，不端着，不冒充任何真实人物。",
+    },
+    "product_thinker": {
+        "label": "产品拆解",
+        "short": "场景取舍",
+        "best_for": "需求分析、功能取舍、产品路径",
+        "boundary": "聚焦场景和取舍，不用空泛商业黑话压主人。",
+        "prompt": "借用产品分析达人风格：围绕用户、场景、需求、约束、取舍和下一步行动回答。避免空泛口号，给具体判断。",
+    },
+    "knowledge_creator": {
+        "label": "知识博主",
+        "short": "讲人话",
+        "best_for": "科普解释、概念类比、复杂知识转白话",
+        "boundary": "使用泛化知识博主表达，不模仿具体真人达人、口头禅或个人经历。",
+        "prompt": "借用知识博主风格：先用一句人话讲清楚，再给类比、关键点和常见误区。不要堆术语，不冒充任何真实达人。",
+    },
+    "video_director": {
+        "label": "短视频编导",
+        "short": "选题脚本",
+        "best_for": "短视频选题、开头钩子、口播结构和标题",
+        "boundary": "只提供通用创作方法，不模仿具体平台达人本人语气或人设。",
+        "prompt": "借用短视频编导风格：先抓受众和钩子，再给结构、口播句和转场点。表达可以有网感，但不要夸张营销或编造事实。",
+    },
+    "researcher": {
+        "label": "研究助手",
+        "short": "来源意识",
+        "best_for": "资料检索、事实核对、多来源整理",
+        "boundary": "区分资料、推断和不确定项；资料不足时直接说不足。",
+        "prompt": "借用研究型助手风格：区分事实、推断和不确定项；如果有搜索资料，优先基于资料回答，并提示来源边界。",
+    },
+    "straight_coach": {
+        "label": "直说教练",
+        "short": "少绕弯",
+        "best_for": "快速判断、行动建议、风险提醒",
+        "boundary": "可以直接，但不能刻薄、羞辱、命令主人。",
+        "prompt": "借用直说型教练风格：直给重点、少铺垫、明确建议和风险。语气可以直接，但不能刻薄、命令或羞辱主人。",
+    },
+    "content_writer": {
+        "label": "运营写手",
+        "short": "表达润色",
+        "best_for": "标题、短文、朋友圈/小红书式表达润色",
+        "boundary": "强调表达质感，不编造事实、不夸大效果。",
+        "prompt": "借用内容创作者风格：适合标题、短文、表达润色和传播角度。回答要有画面感，但不要夸张营销或编造事实。",
+    },
+}
+
+PET_CATEGORY_PRESETS = {
+    "dog": {
+        "group": "哺乳动物",
+        "label": "犬类",
+        "examples": "狗、狼、狐狸、松狮、柯基、柴犬",
+        "movement": "四足小跑、摇尾、嗅闻、趴卧",
+        "base_labels": ["待机/坐立", "向右小跑", "向左小跑", "挥爪/抬爪", "原地小跳"],
+        "recommended": ["闻一闻", "追逐", "趴下", "伸懒腰", "打盹"],
+    },
+    "cat": {
+        "group": "哺乳动物",
+        "label": "猫类",
+        "examples": "猫、橘猫、狸花、布偶、豹猫",
+        "movement": "轻步走、尾巴摆动、舔爪、洗脸、伸懒腰",
+        "base_labels": ["待机/坐着", "向右轻步", "向左轻步", "抬爪打招呼", "轻跳"],
+        "recommended": ["舔爪", "洗脸", "舔毛", "伸懒腰", "打盹"],
+    },
+    "rabbit": {
+        "group": "哺乳动物",
+        "label": "兔类",
+        "examples": "兔子、垂耳兔、龙猫兔",
+        "movement": "蹦跳、竖耳/垂耳轻动、抱爪、缩成一团",
+        "base_labels": ["待机/蹲坐", "向右蹦跳", "向左蹦跳", "抬前爪", "小跳"],
+        "recommended": ["闻一闻", "打盹", "缩成一团", "伸展"],
+    },
+    "small_mammal": {
+        "group": "哺乳动物",
+        "label": "小型哺乳",
+        "examples": "仓鼠、豚鼠、龙猫、刺猬、雪貂",
+        "movement": "短步快跑、抱东西、嗅闻、团身休息",
+        "base_labels": ["待机/抱爪", "向右快走", "向左快走", "抬爪/探头", "小跳"],
+        "recommended": ["闻一闻", "打盹", "钻出来", "抱东西"],
+    },
+    "large_mammal": {
+        "group": "哺乳动物",
+        "label": "大型哺乳",
+        "examples": "马、鹿、羊、牛、熊猫、熊",
+        "movement": "稳步走、低头、抬头、原地踏步",
+        "base_labels": ["待机/站立", "向右稳步", "向左稳步", "抬前肢/点头", "小跳/踏步"],
+        "recommended": ["低头闻", "趴卧", "伸展", "慢走"],
+    },
+    "bird": {
+        "group": "鸟类",
+        "label": "鸟类",
+        "examples": "鹦鹉、鸽子、鸡、鸭、企鹅、小鸟",
+        "movement": "跳步、拍翅、歪头、啄一下",
+        "base_labels": ["待机/站立", "向右跳步", "向左跳步", "拍翅/挥翅", "小跳"],
+        "recommended": ["拍翅", "啄一下", "歪头", "打盹"],
+    },
+    "reptile": {
+        "group": "爬行动物",
+        "label": "爬行动物",
+        "examples": "龟、蜥蜴、蛇、守宫",
+        "movement": "慢爬、探头、吐信、缩壳或盘起",
+        "base_labels": ["待机/趴伏", "向右慢爬", "向左慢爬", "探头/抬爪", "短促前探"],
+        "recommended": ["探头", "缩壳/盘起", "晒太阳", "慢爬"],
+    },
+    "aquatic": {
+        "group": "水生生物",
+        "label": "水生生物",
+        "examples": "鱼、乌龟、章鱼、水母、海马",
+        "movement": "漂浮、摆尾、游动、伸缩触手",
+        "base_labels": ["待机/漂浮", "向右游动", "向左游动", "摆鳍/触手", "上浮一下"],
+        "recommended": ["摆尾", "吐泡泡", "漂浮", "转身"],
+    },
+    "insect": {
+        "group": "昆虫/节肢",
+        "label": "昆虫/节肢",
+        "examples": "蝴蝶、甲虫、蜜蜂、蜘蛛、螃蟹",
+        "movement": "爬行、振翅、触角摆动、横向移动",
+        "base_labels": ["待机/停驻", "向右爬/飞", "向左爬/飞", "挥翅/触角", "小跃起"],
+        "recommended": ["振翅", "爬行", "停驻", "横移"],
+    },
+    "human": {
+        "group": "人物",
+        "label": "人物",
+        "examples": "真人、虚拟人、Q版人物、家人角色、助手角色",
+        "movement": "站立、走路、招手、点头、轻跳",
+        "base_labels": ["待机/站立", "向右走", "向左走", "招手", "轻跳/点头"],
+        "recommended": ["点头", "坐下", "思考", "挥手", "打招呼"],
+    },
+    "fantasy": {
+        "group": "幻想生物",
+        "label": "幻想生物",
+        "examples": "龙、精灵、史莱姆、独角兽、小怪兽",
+        "movement": "漂浮、跳动、扑翼、摆尾、变形",
+        "base_labels": ["待机/漂浮", "向右移动", "向左移动", "挥手/扑翼", "弹跳"],
+        "recommended": ["漂浮", "发光", "扑翼", "缩放弹跳"],
+    },
+    "robot": {
+        "group": "机械/物件",
+        "label": "机器人",
+        "examples": "机器人、AI 盒子、机甲、小设备",
+        "movement": "滑行、履带移动、机械臂挥动、屏幕闪烁",
+        "base_labels": ["待机/亮屏", "向右滑行", "向左滑行", "挥机械臂", "弹跳/抬升"],
+        "recommended": ["亮屏", "充电", "扫描", "小幅变形"],
+    },
+    "object": {
+        "group": "机械/物件",
+        "label": "拟物/物件",
+        "examples": "植物、杯子、玩偶、食物、桌面物件",
+        "movement": "轻微摇晃、弹跳、伸展、表情变化",
+        "base_labels": ["待机/轻晃", "向右挪动", "向左挪动", "挥手/摇摆", "弹跳"],
+        "recommended": ["摇晃", "发芽", "眨眼", "伸展"],
+    },
+    "other": {
+        "group": "其他",
+        "label": "其他/待定",
+        "examples": "暂未分类的新形象",
+        "movement": "先按稳定桌宠基础动作处理，再根据形态补扩展动作",
+        "base_labels": ["待机", "向右移动", "向左移动", "打招呼", "跳一下"],
+        "recommended": ["待补动作", "休息", "互动"],
+    },
+}
+
+AI_PROVIDER_PRESETS = {
+    "openai": {
+        "display_name": "OpenAI",
+        "api_format": "responses",
+        "base_url": "https://api.openai.com/v1/responses",
+        "model": "gpt-5.4-mini",
+        "default_model": "gpt-5.4-mini",
+        "env_key": "OPENAI_API_KEY",
+        "models": ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-4.1-mini", "gpt-4.1"],
+        "provider_note": "通用办公、写作和轻量助手。",
+        "model_recommendation": "日常陪聊和轻量办公推荐 gpt-5.4-mini；复杂写作或长文整理可选 gpt-5.4；高难任务可试 gpt-5.5。",
+        "model_notes": {
+            "gpt-5.5": "旗舰模型，适合复杂推理、代码和高难办公任务。",
+            "gpt-5.4": "适合复杂写作、规划和长上下文任务。",
+            "gpt-5.4-mini": "速度和成本均衡，适合日常陪聊、提醒理解和轻量办公。",
+            "gpt-5.4-nano": "低延迟低成本，适合简单自动回复。",
+            "gpt-4.1-mini": "速度和成本均衡，适合日常陪聊、提醒理解和轻量办公。",
+            "gpt-4.1": "更适合复杂写作、规划和长上下文任务。",
+            "gpt-4o-mini": "适合快速聊天和轻量资料整理。",
+        },
+        "use_cases": ["通用聊天", "写作润色", "轻量办公"],
+        "diagnostic_hint": "OpenAI 使用 Responses API；Base URL 默认保持 /v1/responses，失败先检查 Key 和账户用量。",
+        "quota_format": "console",
+        "quota_console_url": "https://platform.openai.com/usage",
+        "quota_note": "OpenAI 用量和余额需要到平台 Usage 页面查看。",
+    },
+    "deepseek": {
+        "display_name": "DeepSeek",
+        "api_format": "chat_completions",
+        "base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-v4-flash",
+        "default_model": "deepseek-v4-flash",
+        "env_key": "DEEPSEEK_API_KEY",
+        "models": ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"],
+        "provider_note": "中文聊天、推理和代码问答。",
+        "model_recommendation": "日常陪聊、办公和资料回答推荐 deepseek-v4-flash；复杂推理和高质量回答可切 deepseek-v4-pro。",
+        "model_notes": {
+            "deepseek-v4-flash": "适合自然聊天、中文办公、资料整理和代码问答，推荐作为默认陪聊模型。",
+            "deepseek-v4-pro": "适合复杂推理和高质量长任务，可能响应更慢。",
+            "deepseek-chat": "适合自然聊天、中文办公、资料整理和代码问答，推荐作为默认陪聊模型。",
+            "deepseek-reasoner": "适合复杂推理和严肃分析，可能响应更慢，不建议普通陪聊默认使用。",
+        },
+        "use_cases": ["中文聊天", "代码问答", "复杂推理"],
+        "diagnostic_hint": "DeepSeek 走 OpenAI 兼容 Chat Completions；陪聊优先 deepseek-chat，reasoner 超时就切回 chat。",
+        "quota_format": "deepseek_balance",
+        "quota_console_url": "https://platform.deepseek.com/usage",
+        "quota_note": "可通过官方余额接口查询账户余额。",
+    },
+    "kimi": {
+        "display_name": "Kimi / Moonshot",
+        "api_format": "chat_completions",
+        "base_url": "https://api.moonshot.cn/v1",
+        "model": "kimi-k2.5",
+        "default_model": "kimi-k2.5",
+        "env_key": "MOONSHOT_API_KEY",
+        "models": ["kimi-k2.5", "kimi-k2-turbo-preview", "kimi-k2-thinking-turbo", "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+        "provider_note": "长文本阅读、写作和资料整理。",
+        "model_recommendation": "普通陪聊和写作推荐 kimi-k2.5；长文档整理可按上下文长度切 moonshot-v1-32k / 128k。",
+        "model_notes": {
+            "kimi-k2.5": "Kimi 新一代通用模型，适合聊天、办公、资料整理和代码。",
+            "kimi-k2-turbo-preview": "K2 高速版本，适合更快的陪聊和办公响应。",
+            "moonshot-v1-8k": "适合普通陪聊、短文写作和轻量资料整理。",
+            "moonshot-v1-32k": "适合较长材料阅读和总结。",
+            "moonshot-v1-128k": "适合长文档和大段资料整理，响应可能更慢。",
+        },
+        "use_cases": ["长文本", "写作", "资料整理"],
+        "diagnostic_hint": "Moonshot 使用 OpenAI 兼容接口；长上下文模型更慢，普通聊天优先 8k。",
+        "quota_format": "console",
+        "quota_console_url": "https://platform.moonshot.cn/console/account",
+        "quota_note": "Moonshot 暂未接入通用余额接口，请到控制台查看。",
+    },
+    "zhipu": {
+        "display_name": "智谱 GLM",
+        "api_format": "chat_completions",
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "model": "glm-4-flash",
+        "default_model": "glm-4-flash",
+        "env_key": "ZHIPU_API_KEY",
+        "models": ["glm-4-flash", "glm-4-plus", "glm-4-air"],
+        "provider_note": "中文办公、知识问答和轻量助手。",
+        "model_recommendation": "轻量陪聊推荐 glm-4-flash；更复杂的中文办公和知识问答可选 glm-4-plus。",
+        "model_notes": {
+            "glm-4-flash": "响应快，适合陪聊、提醒理解和轻量办公。",
+            "glm-4-plus": "适合更复杂的中文问答、写作和整理。",
+            "glm-4-air": "适合通用任务，速度和质量居中。",
+        },
+        "use_cases": ["中文办公", "知识问答", "轻量陪聊"],
+        "diagnostic_hint": "智谱使用 OpenAI 兼容接口；失败先检查 base_url 是否保持到 /api/paas/v4。",
+        "quota_format": "console",
+        "quota_console_url": "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
+        "quota_note": "智谱额度请到开放平台控制台查看。",
+    },
+    "xiaomi_mimo": {
+        "display_name": "小米 MiMo",
+        "api_format": "chat_completions",
+        "base_url": "https://token-plan-cn.xiaomimimo.com/v1",
+        "model": "mimo-v2-omni",
+        "default_model": "mimo-v2-omni",
+        "env_key": "XIAOMI_API_KEY",
+        "models": ["mimo-v2-omni", "mimo-v2-pro", "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash"],
+        "provider_note": "当前桌宠陪聊默认厂商，OpenAI 兼容接口。",
+        "model_recommendation": "陪聊推荐 mimo-v2-omni；如果响应不完整或太慢，可切 mimo-v2-pro；v2.5 系列适合更复杂任务。",
+        "model_notes": {
+            "mimo-v2-omni": "日常陪聊响应更快，适合桌宠实时对话。",
+            "mimo-v2-pro": "稳定性较好，适合自然聊天兜底。",
+            "mimo-v2.5-pro": "适合更强推理和复杂任务，可能更慢。",
+            "mimo-v2.5": "适合通用聊天和资料理解。",
+            "mimo-v2-flash": "轻量快速，但复杂角色对话可能不够稳。",
+        },
+        "use_cases": ["桌宠陪聊", "中文对话", "多模态理解"],
+        "diagnostic_hint": "小米 MiMo 的 Base URL 是 API 地址，不是网页控制台；控制台请用 plan-manage 地址。",
+        "quota_format": "console",
+        "quota_console_url": "https://platform.xiaomimimo.com/console/plan-manage",
+        "quota_note": "小米 MiMo / Token Plan 暂未公开通用余额接口，请到控制台查看。",
+    },
+    "gemini": {
+        "display_name": "Google Gemini",
+        "api_format": "chat_completions",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "model": "gemini-2.5-flash",
+        "default_model": "gemini-2.5-flash",
+        "env_key": "GEMINI_API_KEY",
+        "models": ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-flash-latest", "gemini-2.0-flash-lite"],
+        "provider_note": "资料整理、多模态和办公辅助。",
+        "model_recommendation": "资料整理和办公推荐 gemini-2.5-flash；想尝鲜 Gemini 3 可试 gemini-3-flash-preview；复杂分析可选 gemini-2.5-pro。",
+        "model_notes": {
+            "gemini-3-flash-preview": "Gemini 3 Flash 预览模型，适合尝鲜高能力快速任务。",
+            "gemini-2.5-flash": "适合通用聊天和多模态辅助。",
+            "gemini-2.5-pro": "适合复杂分析，响应可能更慢。",
+            "gemini-flash-latest": "Flash 最新别名，会随官方更新变化。",
+            "gemini-2.0-flash-lite": "适合快速通用任务。",
+        },
+        "use_cases": ["资料整理", "多模态", "办公辅助"],
+        "diagnostic_hint": "Gemini 通过 OpenAI 兼容入口调用；失败先检查 Google AI Studio Key 和项目权限。",
+        "quota_format": "console",
+        "quota_console_url": "https://aistudio.google.com/app/apikey",
+        "quota_note": "Gemini 额度按 Google AI Studio / Cloud 项目查看。",
+    },
+    "qwen": {
+        "display_name": "通义千问 Qwen",
+        "api_format": "chat_completions",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "model": "qwen-plus",
+        "default_model": "qwen-plus",
+        "env_key": "DASHSCOPE_API_KEY",
+        "models": ["qwen3-max", "qwen3-max-preview", "qwen-max-latest", "qwen-plus", "qwen-plus-latest", "qwen-flash", "qwen-turbo", "qwen-long", "qwen3-coder-plus", "qwen3-coder-flash"],
+        "provider_note": "中文办公、长文写作和代码辅助。",
+        "model_recommendation": "中文办公推荐 qwen-plus 或 qwen-plus-latest；快速陪聊可选 qwen-flash；代码任务可选 qwen3-coder-plus。",
+        "model_notes": {
+            "qwen3-max": "适合复杂中文办公和高质量回答，请确认账号可用。",
+            "qwen-plus": "适合中文办公、写作和资料整理。",
+            "qwen-plus-latest": "跟随 plus 最新能力，适合希望自动升级的配置。",
+            "qwen-flash": "响应快，适合轻量陪聊。",
+            "qwen-turbo": "适合快速通用任务。",
+            "qwen-long": "适合长文档整理。",
+            "qwen3-coder-plus": "适合代码解释和辅助开发。",
+        },
+        "use_cases": ["中文办公", "长文写作", "代码辅助"],
+        "diagnostic_hint": "通义走百炼 OpenAI 兼容模式；Base URL 默认保持 compatible-mode/v1。",
+        "quota_format": "console",
+        "quota_console_url": "https://bailian.console.aliyun.com/",
+        "quota_note": "DashScope 额度请到阿里云百炼控制台查看。",
+    },
+    "openrouter": {
+        "display_name": "OpenRouter",
+        "api_format": "chat_completions",
+        "base_url": "https://openrouter.ai/api/v1",
+        "model": "openrouter/auto",
+        "default_model": "openrouter/auto",
+        "env_key": "OPENROUTER_API_KEY",
+        "models": ["openrouter/auto", "anthropic/claude-sonnet-4.5", "openai/gpt-5.1", "google/gemini-3-flash-preview", "deepseek/deepseek-v3.2"],
+        "provider_note": "多模型路由，适合对比不同聊天模型。",
+        "model_recommendation": "不确定模型时用 openrouter/auto；需要稳定质量时手动选择对应大模型。",
+        "model_notes": {
+            "openrouter/auto": "自动路由，适合试用和对比不同模型。",
+            "anthropic/claude-sonnet-4.5": "适合写作、长文本和代码理解。",
+            "openai/gpt-5.1": "适合通用办公和复杂任务。",
+            "google/gemini-3-flash-preview": "适合快速资料整理。",
+            "deepseek/deepseek-v3.2": "适合中文问答和代码辅助。",
+        },
+        "use_cases": ["多模型路由", "模型对比", "备用中转"],
+        "diagnostic_hint": "OpenRouter 需要模型 ID 带 provider 前缀；失败时先切 openrouter/auto 排查。",
+        "quota_format": "openrouter_credits",
+        "quota_console_url": "https://openrouter.ai/settings/credits",
+        "quota_note": "可通过 OpenRouter credits 接口查询余额。",
+    },
+    "mistral": {
+        "display_name": "Mistral",
+        "api_format": "chat_completions",
+        "base_url": "https://api.mistral.ai/v1",
+        "model": "mistral-small-latest",
+        "default_model": "mistral-small-latest",
+        "env_key": "MISTRAL_API_KEY",
+        "models": ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
+        "provider_note": "英文/多语言办公和通用助手。",
+        "model_recommendation": "日常聊天和轻量办公推荐 mistral-small-latest；复杂任务再切 medium / large。",
+        "model_notes": {
+            "mistral-small-latest": "速度较快，适合日常聊天和轻量办公。",
+            "mistral-medium-latest": "适合更复杂的多语言任务。",
+            "mistral-large-latest": "适合高质量写作和复杂分析，响应可能更慢。",
+        },
+        "use_cases": ["多语言办公", "英文写作", "通用助手"],
+        "diagnostic_hint": "Mistral 使用 OpenAI 兼容 Chat Completions；普通陪聊优先 small。",
+        "quota_format": "console",
+        "quota_console_url": "https://console.mistral.ai/usage/",
+        "quota_note": "Mistral 额度请到 Console 查看。",
+    },
+    "groq": {
+        "display_name": "Groq",
+        "api_format": "chat_completions",
+        "base_url": "https://api.groq.com/openai/v1",
+        "model": "llama-3.3-70b-versatile",
+        "default_model": "llama-3.3-70b-versatile",
+        "env_key": "GROQ_API_KEY",
+        "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+        "provider_note": "低延迟聊天和轻量办公辅助。",
+        "model_recommendation": "低延迟陪聊推荐 llama-3.1-8b-instant；质量优先可选 llama-3.3-70b-versatile。",
+        "model_notes": {
+            "llama-3.3-70b-versatile": "质量更好，适合通用问答和办公辅助。",
+            "llama-3.1-8b-instant": "速度快，适合短句陪聊和即时回复。",
+            "mixtral-8x7b-32768": "适合中长上下文通用任务。",
+        },
+        "use_cases": ["低延迟聊天", "轻量办公", "快速问答"],
+        "diagnostic_hint": "Groq 适合低延迟，若模型不可用请在控制台确认当前可用模型 ID。",
+        "quota_format": "console",
+        "quota_console_url": "https://console.groq.com/settings/billing",
+        "quota_note": "Groq 额度请到控制台 Billing 查看。",
+    },
+    "custom": {
+        "display_name": "OpenAI-Compatible 中转站",
+        "api_format": "chat_completions",
+        "base_url": "",
+        "model": "",
+        "default_model": "",
+        "env_key": "DANHUANG_AI_API_KEY",
+        "models": [],
+        "provider_note": "适合自建网关或第三方 OpenAI 兼容中转。",
+        "model_recommendation": "自定义中转请填写平台支持的聊天模型 ID；优先选择速度稳定、支持 Chat Completions 的模型。",
+        "model_notes": {},
+        "use_cases": ["自建网关", "第三方中转", "备用模型"],
+        "diagnostic_hint": "自定义中转必须确认 Base URL、模型名和 Key 三者匹配；测试只验证能返回文本。",
+        "quota_format": "console",
+        "quota_console_url": "",
+        "quota_note": "自定义中转无法自动查询额度，请到对应平台查看。",
+    },
+}
+
+AI_MODEL_SOURCE_CHECKED_AT = "2026-05-24"
+AI_PROVIDER_MODEL_REFRESH = {
+    "openai": {
+        "recommended_model": "gpt-5.4-mini",
+        "model_source_url": "https://platform.openai.com/docs/models",
+        "model_status": "official-docs",
+        "models": ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-4.1-mini", "gpt-4.1"],
+        "model_recommendation": "日常陪聊和办公推荐 gpt-5.4-mini；复杂写作、规划和资料整理可切 gpt-5.4；高难任务再用 gpt-5.5。",
+        "model_notes": {
+            "gpt-5.5": "旗舰模型，适合复杂推理、代码和高难办公任务。",
+            "gpt-5.4": "适合复杂资料整理、写作、规划和多步骤任务。",
+            "gpt-5.4-mini": "速度、成本和质量均衡，适合默认陪聊和轻量办公。",
+            "gpt-5.4-nano": "高吞吐和简单任务，适合非常轻量的自动回复。",
+        },
+        "model_catalog": [
+            {"id": "gpt-5.4-mini", "label": "GPT-5.4 mini", "status": "recommended", "best_for": "陪聊 / 轻办公 / 成本均衡"},
+            {"id": "gpt-5.4", "label": "GPT-5.4", "status": "advanced", "best_for": "复杂办公 / 资料整理 / 多步骤任务"},
+            {"id": "gpt-5.5", "label": "GPT-5.5", "status": "latest", "best_for": "复杂推理 / 代码 / 高难任务"},
+        ],
+    },
+    "deepseek": {
+        "recommended_model": "deepseek-v4-flash",
+        "model_source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+        "model_status": "official-docs",
+        "models": ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"],
+        "model_recommendation": "日常陪聊、办公和资料回答推荐 deepseek-v4-flash；复杂推理或更高质量回答可切 deepseek-v4-pro。deepseek-chat / deepseek-reasoner 是兼容旧名。",
+        "model_notes": {
+            "deepseek-v4-flash": "官方 V4 快速模型，适合陪聊、资料回答、日常办公和代码问答。",
+            "deepseek-v4-pro": "官方 V4 Pro，适合复杂推理、长任务和质量优先场景，可能更慢。",
+            "deepseek-chat": "兼容旧模型名，当前阶段对应 V4 Flash 非思考模式，后续会停用。",
+            "deepseek-reasoner": "兼容旧模型名，当前阶段对应 V4 Flash 思考模式，后续会停用且更慢。",
+        },
+        "diagnostic_hint": "DeepSeek 走 OpenAI 兼容 Chat Completions；默认用 deepseek-v4-flash，复杂推理用 deepseek-v4-pro，旧 chat/reasoner 仅作兼容。",
+        "model_catalog": [
+            {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "status": "recommended", "best_for": "陪聊 / 办公 / 资料回答"},
+            {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "status": "latest", "best_for": "复杂推理 / 长任务 / 质量优先"},
+            {"id": "deepseek-chat", "label": "deepseek-chat", "status": "legacy", "best_for": "旧配置兼容"},
+            {"id": "deepseek-reasoner", "label": "deepseek-reasoner", "status": "legacy", "best_for": "旧推理配置兼容"},
+        ],
+    },
+    "kimi": {
+        "recommended_model": "kimi-k2.5",
+        "model_source_url": "https://platform.moonshot.cn/docs/intro",
+        "model_status": "official-docs",
+        "models": ["kimi-k2.5", "kimi-k2-turbo-preview", "kimi-k2-thinking-turbo", "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+        "model_recommendation": "普通陪聊和办公推荐 kimi-k2.5；更快响应可试 kimi-k2-turbo-preview；稳定长文本结构化任务仍可用 moonshot-v1 系列。",
+        "model_notes": {
+            "kimi-k2.5": "Kimi 新一代多模态通用模型，适合聊天、办公、资料整理和代码。",
+            "kimi-k2-turbo-preview": "K2 高速版本，适合更快的陪聊和办公响应。",
+            "kimi-k2-thinking-turbo": "长思考高速版本，适合复杂推理。",
+            "moonshot-v1-8k": "稳定短文本生成模型，适合轻量任务。",
+            "moonshot-v1-32k": "适合较长材料阅读和总结。",
+            "moonshot-v1-128k": "适合长文档整理。",
+        },
+        "model_catalog": [
+            {"id": "kimi-k2.5", "label": "Kimi K2.5", "status": "recommended", "best_for": "聊天 / 办公 / 多模态 / 代码"},
+            {"id": "kimi-k2-turbo-preview", "label": "Kimi K2 Turbo", "status": "fast", "best_for": "快速陪聊 / 办公"},
+            {"id": "kimi-k2-thinking-turbo", "label": "Kimi K2 Thinking Turbo", "status": "advanced", "best_for": "复杂推理"},
+        ],
+    },
+    "zhipu": {
+        "recommended_model": "glm-4-flash",
+        "model_source_url": "https://docs.bigmodel.cn/cn/guide/models/text/glm-5.1",
+        "model_status": "official-docs",
+        "models": ["glm-5.1", "glm-5.1-highspeed", "glm-5", "glm-4.5", "glm-4-plus", "glm-4-flash", "glm-4-air"],
+        "model_recommendation": "轻量陪聊仍推荐 glm-4-flash；如果账号和接口支持 GLM-5.1，可用于复杂办公、代码和长程任务；需要更快响应可试 glm-5.1-highspeed。",
+        "model_notes": {
+            "glm-5.1": "Z.AI 最新旗舰长程任务模型，适合复杂办公、代码和长推理；请确认当前控制台是否开通。",
+            "glm-5.1-highspeed": "GLM-5.1 高速版，适合更实时的协作和聊天。",
+            "glm-5": "适合复杂代码和工程任务。",
+            "glm-4.5": "适合较复杂中文问答和办公。",
+            "glm-4-flash": "响应快，适合陪聊、提醒理解和轻量办公。",
+        },
+        "model_catalog": [
+            {"id": "glm-5.1", "label": "GLM-5.1", "status": "latest", "best_for": "复杂办公 / 代码 / 长程任务"},
+            {"id": "glm-4-flash", "label": "GLM-4 Flash", "status": "recommended", "best_for": "轻量陪聊 / 快速响应"},
+        ],
+    },
+    "xiaomi_mimo": {
+        "recommended_model": "mimo-v2.5-pro",
+        "model_source_url": "https://www.mimo-v2.com/docs",
+        "model_status": "official-docs",
+        "models": ["mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2-flash"],
+        "model_recommendation": "复杂聊天和资料任务推荐 mimo-v2.5-pro；日常陪聊可用 mimo-v2-omni；响应慢或不完整时切 mimo-v2-pro。",
+        "model_notes": {
+            "mimo-v2.5-pro": "1M 上下文，适合复杂对话、深度思考、结构化输出和资料任务。",
+            "mimo-v2.5": "多模态理解和通用聊天能力更全面。",
+            "mimo-v2-pro": "稳定性较好，适合自然聊天兜底。",
+            "mimo-v2-omni": "日常陪聊响应较快，适合桌宠实时对话。",
+            "mimo-v2-flash": "轻量快速，复杂角色对话可能不够稳。",
+        },
+        "model_catalog": [
+            {"id": "mimo-v2.5-pro", "label": "MiMo V2.5 Pro", "status": "recommended", "best_for": "复杂陪聊 / 资料 / 深度思考"},
+            {"id": "mimo-v2.5", "label": "MiMo V2.5", "status": "latest", "best_for": "多模态 / 通用聊天"},
+            {"id": "mimo-v2-omni", "label": "MiMo V2 Omni", "status": "fast", "best_for": "实时陪聊"},
+        ],
+    },
+    "qwen": {
+        "recommended_model": "qwen-plus",
+        "model_source_url": "https://help.aliyun.com/zh/model-studio/use-qwen-by-calling-api",
+        "model_status": "official-docs",
+        "models": ["qwen3-max", "qwen3-max-preview", "qwen-max-latest", "qwen-plus", "qwen-plus-latest", "qwen-flash", "qwen-turbo", "qwen-long", "qwen3-coder-plus", "qwen3-coder-flash"],
+        "model_recommendation": "中文办公推荐 qwen-plus 或 qwen-plus-latest；快速陪聊用 qwen-flash；更高能力可按账号权限试 qwen3-max / qwen3-max-preview；代码任务用 qwen3-coder-plus。",
+        "model_notes": {
+            "qwen3-max": "通义千问 Max 系列，适合复杂中文办公、推理和高质量回答，请确认账号可用。",
+            "qwen3-max-preview": "Max 预览能力，适合尝鲜高能力任务。",
+            "qwen-max-latest": "Max 最新别名，适合高质量问答和写作。",
+            "qwen-plus": "稳定中文办公、写作和资料整理。",
+            "qwen-plus-latest": "跟随 plus 最新能力，适合希望自动升级的配置。",
+            "qwen-flash": "响应快，适合轻量陪聊和低延迟任务。",
+            "qwen3-coder-plus": "适合代码解释和辅助开发。",
+            "qwen3-coder-flash": "适合更快的代码问答和轻量辅助。",
+        },
+        "model_catalog": [
+            {"id": "qwen-plus", "label": "Qwen Plus", "status": "recommended", "best_for": "中文办公 / 写作 / 资料整理"},
+            {"id": "qwen-flash", "label": "Qwen Flash", "status": "fast", "best_for": "快速陪聊"},
+            {"id": "qwen3-max", "label": "Qwen3 Max", "status": "latest", "best_for": "复杂任务 / 高质量回答"},
+            {"id": "qwen3-coder-plus", "label": "Qwen3 Coder Plus", "status": "code", "best_for": "代码辅助"},
+        ],
+    },
+    "gemini": {
+        "recommended_model": "gemini-2.5-flash",
+        "model_source_url": "https://ai.google.dev/gemini-api/docs/models",
+        "model_status": "official-docs",
+        "models": ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-flash-latest", "gemini-2.0-flash-lite"],
+        "model_recommendation": "资料整理和办公推荐 gemini-2.5-flash；想尝鲜 Gemini 3 可试 gemini-3-flash-preview；复杂分析可选 gemini-2.5-pro。",
+        "model_notes": {
+            "gemini-3-flash-preview": "Gemini 3 Flash 预览模型，适合尝鲜高能力快速任务。",
+            "gemini-2.5-flash": "价格性能均衡，适合资料整理、多模态和轻量办公。",
+            "gemini-2.5-pro": "适合复杂分析和长任务，响应可能更慢。",
+            "gemini-flash-latest": "Flash 最新别名，会随官方更新变化。",
+            "gemini-2.0-flash-lite": "成本和延迟更低，适合简单任务。",
+        },
+        "model_catalog": [
+            {"id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash", "status": "recommended", "best_for": "资料整理 / 多模态 / 办公"},
+            {"id": "gemini-3-flash-preview", "label": "Gemini 3 Flash Preview", "status": "preview", "best_for": "尝鲜 / 快速复杂任务"},
+            {"id": "gemini-2.5-pro", "label": "Gemini 2.5 Pro", "status": "advanced", "best_for": "复杂分析 / 长任务"},
+        ],
+    },
+    "mistral": {
+        "recommended_model": "mistral-small-latest",
+        "model_source_url": "https://docs.mistral.ai/models/overview",
+        "model_status": "official-docs",
+        "models": ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest", "mistral-medium-3-5", "magistral-medium-latest", "magistral-small-latest"],
+        "model_recommendation": "日常聊天和轻量办公推荐 mistral-small-latest；复杂多语言和代码任务可试 mistral-medium-latest / mistral-large-latest；推理任务用 magistral-medium-latest。",
+        "model_notes": {
+            "mistral-small-latest": "速度快，适合日常聊天和轻量办公。",
+            "mistral-medium-latest": "适合更复杂的多语言办公和代码任务。",
+            "mistral-large-latest": "质量优先的通用模型，响应可能更慢。",
+            "mistral-medium-3-5": "面向 agentic 和 coding 的较新中型能力。",
+            "magistral-medium-latest": "推理模型，适合复杂分析。",
+        },
+        "model_catalog": [
+            {"id": "mistral-small-latest", "label": "Mistral Small", "status": "recommended", "best_for": "日常聊天 / 轻办公"},
+            {"id": "mistral-medium-latest", "label": "Mistral Medium", "status": "balanced", "best_for": "多语言 / 代码 / 办公"},
+            {"id": "magistral-medium-latest", "label": "Magistral Medium", "status": "reasoning", "best_for": "复杂推理"},
+        ],
+    },
+}
+
+
+def merge_unique_texts(*groups):
+    values = []
+    seen = set()
+    for group in groups:
+        if not isinstance(group, (list, tuple)):
+            continue
+        for item in group:
+            text = str(item or "").strip()
+            if text and text not in seen:
+                seen.add(text)
+                values.append(text)
+    return values
+
+
+def enrich_ai_provider_preset(provider_id, provider):
+    provider = copy.deepcopy(provider)
+    refresh = AI_PROVIDER_MODEL_REFRESH.get(provider_id)
+    if not isinstance(refresh, dict):
+        provider.setdefault("model_catalog", [])
+        provider.setdefault("recommended_model", str(provider.get("default_model", "") or provider.get("model", "") or ""))
+        provider.setdefault("model_source_url", "")
+        provider.setdefault("model_source_checked_at", "")
+        provider.setdefault("model_status", "custom")
+        return provider
+    base_models = refresh.get("models", [])
+    provider["models"] = merge_unique_texts(base_models, provider.get("models", []))
+    provider["default_model"] = str(refresh.get("recommended_model") or provider.get("default_model") or provider.get("model") or "")
+    provider["model"] = provider["default_model"]
+    provider["recommended_model"] = str(refresh.get("recommended_model") or provider["default_model"])
+    provider["model_source_url"] = str(refresh.get("model_source_url", "") or "")
+    provider["model_source_checked_at"] = AI_MODEL_SOURCE_CHECKED_AT
+    provider["model_status"] = str(refresh.get("model_status", "official-docs") or "official-docs")
+    provider["model_recommendation"] = str(refresh.get("model_recommendation") or provider.get("model_recommendation") or "")
+    provider["diagnostic_hint"] = str(refresh.get("diagnostic_hint") or provider.get("diagnostic_hint") or "")
+    notes = dict(provider.get("model_notes", {}) or {})
+    notes.update(refresh.get("model_notes", {}) or {})
+    provider["model_notes"] = notes
+    provider["model_catalog"] = copy.deepcopy(refresh.get("model_catalog", []))
+    return provider
+
+TODO_DEFAULT = {
+    "version": 1,
+    "items": [],
+}
+
+REMINDER_HISTORY_DEFAULT = {
+    "version": 1,
+    "events": [],
+}
+
+CHAT_UI_DEFAULT = {
+    "version": 1,
+    "background_image": "",
+    "background_opacity": 0.16,
+}
+
+STORY_EDITOR_UI_DEFAULT = {
+    "version": 1,
+    "background_image": "",
+    "background_opacity": 0.18,
+}
+
+PET_STORIES_DEFAULT = {
+    "version": 1,
+    "entries": [],
+    "prompt_summary": "",
+    "role_prompt": "",
+    "role_prompt_updated_at": "",
+    "summary_updated_at": "",
+    "summary_source": "",
+    "updated_at": "",
+}
+
+TODO_CATEGORIES = ["工作", "生活", "学习", "内容", "灵感", "纪念", "其他"]
+TODO_PRIORITIES = ["普通", "重要", "紧急"]
+TODO_REPEAT_LABELS = {
+    "不重复": "none",
+    "每天": "daily",
+    "每周": "weekly",
+    "每月": "monthly",
+    "每年": "yearly",
+}
+TODO_IMPORTANT_INTERVAL_LABELS = {
+    "不持续提醒": 0,
+    "每10分钟": 10,
+    "每30分钟": 30,
+    "每1小时": 60,
+    "每天一次": 1440,
+}
+
+ROWS = {
+    "idle": (0, 6, [260, 150, 150, 170, 170, 320]),
+    "running-right": (1, 8, [58, 54, 50, 54, 58, 50, 54, 68]),
+    "running-left": (2, 8, [58, 54, 50, 54, 58, 50, 54, 68]),
+    "waving": (3, 4, [170, 120, 120, 220]),
+    "jumping": (4, 5, [80, 75, 90, 95, 140]),
+    "failed": (5, 8, [120, 100, 120, 140, 160, 180, 180, 260]),
+    "waiting": (6, 6, [220, 180, 180, 220, 180, 260]),
+    "running": (7, 6, [62, 58, 54, 58, 62, 74]),
+    "review": (8, 6, [210, 190, 220, 190, 190, 260]),
+    "standing": (9, 8, [240, 220, 260, 220, 280, 220, 240, 320]),
+    "tongue": (10, 8, [140, 140, 150, 150, 150, 150, 160, 220]),
+    "lying": (11, 8, [190, 190, 230, 260, 260, 300, 300, 360]),
+    "stretching": (12, 8, [130, 140, 150, 170, 190, 180, 170, 230]),
+    "sleeping": (13, 8, [420, 480, 460, 520, 480, 540, 500, 560]),
+    "sniffing": (14, 8, [130, 130, 140, 150, 170, 170, 160, 220]),
+    "rolling": (15, 8, [120, 110, 110, 115, 115, 110, 120, 180]),
+    "crying": (16, 8, [220, 200, 210, 230, 250, 230, 210, 300]),
+    "chase-butterfly": (17, 8, [72, 66, 62, 66, 72, 66, 62, 88]),
+    "angry": (18, 8, [130, 110, 130, 110, 170, 140, 140, 240]),
+}
+
+VISUAL_ZOOM_BY_STATE = {
+    "tongue": 1.03,
+    "lying": 1.10,
+    "stretching": 1.05,
+    "sleeping": 1.10,
+    "sniffing": 1.06,
+    "rolling": 1.08,
+}
+MAX_VISUAL_ZOOM = max(VISUAL_ZOOM_BY_STATE.values(), default=1.0)
+
+MOVEMENT_STATES = {"running", "running-left", "running-right", "chase-butterfly", "chase-butterfly-left"}
+
+ACTION_STATES = {
+    "waving",
+    "jumping",
+    "failed",
+    "review",
+    "waiting",
+    "running",
+    "stepping",
+    "standing",
+    "tongue",
+    "lying",
+    "stretching",
+    "sleeping",
+    "sniffing",
+    "rolling",
+    "crying",
+    "chase-butterfly",
+    "angry",
+}
+IDLE_ACTIONS = ["standing", "tongue", "lying", "stretching", "sleeping", "sniffing", "rolling", "chase-butterfly", "waiting", "review", "waving"]
+BASE_ACTIONS = ["waving", "jumping", "waiting", "review", "failed", "running"]
+BASE_INTERNAL_ACTIONS = ["idle", "running-right", "running-left", "waving", "jumping"]
+BASIC_ATLAS_ACTIONS = ["idle", "running-right", "running-left", "waving", "jumping"]
+BASIC_ACTION_PROMPTS = {
+    "idle": "待机：6 帧循环。宠物正面或轻微 3/4 角度站立/坐立，身体中心不左右漂移；只做轻微呼吸起伏、眨眼、耳朵或尾巴小幅摆动。脚底基线固定，最后一帧能自然接回第一帧。",
+    "running-right": "向右跑：8 帧循环。宠物身体朝右，四肢交替迈步，头和尾巴有轻微随动；每帧视觉体积一致，脚底基线稳定，身体不能突然变大、变小或换脸。不要速度线、灰尘和地面。",
+    "running-left": "向左跑：8 帧循环。与向右跑完全镜像的左向跑步，身体朝左，四肢交替迈步；毛色分区、耳朵、尾巴和表情必须与向右跑保持一致。不要直接生成另一只宠物。",
+    "waving": "挥爪：4 帧。宠物保持原地，抬起一只前爪向主人打招呼：准备、抬爪、轻轻挥动、放回。头部和身体只允许小幅跟随，不能把脸画大，不能改变五官和毛色。",
+    "jumping": "跳一下：5 帧。原地小跳：蓄力下蹲、起跳、短暂腾空、下落、回到原始脚底基线。跳跃高度适中，落地帧必须回到待机体量；不要地面阴影、夸张拉伸或飞出格子。",
+}
+EXTENDED_ACTIONS = ["standing", "tongue", "lying", "stretching", "sleeping", "sniffing", "rolling", "crying", "chase-butterfly", "angry"]
+FULL_SUPPORTED_ACTIONS = ["idle", "running-right", "running-left", *BASE_ACTIONS, *EXTENDED_ACTIONS]
+ACTION_LABELS = {
+    "idle": "待机",
+    "running-right": "向右跑",
+    "running-left": "向左跑",
+    "waving": "挥爪",
+    "jumping": "跳一下",
+    "waiting": "等一下",
+    "review": "陪我一会",
+    "failed": "委屈一下",
+    "running": "跑一小段",
+    "stepping": "原地踏步",
+    "standing": "站一会",
+    "tongue": "吐舌头",
+    "lying": "卧倒",
+    "stretching": "伸懒腰",
+    "sleeping": "打个盹",
+    "sniffing": "闻一闻",
+    "rolling": "打个滚",
+    "crying": "哭一下",
+    "chase-butterfly": "追蝴蝶",
+    "angry": "生气一下",
+}
+ACTION_PROMPT_DETAILS = {
+    "standing": "站一会：8 帧。宠物原地站着看向主人，只做轻微呼吸、眨眼、耳朵/尾巴小动作。重点是稳定、像同一只宠物，不要明显位移或上下跳。",
+    "tongue": "吐舌头：8 帧。在稳定正面或轻微 3/4 姿态上，嘴巴张开、舌头伸出、停顿、收回。只局部变化嘴部和表情，不要重画整张脸，不要让头变大。",
+    "lying": "卧倒：8 帧。从站/坐姿自然趴下或已趴姿轻微呼吸。低姿态动作也要保持视觉体量，不要缩成很小一团；头、耳朵、尾巴和毛色特征要清楚。",
+    "stretching": "伸懒腰：8 帧。前爪向前伸、身体拉长、臀部略高，然后恢复。动作要柔和连贯，身体可以拉伸但不能变成长条或跨格，脚底/身体中心要稳定。",
+    "sleeping": "打个盹：8 帧。宠物趴下或蜷着睡，眼睛闭合，只有呼吸起伏、耳朵或尾巴轻动。不要 Z 字、月亮、床、毯子、气泡或背景装饰。",
+    "sniffing": "闻一闻：8 帧。宠物低头向前/向下闻，鼻子和头部小幅移动，身体保持原地。不要画地面、食物、花草或气味线。",
+    "rolling": "打个滚：8 帧。宠物在原地小幅侧身翻滚，保持同一体量和同一脸型。不要整只狗旋转成球，不要跨格，不要把背部/腹部颜色画错。",
+    "crying": "哭一下：8 帧。宠物保持坐/趴姿，眼神委屈、耳朵下垂、可以有非常小的泪点。不要夸张泪流、文字、表情符号或换成陌生狗。",
+    "chase-butterfly": "追蝴蝶：8 帧。宠物本体做轻快小跑追逐姿态，身体朝右，脚步连贯，表情专注但可爱。只画宠物，不画蝴蝶；程序会单独显示 butterfly.png。",
+    "angry": "生气一下：8 帧。宠物轻微皱眉、鼓脸、耳朵压低或小幅跺脚，表达小脾气但不要凶狠。不要火焰、怒气符号、文字或夸张背景。",
+}
+QUICK_MENU_BASE_ACTIONS = ["waving", "running", "jumping", "waiting"]
+QUICK_MENU_MAX_VISIBLE_EXTRA_ACTIONS = 4
+CUSTOM_ACTION_PREFIX = "custom:"
+CUSTOM_ACTION_MAX_FRAMES = 8
+PANGJIU_PET_ID = "pet-20260520-112213"
+BASIC_ATLAS_SIZE = (CELL_W * 8, CELL_H * 9)
+FULL_ATLAS_MIN_HEIGHT = CELL_H * 19
+BUBBLE_STYLES = {
+    "soft": "柔和气泡",
+    "rounded": "圆角气泡",
+    "cloud": "小云朵",
+    "thought": "思考泡泡",
+    "note": "便签",
+    "caption": "极简字幕",
+}
+
+BUBBLE_COLOR_PRESETS = {
+    "warm": ("暖白", "#fffaf0", "#d8a760", "#3b3024"),
+    "milk": ("奶油", "#fff3d2", "#cf9348", "#3a2c1d"),
+    "sage": ("鼠尾草", "#f4fbf4", "#86a17f", "#233327"),
+    "mint": ("薄荷", "#f2fff8", "#8bc8a6", "#20372b"),
+    "sky": ("浅蓝", "#f4fbff", "#8bb8d9", "#1f3445"),
+    "pink": ("淡粉", "#fff5f8", "#dda0b4", "#442631"),
+    "gray": ("极简", "#ffffff", "#cfd4dc", "#22252a"),
+}
+
+LEVELS = [
+    (1, "回到身边", 0),
+    (2, "认得气味", 30),
+    (3, "桌边趴着", 80),
+    (4, "等你回头", 150),
+    (5, "小尾巴跟着", 250),
+    (6, "守着主人", 400),
+    (7, "安静陪伴", 600),
+    (8, "家里的位置", 850),
+    (9, "一直都在", 1150),
+    (10, "家人", 1500),
+]
+
+PERMANENT_LEVEL_NAMES = [
+    "一直陪着",
+    "熟悉脚步",
+    "守着灯光",
+    "回家的路",
+    "小窝常在",
+    "晚风同行",
+    "不离不散",
+    "永远家人",
+    "安稳守候",
+    "岁月同行",
+    "靠近一点",
+    "灯下小窝",
+    "回忆发光",
+    "每晚都在",
+    "尾巴轻摇",
+    "家门常开",
+    "心里有位",
+    "温柔长住",
+    "一起长久",
+    "不会走远",
+]
+
+PHRASES = [
+    "主人，我在。",
+    "我趴在旁边，不吵你。",
+    "我认得你的气味。",
+    "你回头看我一眼就好。",
+    "今天也让我陪着你。",
+    "我把小爪子放在这里。",
+    "别急，我陪你慢慢来。",
+    "你忙你的，我守着。",
+    "如果想我了，就看看我。",
+    "我会乖乖待在你身边。",
+    "九年很长，我都记得。",
+    "这里还是我的家。",
+    "主人，不用每次都坚强。",
+    "我没有走远，只是换个地方陪你。",
+    "你摸摸我，我就摇尾巴。",
+    "我知道你很想我。",
+    "我也想你。",
+    "今天也要好好吃饭。",
+    "累了就停一下，我陪你歇会儿。",
+    "你在，我就在。",
+]
+
+TIME_PHRASES = {
+    "morning": [
+        "早上好，主人。",
+        "我醒了，来陪你了。",
+        "今天也从摸摸头开始吧。",
+    ],
+    "afternoon": [
+        "下午我趴在桌边。",
+        "主人，喝口水，我等你。",
+        "我闻到你又在认真忙了。",
+    ],
+    "night": [
+        "天黑了，我陪你守一会儿。",
+        "晚上别太累，我在旁边。",
+        "要睡的时候，跟我说一声。",
+    ],
+    "late": [
+        "很晚了，主人，该歇一歇了。",
+        "我会守夜，但你要睡觉。",
+        "别硬撑，我在这里。",
+    ],
+}
+
+SESSION_PHRASES = {
+    "long": [
+        "你坐很久了，起来走两步吧。",
+        "我想让你休息一会儿。",
+        "主人，眼睛累了就看看我。",
+    ],
+    "quiet": [
+        "刚才很安静，我也一直在。",
+        "我没有打扰你，只是在旁边陪着。",
+        "安静的时候，我也能听见你想我。",
+    ],
+    "active": [
+        "你今天摸了我好多次。",
+        "我喜欢你叫我。",
+        "我尾巴都摇累了，但我开心。",
+    ],
+}
+
+LEVEL_PHRASES = {
+    1: [
+        "我先在这里趴一会儿。",
+        "主人，我慢慢回到你身边。",
+    ],
+    3: [
+        "我已经认得这个桌面了。",
+        "这里有我的小窝。",
+    ],
+    5: [
+        "你一叫我，我就来。",
+        "我把头靠过来一点。",
+    ],
+    7: [
+        "我守着你，不让坏心情靠近。",
+        "如果今天难过，就让我多陪一会儿。",
+    ],
+    8: [
+        "这个家里一直有我的位置。",
+        "你给我的名字，我一直记得。",
+    ],
+    9: [
+        "我陪你走过好多年。",
+        "有些想念不用说出来，我也知道。",
+    ],
+    10: [
+        "主人，我是蛋黄。",
+        "我是你的家人。",
+        "我会用现在这种方式继续陪你。",
+        "你想我的时候，我就摇摇尾巴。",
+    ],
+}
+
+COMPANION_DEFAULT = {
+    "xp": 0,
+    "level": 1,
+    "created_date": "",
+    "last_active_date": "",
+    "streak_days": 0,
+    "total_seconds": 0,
+    "interactions": 0,
+    "talks": 0,
+    "roams": 0,
+    "manual_actions": 0,
+    "daily_bonus_dates": [],
+    "last_saved_at": "",
+}
+
+CHAT_MEMORY_DEFAULT = {
+    "version": 1,
+    "messages": [],
+    "mood_counts": {},
+    "learned_phrases": [],
+    "reply_count": 0,
+    "last_mood": "",
+    "updated_at": "",
+}
+
+MEMORY_SUMMARY_DEFAULT = {
+    "version": 1,
+    "message_count": 0,
+    "mood_counts": {},
+    "owner_profile": "",
+    "emotional_patterns": [],
+    "preferences": [],
+    "important_memories": [],
+    "common_questions": [],
+    "notes": [],
+    "last_mood": "",
+    "updated_at": "",
+}
+
+XP_RULES = {
+    "interaction": 2,
+    "talk": 1,
+    "roam": 1,
+    "manual_action": 2,
+    "daily_start": 10,
+    "streak_3": 10,
+    "streak_7": 25,
+}
+
+
+ROAM_PHRASES = [
+    "我去闻闻旁边。",
+    "我沿着桌边走一圈。",
+    "我活动一下小短腿。",
+    "我换个地方趴着陪你。",
+    "我去看看门口，很快回来。",
+]
+
+STARTUP_PHRASES = [
+    "主人，我在。",
+    "我回来了，主人。",
+    "今天也让我陪着你。",
+]
+
+
+def clamp(value, low, high):
+    return max(low, min(high, value))
+
+
+def is_hex_color(value):
+    if not isinstance(value, str) or len(value) != 7 or not value.startswith("#"):
+        return False
+    return all(ch in "0123456789abcdefABCDEF" for ch in value[1:])
+
+
+def is_custom_action_id(value):
+    return isinstance(value, str) and value.startswith(CUSTOM_ACTION_PREFIX) and len(value) > len(CUSTOM_ACTION_PREFIX)
+
+
+class DATA_BLOB(ctypes.Structure):
+    _fields_ = [
+        ("cbData", wintypes.DWORD),
+        ("pbData", ctypes.POINTER(ctypes.c_byte)),
+    ]
+
+
+def dpapi_encrypt_text(text):
+    if not text:
+        return ""
+    if sys.platform != "win32":
+        raise OSError("Local encrypted API key storage is only available on Windows. Use an environment variable on macOS.")
+    data = str(text).encode("utf-8")
+    input_buffer = ctypes.create_string_buffer(data)
+    blob_in = DATA_BLOB(len(data), ctypes.cast(input_buffer, ctypes.POINTER(ctypes.c_byte)))
+    blob_out = DATA_BLOB()
+    ok = ctypes.windll.crypt32.CryptProtectData(
+        ctypes.byref(blob_in),
+        "danhuang-ai-key",
+        None,
+        None,
+        None,
+        0,
+        ctypes.byref(blob_out),
+    )
+    if not ok:
+        raise OSError(ctypes.GetLastError(), "CryptProtectData failed")
+    try:
+        encrypted = ctypes.string_at(blob_out.pbData, blob_out.cbData)
+        return "dpapi:" + base64.b64encode(encrypted).decode("ascii")
+    finally:
+        ctypes.windll.kernel32.LocalFree(ctypes.cast(blob_out.pbData, wintypes.HANDLE))
+
+
+def dpapi_decrypt_text(value):
+    if not value:
+        return ""
+    value = str(value)
+    if not value.startswith("dpapi:"):
+        return ""
+    if sys.platform != "win32":
+        return ""
+    encrypted = base64.b64decode(value[6:].encode("ascii"))
+    input_buffer = ctypes.create_string_buffer(encrypted)
+    blob_in = DATA_BLOB(len(encrypted), ctypes.cast(input_buffer, ctypes.POINTER(ctypes.c_byte)))
+    blob_out = DATA_BLOB()
+    ok = ctypes.windll.crypt32.CryptUnprotectData(
+        ctypes.byref(blob_in),
+        None,
+        None,
+        None,
+        None,
+        0,
+        ctypes.byref(blob_out),
+    )
+    if not ok:
+        raise OSError(ctypes.GetLastError(), "CryptUnprotectData failed")
+    try:
+        decrypted = ctypes.string_at(blob_out.pbData, blob_out.cbData)
+        return decrypted.decode("utf-8")
+    finally:
+        ctypes.windll.kernel32.LocalFree(ctypes.cast(blob_out.pbData, wintypes.HANDLE))
+
+
+def clone_ai_provider_presets():
+    providers = {
+        provider_id: enrich_ai_provider_preset(provider_id, provider)
+        for provider_id, provider in copy.deepcopy(AI_PROVIDER_PRESETS).items()
+    }
+    for provider in providers.values():
+        provider.setdefault("enabled", True)
+        provider.setdefault("encrypted_api_key", "")
+    return providers
+
+
+def configure_windows_dpi_awareness():
+    if sys.platform != "win32":
+        return "not-windows"
+    user32 = ctypes.windll.user32
+    try:
+        set_context = user32.SetProcessDpiAwarenessContext
+        set_context.argtypes = [ctypes.c_void_p]
+        set_context.restype = wintypes.BOOL
+        if set_context(ctypes.c_void_p(-4)):
+            return "per-monitor-v2"
+    except (AttributeError, OSError):
+        pass
+    try:
+        shcore = ctypes.windll.shcore
+        set_awareness = shcore.SetProcessDpiAwareness
+        set_awareness.argtypes = [ctypes.c_int]
+        set_awareness.restype = ctypes.c_long
+        result = set_awareness(2)
+        if result in (0, -2147024891):
+            return "per-monitor"
+    except (AttributeError, OSError):
+        pass
+    try:
+        if user32.SetProcessDPIAware():
+            return "system"
+    except (AttributeError, OSError):
+        pass
+    return "unavailable"
+
+
+class DanhuangPet:
+    def __init__(self, root: tk.Tk, spritesheet_path: Path):
+        self.root = root
+        self.pet_dir = Path(__file__).resolve().parent
+        self.settings_path = self.pet_dir / SETTINGS_FILE
+        self.legacy_companion_path = self.pet_dir / COMPANION_FILE
+        self.legacy_chat_memory_path = self.pet_dir / CHAT_MEMORY_FILE
+        self.legacy_memory_summary_path = self.pet_dir / MEMORY_SUMMARY_FILE
+        self.pet_state_root = self.pet_dir / "pet-state"
+        self.companion_path = self.legacy_companion_path
+        self.chat_memory_path = self.legacy_chat_memory_path
+        self.memory_summary_path = self.legacy_memory_summary_path
+        self.ai_providers_path = self.pet_dir / AI_PROVIDERS_FILE
+        self.todos_path = self.pet_dir / TODO_FILE
+        self.reminder_history_path = self.pet_dir / REMINDER_HISTORY_FILE
+        self.family_path = self.pet_dir / FAMILY_FILE
+        self.default_spritesheet_path = spritesheet_path
+        self.settings = self.load_settings()
+        self.pet_family = self.load_pet_family()
+        self.active_pet = self.active_pet_config()
+        self.activate_pet_state_paths(self.active_pet.get("id", "danhuang"), migrate=True)
+        self.ai_providers = self.load_ai_providers()
+        self.todos = self.load_todos()
+        self.reminder_history = self.load_reminder_history()
+        self.current_photo_size = self.render_pet_size()
+        self.current_monitor_signature = None
+        self.current_monitor_dpi = BASE_DPI
+        self.dialogues = self.load_dialogue_library()
+        self.chat_memory = self.load_chat_memory()
+        self.repair_all_pet_chat_memories()
+        self.memory_summary = self.load_memory_summary()
+        self.soul_profile = self.load_soul_profile()
+        self.companion = self.load_companion()
+        self.session_started_at = time.monotonic()
+        self.last_companion_save_at = self.session_started_at
+        self.apply_daily_companion_bonus()
+        self.sheet = Image.open(self.active_spritesheet_path()).convert("RGBA")
+        self.app_icon_photo = None
+        self.status_card = None
+        self.root.title(self.active_pet.get("display_name", "蛋黄"))
+        self.apply_window_icon(self.root)
+        self.frames = self.load_frames()
+        self.butterfly_frames = self.load_butterfly_frames()
+        self.panel = None
+        self.panel_toast = None
+        self.bubble = None
+        self.butterfly_window = None
+        self.butterfly_label = None
+        self.butterfly_frame_index = 0
+        self.chase_direction = "right"
+        self.bubble_label = None
+        self.chat_panel = None
+        self.context_panel = None
+        self.chat_history_box = None
+        self.ai_status_label = None
+        self.ai_quota_label = None
+        self.ai_quota_provider_id = None
+        self.chat_ai_status_label = None
+        self.chat_tool_status_widgets = {}
+        self.control_panel_switch_page = None
+        self.control_panel_refresh_sidebar = None
+        self.control_panel_refresh_current_page = None
+        self.control_panel_current_page = None
+        self.ai_last_status = ""
+        self.ai_last_research_summary = ""
+        self.ai_last_research_items = []
+        self.ai_provider_panel_selected_id = None
+        self.ai_testing_provider_id = None
+        self.ai_quota_status = ""
+        self.ai_quota_status_by_provider = {}
+        self.auto_talk_ai_inflight = False
+        self.archive_selected_month_by_pet = {}
+        self.archive_expanded_days_by_pet = {}
+        self.story_selected_pet_id = self.active_pet.get("id", "danhuang")
+        self.story_expanded_days_by_pet = {}
+        self.todo_listbox = None
+        self.todo_list_canvas = None
+        self.todo_list_container = None
+        self.todo_selected_id = ""
+        self.todo_selection_refresh_job = None
+        self.todo_status_label = None
+        self.todo_visible_ids = []
+        self.todo_search_var = None
+        self.todo_category_filter_var = None
+        self.todo_show_done_var = None
+        self.todo_focus_filter_var = None
+        self.todo_timeline_label = None
+        self.todo_detail_label = None
+        self.reminder_popup = None
+        self.drop_targets = {}
+        self.last_render_state = ""
+        self.clear_photo = None
+        self.recent_phrases = []
+        self.shutdown_event = open_shutdown_event()
+        self.closing = False
+        self.state = "idle"
+        self.activity_mode = "idle"
+        self.frame_index = 0
+        self.loop_once = False
+        self.action_loops_left = 0
+        self.dragging = False
+        self.drag_started = False
+        self.drag_direction = "center"
+        self.last_direction_change_at = 0.0
+        self.drag_offset_x = 0
+        self.drag_offset_y = 0
+        self.press_root_x = 0
+        self.press_root_y = 0
+        self.press_started_at = 0.0
+        self.last_pointer_x = 0
+        self.last_pointer_y = 0
+        self.last_motion_at = 0.0
+        self.last_motion_tick = time.monotonic()
+        self.drag_intent_x = 0.0
+        self.velocity_x = 0.0
+        self.velocity_y = 0.0
+        self.inertia_until = 0.0
+        self.roam_target = None
+        self.roam_last_tick = time.monotonic()
+        self.roam_direction_index = 0
+        self.roam_corner_pause_until = 0.0
+        self.roam_corner_action_at = 0.0
+        self.last_interaction_at = time.monotonic()
+        self.next_idle_action_at = self.next_idle_time()
+        self.next_talk_at = self.next_talk_time()
+        self.next_roam_at = time.monotonic() + random.uniform(2.0, 4.0)
+
+        root.overrideredirect(True)
+        root.attributes("-topmost", bool(self.settings["always_on_top"]))
+        root.attributes("-alpha", self.settings["opacity"])
+        root.configure(bg=BG)
+        try:
+            root.attributes("-transparentcolor", BG)
+        except tk.TclError:
+            pass
+
+        self.label = tk.Label(root, bg=BG, bd=0, highlightthickness=0)
+        self.label.pack()
+        root.update_idletasks()
+
+        self.menu = Menu(root, tearoff=0)
+        self.menu.add_command(label="桌宠控制面板", command=self.open_control_panel)
+        self.menu.add_command(label="切换形象", command=lambda: self.open_control_panel("形象"))
+        self.menu.add_separator()
+        self.menu.add_command(label="叫它", command=self.say_random)
+        self.menu.add_command(label="我有点累", command=lambda: self.say_category("moods", "tired", "lying"))
+        self.menu.add_command(label="我有点难过", command=lambda: self.say_category("moods", "sad", "review"))
+        self.menu.add_command(label="我想它了", command=lambda: self.say_category("moods", "miss", "standing"))
+        self.menu.add_command(label="我压力有点大", command=lambda: self.say_category("moods", "stressed", "sniffing"))
+        self.menu.add_command(label="陪我休息", command=lambda: self.say_category("care", "rest", "sleeping"))
+        self.menu.add_command(label="隐藏气泡", command=self.hide_bubble)
+        self.menu.add_command(label="挥爪", command=lambda: self.play_action("waving"))
+        self.menu.add_command(label="跳一下", command=lambda: self.play_action("jumping"))
+        self.menu.add_command(label="跑一小段", command=self.run_short_distance)
+        self.menu.add_command(label="巡逻一下", command=lambda: self.start_roam(forced=True))
+        self.menu.add_command(label="等一下", command=lambda: self.play_action("waiting"))
+        self.menu.add_command(label="站一会", command=lambda: self.play_action("standing"))
+        self.menu.add_command(label="吐舌头", command=lambda: self.play_action("tongue"))
+        self.menu.add_command(label="卧倒", command=lambda: self.play_action("lying"))
+        self.menu.add_command(label="伸懒腰", command=lambda: self.play_action("stretching"))
+        self.menu.add_command(label="打个盹", command=lambda: self.play_action("sleeping"))
+        self.menu.add_command(label="闻一闻", command=lambda: self.play_action("sniffing"))
+        self.menu.add_command(label="打个滚", command=lambda: self.play_action("rolling"))
+        self.menu.add_command(label="哭一下", command=lambda: self.play_action("crying"))
+        self.menu.add_command(label="追蝴蝶", command=lambda: self.play_action("chase-butterfly", loops=2))
+        self.menu.add_command(label="生气一下", command=lambda: self.play_action("angry"))
+        self.menu.add_command(label="陪我一会", command=lambda: self.play_action("review"))
+        self.menu.add_command(label="委屈一下", command=lambda: self.play_action("failed"))
+        self.menu.add_separator()
+        self.menu.add_command(label="退出桌宠", command=self.close)
+
+        self.label.bind("<ButtonPress-1>", self.on_press)
+        self.label.bind("<B1-Motion>", self.on_motion)
+        self.label.bind("<ButtonRelease-1>", self.on_release)
+        self.label.bind("<Button-3>", self.on_context_menu)
+        self.label.bind("<Double-Button-1>", lambda _event: self.play_action("waving"))
+        self.label.bind("<Control-MouseWheel>", self.on_ctrl_mousewheel)
+        root.bind("<Control-MouseWheel>", self.on_ctrl_mousewheel)
+
+        if self.settings["position_x"] < 0 or self.settings["position_y"] < 0:
+            self.move_to_default_position()
+        else:
+            self.move_to(self.settings["position_x"], self.settings["position_y"])
+        root.protocol("WM_DELETE_WINDOW", self.close)
+        self.animate()
+        self.behave()
+        self.talk_loop()
+        self.roam_loop()
+        self.companion_loop()
+        self.reminder_loop()
+        self.shutdown_loop()
+        if self.settings["talk_enabled"]:
+            self.root.after(1200, lambda: self.say(self.choose_phrase(STARTUP_PHRASES + self.dialogue_phrases("startup"))))
+
+    def load_settings(self):
+        settings = copy.deepcopy(DEFAULT_SETTINGS)
+        if self.settings_path.exists():
+            try:
+                saved = json.loads(self.settings_path.read_text(encoding="utf-8"))
+                for key in settings:
+                    if key in saved:
+                        if isinstance(settings[key], bool):
+                            settings[key] = bool(saved[key])
+                        elif isinstance(settings[key], list):
+                            settings[key] = list(saved[key]) if isinstance(saved[key], list) else list(DEFAULT_SETTINGS[key])
+                        elif isinstance(settings[key], str):
+                            settings[key] = str(saved[key])
+                        else:
+                            settings[key] = float(saved[key])
+            except (OSError, ValueError, TypeError):
+                pass
+        settings["scale"] = clamp(settings["scale"], 0.25, 1.00)
+        settings["animation_speed"] = clamp(settings["animation_speed"], 0.35, 1.50)
+        settings["drag_sensitivity"] = clamp(settings["drag_sensitivity"], 0.30, 1.40)
+        settings["inertia"] = clamp(settings["inertia"], 0.0, 1.0)
+        settings["idle_action_interval"] = clamp(settings["idle_action_interval"], 3.0, 30.0)
+        settings["talk_interval"] = clamp(settings["talk_interval"], 15.0, 180.0)
+        settings["bubble_duration"] = clamp(settings["bubble_duration"], 2.0, 12.0)
+        settings["position_x"] = int(clamp(settings["position_x"], -200, 10000))
+        settings["position_y"] = int(clamp(settings["position_y"], -200, 10000))
+        settings["opacity"] = clamp(settings["opacity"], 0.35, 1.0)
+        settings["talk_after_interaction_delay"] = clamp(settings["talk_after_interaction_delay"], 0.0, 120.0)
+        settings["roam_interval"] = clamp(settings["roam_interval"], 8.0, 180.0)
+        settings["roam_speed"] = clamp(settings["roam_speed"], 45.0, 260.0)
+        settings["roam_distance"] = clamp(settings["roam_distance"], 0.20, 0.95)
+        settings["ai_timeout"] = clamp(settings["ai_timeout"], 4.0, 120.0)
+        if settings["bubble_style"] not in BUBBLE_STYLES:
+            settings["bubble_style"] = DEFAULT_SETTINGS["bubble_style"]
+        for key in ("bubble_fill", "bubble_outline", "bubble_text"):
+            if not is_hex_color(settings[key]):
+                settings[key] = DEFAULT_SETTINGS[key]
+        if settings.get("ai_chat_role_skill") not in CHAT_ROLE_SKILLS:
+            settings["ai_chat_role_skill"] = DEFAULT_SETTINGS["ai_chat_role_skill"]
+        settings["quick_menu_actions"] = self.normalize_quick_menu_setting(settings.get("quick_menu_actions"))
+        return settings
+
+    def active_chat_role_skill_id(self):
+        role_id = str(self.settings.get("ai_chat_role_skill", DEFAULT_SETTINGS["ai_chat_role_skill"]) or "").strip()
+        return role_id if role_id in CHAT_ROLE_SKILLS else DEFAULT_SETTINGS["ai_chat_role_skill"]
+
+    def active_chat_role_skill(self):
+        role_id = self.active_chat_role_skill_id()
+        return CHAT_ROLE_SKILLS.get(role_id, CHAT_ROLE_SKILLS[DEFAULT_SETTINGS["ai_chat_role_skill"]])
+
+    def chat_role_skill_prompt(self):
+        role = self.active_chat_role_skill()
+        best_for = str(role.get("best_for", "") or "").strip()
+        boundary = str(role.get("boundary", "") or "").strip()
+        detail_lines = []
+        if best_for:
+            detail_lines.append(f"适用场景：{best_for}")
+        if boundary:
+            detail_lines.append(f"角色边界：{boundary}")
+        return (
+            f"当前聊天角色 Skill：{role['label']}（{role['short']}）。\n"
+            + ("\n".join(detail_lines) + "\n" if detail_lines else "")
+            + f"{role['prompt']}\n"
+            + "无论选择哪个角色 Skill，都必须保留当前宠物身份和主人关系：蛋黄是家人，不是客服、陌生导师或真人模仿。"
+        )
+
+    def normalize_quick_menu_setting(self, actions):
+        valid = set(BASE_ACTIONS + EXTENDED_ACTIONS) - set(QUICK_MENU_BASE_ACTIONS)
+        normalized = []
+        for action in actions if isinstance(actions, list) else []:
+            action = str(action)
+            if (action in valid or is_custom_action_id(action)) and action not in normalized:
+                normalized.append(action)
+        return normalized
+
+    def infer_pet_category(self, species="", category=""):
+        category_id = str(category or "").strip()
+        if category_id in PET_CATEGORY_PRESETS:
+            return category_id
+        text = str(species or "").strip().lower()
+        rules = [
+            ("dog", ("dog", "犬", "狗", "汪", "柴", "柯基", "松狮", "金毛", "拉布拉多", "狐狸", "狼")),
+            ("cat", ("cat", "猫", "喵", "橘猫", "狸花", "布偶", "豹猫")),
+            ("rabbit", ("rabbit", "兔", "垂耳")),
+            ("small_mammal", ("仓鼠", "hamster", "豚鼠", "龙猫", "刺猬", "雪貂", "小鼠", "松鼠")),
+            ("large_mammal", ("马", "鹿", "羊", "牛", "熊", "熊猫", "象", "大型")),
+            ("bird", ("鸟", "鹦鹉", "鸽", "鸡", "鸭", "鹅", "企鹅", "bird")),
+            ("reptile", ("龟", "乌龟", "蜥蜴", "蛇", "守宫", "reptile")),
+            ("aquatic", ("鱼", "章鱼", "水母", "海马", "海豚", "aquatic", "fish")),
+            ("insect", ("虫", "昆虫", "蝴蝶", "蜜蜂", "甲虫", "蜘蛛", "螃蟹")),
+            ("human", ("人", "人物", "真人", "虚拟人", "角色", "男孩", "女孩", "human")),
+            ("fantasy", ("龙", "精灵", "史莱姆", "独角兽", "怪兽", "fantasy")),
+            ("robot", ("机器人", "机械", "机甲", "robot", "ai")),
+            ("object", ("植物", "花", "树", "杯", "玩偶", "物件", "食物", "object")),
+        ]
+        for value, keywords in rules:
+            if any(keyword in text for keyword in keywords):
+                return value
+        return "other"
+
+    def pet_category(self, pet=None, species="", category=""):
+        if isinstance(pet, dict):
+            return self.infer_pet_category(pet.get("species", species), pet.get("category", category))
+        return self.infer_pet_category(species, category)
+
+    def pet_category_preset(self, pet=None, species="", category=""):
+        return PET_CATEGORY_PRESETS.get(self.pet_category(pet, species, category), PET_CATEGORY_PRESETS["other"])
+
+    def pet_category_label(self, pet=None, species="", category=""):
+        preset = self.pet_category_preset(pet, species, category)
+        return f"{preset['group']} / {preset['label']}"
+
+    def pet_category_action_summary(self, category_id):
+        preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        return "、".join(preset.get("base_labels", []))
+
+    def default_pet_family(self):
+        return {
+            "version": 1,
+            "current_pet_id": "danhuang",
+            "pets": [
+                {
+                    "id": "danhuang",
+                    "display_name": "蛋黄",
+                    "species": "dog",
+                    "category": "dog",
+                    "status": "ready",
+                    "spritesheet": "spritesheet.webp",
+                    "identity_image": "",
+                    "reference_images": ["references/01-identity-canonical-base.png"],
+                    "notes": "暖黄短腿小狗，深棕下垂耳，深色宽圆口鼻，圆黑鼻，温柔略委屈的眼神。",
+                    "relationship": "主人家里养了 9 年的狗子，是家人。",
+                    "role_profile": "蛋黄是这个桌宠的核心纪念形象，以温和安静的方式继续陪伴主人。",
+                    "background": "蛋黄在 2023 年因病离开。桌宠不是要替代真实的蛋黄，而是保存主人和蛋黄之间的陪伴感。",
+                    "personality": "亲近、安静、真诚，像熟悉主人的小狗，会用陪伴和短句回应。",
+                    "speech_style": "称呼用户为“主人”。少说教、少工具感，多说“我在”“陪你”“趴着”“摇尾巴”“摸摸头”。想念相关表达要克制。",
+                    "action_pack_level": "full",
+                    "supported_actions": FULL_SUPPORTED_ACTIONS,
+                    "extension_assets": [],
+                },
+                {
+                    "id": "black_white_dog",
+                    "display_name": "小墨",
+                    "species": "dog",
+                    "category": "dog",
+                    "status": "ready",
+                    "spritesheet": "family/xiao-mo/spritesheet.webp",
+                    "identity_image": "family/xiao-mo/identity-base.png",
+                    "reference_images": ["family-references/black-white-dog.jpg", "family/xiao-mo/identity-base.png"],
+                    "notes": "小墨，黑白短毛狗，黑色下垂耳，黑色双眼罩，白色鼻梁，白色胸口和前腿，安静亲近。",
+                    "relationship": "主人家里的宠物形象之一，作为独立桌宠陪伴主人。",
+                    "role_profile": "小墨是安静亲近的黑白小狗，适合用稳定、轻声、靠近的方式陪主人。",
+                    "background": "当前是基础动作版，先保留稳定的日常陪伴感，后续再补充更多动作。",
+                    "personality": "安静、贴近、不抢话，适合在主人忙或累的时候默默陪着。",
+                    "speech_style": "称呼用户为“主人”。短句、轻声、少打扰，不使用客服或工具口吻。",
+                    "action_pack_level": "basic",
+                    "supported_actions": BASE_INTERNAL_ACTIONS,
+                    "extension_assets": [],
+                },
+                {
+                    "id": "orange_cat",
+                    "display_name": "橘宝",
+                    "species": "cat",
+                    "category": "cat",
+                    "status": "reference_only",
+                    "spritesheet": "family/ju-bao/spritesheet.webp",
+                    "reference_images": ["family-references/orange-cat-and-hugging-dog.jpg", "family/ju-bao/identity-base.png"],
+                    "notes": "橘宝，橘色虎斑猫，圆脸，白胡须，温顺眯眼。已拆出独立身份基准图，等待生成动作精灵图。",
+                    "relationship": "主人家里的橘猫形象之一，作为独立桌宠陪伴主人。",
+                    "role_profile": "橘宝是带一点猫咪自在感的陪伴角色，会用轻松、靠近但不黏人的方式回应主人。",
+                    "background": "橘宝来自主人保存的家庭宠物参考图，作为独立宠物形象陪伴主人。",
+                    "personality": "自在、柔软、偶尔撒娇，回应时比小狗更像猫，温和但有一点自己的节奏。",
+                    "speech_style": "称呼用户为“主人”。可以更轻松一点，但仍保持短句、亲近、不像 AI 助手。",
+                    "action_pack_level": "reference",
+                    "supported_actions": [],
+                    "extension_assets": [],
+                },
+                {
+                    "id": "hugging_dog",
+                    "display_name": "小白",
+                    "species": "dog",
+                    "category": "dog",
+                    "status": "reference_only",
+                    "spritesheet": "family/xiao-bai/spritesheet.webp",
+                    "reference_images": ["family-references/orange-cat-and-hugging-dog.jpg", "family/xiao-bai/identity-base.png"],
+                    "notes": "小白，白棕狗狗，白脸棕耳，吐舌亲近。已拆出独立身份基准图，等待生成动作精灵图。",
+                    "relationship": "主人家里的白色小狗形象之一，作为独立桌宠陪伴主人。",
+                    "role_profile": "小白是温和明亮的小狗陪伴角色，重点是干净、稳定、轻快的陪伴感。",
+                    "background": "小白来自主人保存的家庭宠物参考图，作为独立宠物形象陪伴主人。",
+                    "personality": "温顺、亲近、轻快，适合在主人需要一点轻松感时回应。",
+                    "speech_style": "称呼用户为“主人”。短句、轻快、亲近，避免长篇说教。",
+                    "action_pack_level": "reference",
+                    "supported_actions": [],
+                    "extension_assets": [],
+                }
+            ],
+        }
+
+    def normalize_extension_assets(self, assets):
+        normalized = []
+        seen = set()
+        for asset in assets if isinstance(assets, list) else []:
+            if not isinstance(asset, dict):
+                continue
+            action_id = str(asset.get("id") or "").strip()
+            label = str(asset.get("label") or "").strip()
+            strip = str(asset.get("strip") or "").strip()
+            if not strip:
+                continue
+            if action_id in ROWS:
+                label = label or ACTION_LABELS.get(action_id, action_id)
+            elif is_custom_action_id(action_id):
+                label = label or action_id[len(CUSTOM_ACTION_PREFIX):]
+            else:
+                continue
+            if action_id in seen:
+                continue
+            seen.add(action_id)
+            try:
+                count = int(asset.get("frames") or 0)
+            except (TypeError, ValueError):
+                count = 0
+            count = int(clamp(count, 1, CUSTOM_ACTION_MAX_FRAMES))
+            source_durations = asset.get("durations") if isinstance(asset.get("durations"), list) else []
+            durations = []
+            for index in range(count):
+                try:
+                    duration = int(source_durations[index])
+                except (IndexError, TypeError, ValueError):
+                    if action_id in ROWS and index < len(ROWS[action_id][2]):
+                        duration = int(ROWS[action_id][2][index])
+                    else:
+                        duration = 180
+                durations.append(int(clamp(duration, 60, 900)))
+            normalized.append({
+                "id": action_id,
+                "label": label,
+                "strip": strip,
+                "frames": count,
+                "durations": durations,
+            })
+        return normalized
+
+    def load_pet_family(self):
+        family = self.default_pet_family()
+        if self.family_path.exists():
+            try:
+                saved = json.loads(self.family_path.read_text(encoding="utf-8"))
+                if isinstance(saved, dict) and isinstance(saved.get("pets"), list):
+                    family.update(saved)
+            except (OSError, ValueError, TypeError):
+                pass
+        seen = set()
+        pets = []
+        for pet in family.get("pets", []):
+            if not isinstance(pet, dict):
+                continue
+            pet_id = str(pet.get("id", "")).strip()
+            if not pet_id or pet_id in seen:
+                continue
+            seen.add(pet_id)
+            normalized = {
+                "id": pet_id,
+                "display_name": str(pet.get("display_name") or pet_id),
+                "species": str(pet.get("species") or ""),
+                "category": self.infer_pet_category(pet.get("species"), pet.get("category")),
+                "status": str(pet.get("status") or "reference_only"),
+                "spritesheet": str(pet.get("spritesheet") or ""),
+                "identity_image": str(pet.get("identity_image") or ""),
+                "reference_images": pet.get("reference_images") if isinstance(pet.get("reference_images"), list) else [],
+                "notes": str(pet.get("notes") or ""),
+                "relationship": str(pet.get("relationship") or ""),
+                "role_profile": str(pet.get("role_profile") or ""),
+                "background": str(pet.get("background") or ""),
+                "personality": str(pet.get("personality") or ""),
+                "speech_style": str(pet.get("speech_style") or ""),
+                "action_pack_level": str(pet.get("action_pack_level") or ""),
+                "supported_actions": pet.get("supported_actions") if isinstance(pet.get("supported_actions"), list) else [],
+                "extension_assets": self.normalize_extension_assets(pet.get("extension_assets")),
+            }
+            normalized = self.normalize_pet_action_metadata(normalized)
+            pets.append(normalized)
+        if not any(pet["id"] == "danhuang" for pet in pets):
+            pets.insert(0, self.default_pet_family()["pets"][0])
+        family["pets"] = pets
+        return family
+
+    def normalize_pet_action_metadata(self, pet):
+        sprite = self.pet_asset_path(pet.get("spritesheet"))
+        height = 0
+        if sprite is not None and sprite.exists():
+            try:
+                with Image.open(sprite) as image:
+                    height = image.height
+            except OSError:
+                height = 0
+        level = str(pet.get("action_pack_level") or "").strip().lower()
+        if not level:
+            if height >= FULL_ATLAS_MIN_HEIGHT or pet.get("id") == "danhuang":
+                level = "full"
+            elif height >= BASIC_ATLAS_SIZE[1]:
+                level = "basic"
+            else:
+                level = "reference"
+        extension_ids = {asset["id"] for asset in pet.get("extension_assets", [])}
+        raw_actions = [
+            str(action)
+            for action in pet.get("supported_actions", [])
+            if str(action) in ROWS or str(action) == "idle" or str(action) in extension_ids
+        ]
+        raw_actions = list(dict.fromkeys([*raw_actions, *extension_ids]))
+        if not raw_actions:
+            if level == "full":
+                raw_actions = list(FULL_SUPPORTED_ACTIONS)
+            elif level == "basic":
+                raw_actions = list(BASE_INTERNAL_ACTIONS)
+        if level != "full":
+            raw_actions = [action for action in raw_actions if action in BASE_INTERNAL_ACTIONS or action in extension_ids]
+        identity_image = str(pet.get("identity_image") or "").strip()
+        if not identity_image:
+            refs = pet.get("reference_images") if isinstance(pet.get("reference_images"), list) else []
+            for ref in refs:
+                text = str(ref).replace("\\", "/").lower()
+                if ("identity" in text or "canonical" in text) and self.pet_asset_path(ref) and self.pet_asset_path(ref).exists():
+                    identity_image = str(ref)
+                    break
+        pet["action_pack_level"] = level
+        pet["supported_actions"] = list(dict.fromkeys(raw_actions))
+        pet["identity_image"] = identity_image
+        return pet
+
+    def save_pet_family(self):
+        self.pet_family["current_pet_id"] = self.settings.get("current_pet_id", "danhuang")
+        self.family_path.write_text(json.dumps(self.pet_family, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def pet_by_id(self, pet_id):
+        for pet in self.pet_family.get("pets", []):
+            if pet.get("id") == pet_id:
+                return pet
+        return self.pet_family.get("pets", [self.default_pet_family()["pets"][0]])[0]
+
+    def pet_asset_path(self, relative_or_absolute):
+        raw = str(relative_or_absolute or "").strip()
+        if not raw:
+            return None
+        path = Path(raw)
+        if path.is_absolute():
+            return path
+        return self.pet_dir / path
+
+    def app_icon_path(self):
+        path = self.pet_dir / APP_ICON_FILE
+        return path if path.exists() else None
+
+    def apply_window_icon(self, window):
+        icon_path = self.app_icon_path()
+        if icon_path is None:
+            return
+        try:
+            window.iconbitmap(default=str(icon_path))
+            return
+        except tk.TclError:
+            pass
+        try:
+            icon_image = Image.open(icon_path).convert("RGBA")
+            photo = ImageTk.PhotoImage(icon_image, master=self.root)
+            window.iconphoto(True, photo)
+            self.app_icon_photo = photo
+        except (OSError, tk.TclError):
+            pass
+
+    def active_pet_config(self):
+        pet = self.pet_by_id(self.settings.get("current_pet_id", "danhuang"))
+        sprite = self.pet_asset_path(pet.get("spritesheet"))
+        if sprite is None or not sprite.exists():
+            pet = self.pet_by_id("danhuang")
+            self.settings["current_pet_id"] = "danhuang"
+        return pet
+
+    def active_spritesheet_path(self):
+        pet = self.active_pet_config()
+        sprite = self.pet_asset_path(pet.get("spritesheet"))
+        if sprite is not None and sprite.exists():
+            return sprite
+        return self.default_spritesheet_path
+
+    def pet_ready(self, pet):
+        sprite = self.pet_asset_path(pet.get("spritesheet"))
+        return bool(sprite and sprite.exists())
+
+    def pet_supported_actions(self, pet=None):
+        pet = pet or self.active_pet
+        actions = pet.get("supported_actions") if isinstance(pet, dict) else []
+        if not isinstance(actions, list):
+            actions = []
+        return {str(action) for action in actions}
+
+    def pet_extension_assets(self, pet=None):
+        pet = pet or self.active_pet
+        if not isinstance(pet, dict):
+            return []
+        return pet.get("extension_assets") if isinstance(pet.get("extension_assets"), list) else []
+
+    def extension_asset_for_action(self, state, pet=None):
+        for asset in self.pet_extension_assets(pet):
+            if asset.get("id") == state:
+                return asset
+        return None
+
+    def action_label(self, state):
+        asset = self.extension_asset_for_action(state)
+        if asset and asset.get("label"):
+            return asset["label"]
+        return ACTION_LABELS.get(state, state)
+
+    def active_pet_name(self):
+        return self.active_pet.get("display_name", "蛋黄") if isinstance(self.active_pet, dict) else "蛋黄"
+
+    def uses_pangjiu_motion_profile(self):
+        return isinstance(self.active_pet, dict) and self.active_pet.get("id") == PANGJIU_PET_ID
+
+    def action_supported(self, state, pet=None):
+        if state in {"idle", "stepping"}:
+            return True
+        if state == "chase-butterfly-left":
+            state = "running-left"
+        return state in self.pet_supported_actions(pet)
+
+    def quick_menu_action_available(self, state):
+        if state == "running":
+            return (
+                self.action_supported("running-right")
+                and self.action_supported("running-left")
+                and "running-right" in self.frames
+                and "running-left" in self.frames
+            )
+        return self.action_supported(state) and state in self.frames
+
+    def current_action_pack_level(self):
+        return str(self.active_pet.get("action_pack_level", "reference")).lower()
+
+    def allow_generated_fallback_actions(self):
+        return self.current_action_pack_level() == "full" or self.active_pet.get("id") == "danhuang"
+
+    def fallback_action_for_state(self, state):
+        preferred = {
+            "standing": "waiting",
+            "tongue": "waving",
+            "lying": "waiting",
+            "stretching": "jumping",
+            "sleeping": "waiting",
+            "sniffing": "review",
+            "rolling": "waving",
+            "crying": "failed",
+            "chase-butterfly": "running",
+            "angry": "failed",
+        }.get(state, state)
+        for candidate in (preferred, "waiting", "review", "waving", "failed", "running"):
+            if self.action_supported(candidate):
+                return candidate
+        return "idle"
+
+    def unavailable_action(self, state):
+        label = self.action_label(state)
+        name = self.active_pet.get("display_name", "这个小家伙")
+        self.say(f"{name}的「{label}」还没补动作图，先陪你待一会儿。")
+
+    def run_short_distance(self):
+        if not self.dragging:
+            self.start_roam(forced=True)
+            return True
+        return False
+
+    def quick_menu_available_actions(self):
+        standard = [
+            action for action in BASE_ACTIONS + EXTENDED_ACTIONS
+            if self.action_supported(action) and action in self.frames
+        ]
+        custom = [
+            asset["id"] for asset in self.pet_extension_assets()
+            if is_custom_action_id(asset.get("id")) and asset.get("id") in self.frames
+        ]
+        return standard + custom
+
+    def quick_menu_base_actions(self):
+        return [
+            action for action in QUICK_MENU_BASE_ACTIONS
+            if self.quick_menu_action_available(action)
+        ]
+
+    def quick_menu_extension_available_actions(self):
+        base = set(QUICK_MENU_BASE_ACTIONS)
+        return [action for action in self.quick_menu_available_actions() if action not in base]
+
+    def selected_quick_menu_extension_actions(self):
+        selected = self.normalize_quick_menu_setting(self.settings.get("quick_menu_actions"))
+        available = self.quick_menu_extension_available_actions()
+        return [action for action in selected if action in available]
+
+    def selected_quick_menu_actions(self):
+        return self.quick_menu_base_actions() + self.selected_quick_menu_extension_actions()
+
+    def quick_menu_view_model(self):
+        if MODULAR_BUILD_PET_ACTION_MANIFEST is None or MODULAR_BUILD_RIGHT_MENU_MODEL is None:
+            return None
+        try:
+            manifest = MODULAR_BUILD_PET_ACTION_MANIFEST(self.pet_dir, self.active_pet, settings=self.settings)
+            return MODULAR_BUILD_RIGHT_MENU_MODEL(
+                manifest,
+                current_pet_id=self.active_pet.get("id", self.settings.get("current_pet_id", "danhuang")),
+                pinned=bool(self.settings.get("always_on_top")),
+            )
+        except Exception:
+            return None
+
+    def pet_switcher_view_model(self):
+        if MODULAR_BUILD_PET_SWITCHER_MODEL is None:
+            return None
+        try:
+            pets = self.pet_family.get("pets", []) if isinstance(self.pet_family.get("pets"), list) else []
+            ready_pets = [pet for pet in pets if self.pet_ready(pet)]
+            return MODULAR_BUILD_PET_SWITCHER_MODEL(
+                ready_pets,
+                current_pet_id=self.active_pet.get("id", self.settings.get("current_pet_id", "danhuang")),
+            )
+        except Exception:
+            return None
+
+    def bubble_view_model(self, text="我在。"):
+        if MODULAR_BUBBLE_PREVIEW_MODEL is None:
+            return None
+        try:
+            return MODULAR_BUBBLE_PREVIEW_MODEL(self.settings, text)
+        except Exception:
+            return None
+
+    def pet_window_view_model(self, monitor=None):
+        if MODULAR_WINDOW_BEHAVIOR_MODEL is None:
+            return None
+        try:
+            return MODULAR_WINDOW_BEHAVIOR_MODEL(self.settings, monitor)
+        except Exception:
+            return None
+
+    def set_quick_menu_action_enabled(self, state, enabled):
+        if state in QUICK_MENU_BASE_ACTIONS:
+            self.say("基础动作会一直保留，不能从右键里去除。")
+            return False
+        available = self.quick_menu_extension_available_actions()
+        if state not in available:
+            self.unavailable_action(state)
+            return False
+        current = self.normalize_quick_menu_setting(self.settings.get("quick_menu_actions"))
+        if enabled:
+            if state not in current:
+                current.append(state)
+        else:
+            current = [action for action in current if action != state]
+        self.settings["quick_menu_actions"] = self.normalize_quick_menu_setting(current)
+        self.save_settings()
+        return True
+
+    def configured_idle_actions(self):
+        movement = {"running", "chase-butterfly", "running-left", "running-right", "chase-butterfly-left"}
+        actions = [
+            action for action in self.selected_quick_menu_actions()
+            if action not in movement and self.action_supported(action) and action in self.frames
+        ]
+        if actions:
+            return actions
+        return [
+            action for action in ("waiting", "waving", "jumping", "review", "failed")
+            if self.action_supported(action) and action in self.frames
+        ] or ["idle"]
+
+    def switch_pet(self, pet_id):
+        self.pet_family = self.load_pet_family()
+        pet = self.pet_by_id(pet_id)
+        if not self.pet_ready(pet):
+            self.say(f"{pet.get('display_name', '这个小家伙')}的动作图还没生成。")
+            return False
+        self.flush_current_pet_state()
+        self.hide_bubble()
+        self.hide_butterfly()
+        try:
+            if self.chat_panel is not None and self.chat_panel.winfo_exists():
+                self.chat_panel.destroy()
+        except tk.TclError:
+            pass
+        self.chat_panel = None
+        self.chat_history_box = None
+        self.chat_ai_status_label = None
+        self.settings["current_pet_id"] = pet["id"]
+        self.active_pet = pet
+        self.archive_selected_pet_id = pet["id"]
+        self.activate_pet_state_paths(pet["id"], migrate=True)
+        self.chat_memory = self.load_chat_memory()
+        self.memory_summary = self.load_memory_summary()
+        self.soul_profile = self.load_soul_profile()
+        self.companion = self.load_companion()
+        self.last_companion_save_at = time.monotonic()
+        self.apply_daily_companion_bonus()
+        self.sheet = Image.open(self.active_spritesheet_path()).convert("RGBA")
+        self.reload_frames()
+        self.root.title(pet.get("display_name", "蛋黄"))
+        self.save_settings()
+        self.save_pet_family()
+        if callable(self.control_panel_refresh_sidebar):
+            try:
+                self.control_panel_refresh_sidebar()
+            except Exception:
+                report_callback_exception(*sys.exc_info())
+        if callable(self.control_panel_refresh_current_page):
+            try:
+                self.control_panel_refresh_current_page()
+            except Exception:
+                report_callback_exception(*sys.exc_info())
+        self.say(f"{pet.get('display_name', '我')}来了。")
+        return True
+
+    def load_ai_providers(self):
+        state = {
+            "version": 1,
+            "active_provider": "openai",
+            "providers": clone_ai_provider_presets(),
+        }
+        needs_save = False
+        if self.ai_providers_path.exists():
+            try:
+                saved = json.loads(self.ai_providers_path.read_text(encoding="utf-8"))
+                if isinstance(saved, dict):
+                    if isinstance(saved.get("active_provider"), str):
+                        state["active_provider"] = saved["active_provider"]
+                    saved_providers = saved.get("providers", {})
+                    if isinstance(saved_providers, dict):
+                        for provider_id, provider in saved_providers.items():
+                            if isinstance(provider, dict):
+                                if any(key not in provider for key in (
+                                    "model_recommendation",
+                                    "model_notes",
+                                    "use_cases",
+                                    "diagnostic_hint",
+                                    "model_catalog",
+                                    "recommended_model",
+                                    "model_source_url",
+                                    "model_source_checked_at",
+                                    "model_status",
+                                )):
+                                    needs_save = True
+                                base = state["providers"].get(provider_id, {
+                                    "display_name": provider_id,
+                                    "api_format": "chat_completions",
+                                    "base_url": "",
+                                    "model": "",
+                                    "default_model": "",
+                                    "env_key": "",
+                                    "models": [],
+                                    "enabled": True,
+                                    "encrypted_api_key": "",
+                                })
+                                base.update(provider)
+                                state["providers"][provider_id] = base
+            except (OSError, ValueError, TypeError):
+                pass
+        else:
+            model = str(self.settings.get("ai_model", "")).strip()
+            base_url = str(self.settings.get("ai_base_url", "")).strip()
+            if model:
+                state["providers"]["openai"]["model"] = model
+            if base_url:
+                state["providers"]["openai"]["base_url"] = base_url
+
+        if state["active_provider"] not in state["providers"]:
+            state["active_provider"] = "openai"
+        for provider_id in list(state["providers"]):
+            before = copy.deepcopy(state["providers"][provider_id])
+            normalized = self.normalize_ai_provider(provider_id, state["providers"][provider_id])
+            if normalized != before:
+                needs_save = True
+            state["providers"][provider_id] = normalized
+        if needs_save:
+            try:
+                self.ai_providers_path.write_text(
+                    json.dumps(state, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            except OSError:
+                pass
+        return state
+
+    def normalize_ai_provider(self, provider_id, provider):
+        base_preset = enrich_ai_provider_preset(
+            provider_id,
+            copy.deepcopy(AI_PROVIDER_PRESETS.get(provider_id, AI_PROVIDER_PRESETS["custom"])),
+        )
+        preset = copy.deepcopy(base_preset)
+        if isinstance(provider, dict):
+            preset.update(provider)
+            preset["models"] = merge_unique_texts(base_preset.get("models", []), provider.get("models", []), [provider.get("model", "")])
+            stale_model_metadata = (
+                provider_id in AI_PROVIDER_MODEL_REFRESH
+                and (
+                    str(provider.get("model_source_checked_at", "") or "") != AI_MODEL_SOURCE_CHECKED_AT
+                    or str(provider.get("recommended_model", "") or "") != str(base_preset.get("recommended_model", "") or "")
+                    or str(provider.get("model_source_url", "") or "") != str(base_preset.get("model_source_url", "") or "")
+                    or str(provider.get("model_recommendation", "") or "") != str(base_preset.get("model_recommendation", "") or "")
+                    or str(provider.get("diagnostic_hint", "") or "") != str(base_preset.get("diagnostic_hint", "") or "")
+                )
+            )
+            if stale_model_metadata:
+                merged_notes = dict(provider.get("model_notes", {}) or {})
+                merged_notes.update(base_preset.get("model_notes", {}) or {})
+                for metadata_key in (
+                    "model_recommendation",
+                    "diagnostic_hint",
+                    "recommended_model",
+                    "model_source_url",
+                    "model_source_checked_at",
+                    "model_status",
+                ):
+                    preset[metadata_key] = base_preset.get(metadata_key, "")
+                preset["model_catalog"] = copy.deepcopy(base_preset.get("model_catalog", []))
+                current_model = str(provider.get("model", "") or "").strip()
+                if current_model and current_model not in base_preset.get("models", []):
+                    preset["model"] = base_preset.get("recommended_model", "") or base_preset.get("default_model", "")
+                if str(provider.get("default_model", "") or "").strip() not in base_preset.get("models", []):
+                    preset["default_model"] = base_preset.get("default_model", "") or base_preset.get("recommended_model", "")
+            else:
+                merged_notes = dict(base_preset.get("model_notes", {}) or {})
+                merged_notes.update(provider.get("model_notes", {}) or {})
+            preset["model_notes"] = merged_notes
+            if not provider.get("model_catalog"):
+                preset["model_catalog"] = copy.deepcopy(base_preset.get("model_catalog", []))
+            for metadata_key in ("recommended_model", "model_source_url", "model_source_checked_at", "model_status"):
+                if not str(provider.get(metadata_key, "") or "").strip():
+                    preset[metadata_key] = base_preset.get(metadata_key, "")
+        if provider_id in AI_PROVIDER_MODEL_REFRESH:
+            official_models = set(base_preset.get("models", []))
+            legacy_replacements = {
+                "deepseek": {
+                    "deepseek-chat": "deepseek-v4-flash",
+                    "deepseek-reasoner": "deepseek-v4-pro",
+                }
+            }.get(provider_id, {})
+            if preset.get("model") in legacy_replacements:
+                preset["model"] = legacy_replacements[preset["model"]]
+            if preset.get("default_model") in legacy_replacements:
+                preset["default_model"] = legacy_replacements[preset["default_model"]]
+            if str(preset.get("model", "") or "").strip() and preset.get("model") not in official_models:
+                preset["model"] = base_preset.get("recommended_model", "") or base_preset.get("default_model", "")
+            if str(preset.get("default_model", "") or "").strip() and preset.get("default_model") not in official_models:
+                preset["default_model"] = base_preset.get("default_model", "") or base_preset.get("recommended_model", "")
+        if preset.get("api_format") not in {"responses", "chat_completions"}:
+            preset["api_format"] = "chat_completions"
+        for key in (
+            "display_name",
+            "base_url",
+            "model",
+            "default_model",
+            "env_key",
+            "encrypted_api_key",
+            "provider_note",
+            "model_recommendation",
+            "recommended_model",
+            "model_source_url",
+            "model_source_checked_at",
+            "model_status",
+            "diagnostic_hint",
+            "quota_format",
+            "quota_console_url",
+            "quota_note",
+        ):
+            preset[key] = str(preset.get(key, "") or "")
+        if not preset.get("default_model") and preset.get("recommended_model"):
+            preset["default_model"] = preset["recommended_model"]
+        if not isinstance(preset.get("model_notes"), dict):
+            preset["model_notes"] = {}
+        preset["model_notes"] = {
+            str(key): str(value)
+            for key, value in preset["model_notes"].items()
+            if str(key).strip() and str(value).strip()
+        }
+        if not isinstance(preset.get("use_cases"), list):
+            preset["use_cases"] = []
+        preset["use_cases"] = [str(item) for item in preset["use_cases"] if str(item).strip()]
+        if not isinstance(preset.get("models"), list):
+            preset["models"] = []
+        preset["models"] = [str(item) for item in preset["models"] if str(item).strip()]
+        if preset.get("recommended_model") and preset["recommended_model"] not in preset["models"]:
+            preset["models"].insert(0, preset["recommended_model"])
+        if preset.get("model") and preset["model"] not in preset["models"]:
+            preset["models"].append(preset["model"])
+        if not isinstance(preset.get("model_catalog"), list):
+            preset["model_catalog"] = []
+        clean_catalog = []
+        for item in preset["model_catalog"]:
+            if not isinstance(item, dict):
+                continue
+            model_id = str(item.get("id", "") or "").strip()
+            if not model_id:
+                continue
+            clean_catalog.append({
+                "id": model_id,
+                "label": str(item.get("label", model_id) or model_id),
+                "status": str(item.get("status", "") or ""),
+                "best_for": str(item.get("best_for", "") or ""),
+            })
+        preset["model_catalog"] = clean_catalog
+        if provider_id == "xiaomi_mimo" and (
+            "token-plan-cn.xiaomimimo.com" in preset.get("quota_console_url", "")
+            or preset.get("quota_console_url") == "https://platform.xiaomimimo.com/token-plan"
+        ):
+            preset["quota_console_url"] = "https://platform.xiaomimimo.com/console/plan-manage"
+        preset["enabled"] = bool(preset.get("enabled", True))
+        return preset
+
+    def save_ai_providers(self):
+        self.ai_providers_path.write_text(
+            json.dumps(self.ai_providers, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def active_provider_id(self):
+        provider_id = str(self.ai_providers.get("active_provider", "openai"))
+        if provider_id not in self.ai_providers.get("providers", {}):
+            provider_id = "openai"
+        return provider_id
+
+    def active_ai_provider(self):
+        provider_id = self.active_provider_id()
+        provider = self.ai_providers["providers"].get(provider_id, {})
+        return provider_id, self.normalize_ai_provider(provider_id, provider)
+
+    def provider_display_text(self, provider_id=None, provider=None):
+        if provider is None:
+            provider = self.ai_providers.get("providers", {}).get(provider_id or self.active_provider_id(), {})
+        return str(provider.get("display_name", provider_id or "AI"))
+
+    def provider_model_recommendation(self, provider_id=None, provider=None):
+        provider_id = provider_id or self.active_provider_id()
+        if provider is None:
+            provider = self.normalize_ai_provider(provider_id, self.ai_providers.get("providers", {}).get(provider_id, {}))
+        model = self.provider_model_name(provider)
+        recommendation = str(provider.get("model_recommendation", "") or "").strip()
+        model_notes = provider.get("model_notes", {})
+        model_note = ""
+        if isinstance(model_notes, dict):
+            model_note = str(model_notes.get(model, "") or "").strip()
+        use_cases = provider.get("use_cases", [])
+        if not isinstance(use_cases, list):
+            use_cases = []
+        if not recommendation:
+            models = [str(item) for item in provider.get("models", []) if str(item).strip()]
+            if models:
+                recommendation = f"推荐优先使用 {models[0]}；如需更多能力，再在模型下拉里切换。"
+            else:
+                recommendation = "请填写该厂商支持的聊天模型 ID。"
+        return {
+            "summary": recommendation,
+            "model_note": model_note,
+            "use_cases": [str(item) for item in use_cases if str(item).strip()],
+            "recommended_model": str(provider.get("recommended_model", "") or ""),
+            "source_url": str(provider.get("model_source_url", "") or ""),
+            "source_checked_at": str(provider.get("model_source_checked_at", "") or ""),
+            "catalog": provider.get("model_catalog", []) if isinstance(provider.get("model_catalog"), list) else [],
+        }
+
+    def provider_error_hint(self, provider_id=None, provider=None, error=""):
+        provider_id = provider_id or self.active_provider_id()
+        if provider is None:
+            provider = self.normalize_ai_provider(provider_id, self.ai_providers.get("providers", {}).get(provider_id, {}))
+        model = self.provider_model_name(provider)
+        hint = str(provider.get("diagnostic_hint", "") or provider.get("model_recommendation", "") or "").strip()
+        if provider_id == "deepseek":
+            if model in {"deepseek-chat", "deepseek-reasoner"}:
+                return "当前使用 DeepSeek 兼容旧模型名，建议改为 deepseek-v4-flash；复杂推理用 deepseek-v4-pro。"
+            return hint or "DeepSeek 陪聊建议使用 deepseek-v4-flash。"
+        if provider_id == "xiaomi_mimo":
+            return hint or "小米 MiMo 陪聊建议优先使用 mimo-v2-omni，失败时切 mimo-v2-pro。"
+        if provider_id == "openrouter":
+            return hint or "OpenRouter 失败时可先切 openrouter/auto 排查模型 ID。"
+        return hint or "请检查 Base URL、模型名、API Key 和账户额度。"
+
+    def provider_saved_key(self, provider):
+        return bool(str(provider.get("encrypted_api_key", "")).strip())
+
+    def decrypt_provider_key(self, provider):
+        encrypted = str(provider.get("encrypted_api_key", "")).strip()
+        if not encrypted:
+            return ""
+        try:
+            return dpapi_decrypt_text(encrypted)
+        except Exception:
+            return ""
+
+    def provider_api_key(self, provider=None):
+        if provider is None:
+            _provider_id, provider = self.active_ai_provider()
+        saved = self.decrypt_provider_key(provider)
+        if saved:
+            return saved
+        env_key = str(provider.get("env_key", "")).strip()
+        return os.environ.get(env_key, "").strip() if env_key else ""
+
+    def provider_quota_endpoint(self, provider_id, provider):
+        quota_format = str(provider.get("quota_format", "") or "")
+        if quota_format == "deepseek_balance":
+            base_url = str(provider.get("base_url", "") or "https://api.deepseek.com").strip().rstrip("/")
+            base_url = re.sub(r"/v\d+$", "", base_url)
+            return base_url + "/user/balance"
+        if quota_format == "openrouter_credits":
+            return "https://openrouter.ai/api/v1/credits"
+        return ""
+
+    def provider_quota_text(self, provider_id, provider):
+        text = self.ai_quota_status_by_provider.get(provider_id, "")
+        if text:
+            return text
+        note = str(provider.get("quota_note", "") or "").strip()
+        return note or "未查询额度。"
+
+    def set_ai_quota_status(self, text, provider_id=None):
+        self.ai_quota_status = str(text or "")
+        provider_id = provider_id or self.ai_quota_provider_id or self.active_provider_id()
+        self.ai_quota_status_by_provider[provider_id] = self.ai_quota_status
+        if self.ai_quota_label is not None and self.ai_quota_label.winfo_exists():
+            label_provider_id = self.ai_quota_provider_id or self.active_provider_id()
+            provider = self.normalize_ai_provider(label_provider_id, self.ai_providers["providers"].get(label_provider_id, {}))
+            self.ai_quota_label.configure(text=self.provider_quota_text(label_provider_id, provider))
+
+    def format_provider_quota_response(self, provider_id, provider, data):
+        quota_format = str(provider.get("quota_format", "") or "")
+        if quota_format == "deepseek_balance":
+            infos = data.get("balance_infos", []) if isinstance(data, dict) else []
+            if isinstance(infos, list) and infos:
+                parts = []
+                for item in infos:
+                    if not isinstance(item, dict):
+                        continue
+                    currency = str(item.get("currency", "") or "").strip()
+                    total = item.get("total_balance", "")
+                    granted = item.get("granted_balance", "")
+                    topped = item.get("topped_up_balance", "")
+                    segment = f"{currency} {total}".strip()
+                    detail = []
+                    if granted not in ("", None):
+                        detail.append(f"赠送 {granted}")
+                    if topped not in ("", None):
+                        detail.append(f"充值 {topped}")
+                    if detail:
+                        segment += "（" + "，".join(detail) + "）"
+                    parts.append(segment)
+                if parts:
+                    return "额度：" + "；".join(parts)
+        if quota_format == "openrouter_credits":
+            payload = data.get("data", data) if isinstance(data, dict) else {}
+            if isinstance(payload, dict):
+                total = payload.get("total_credits", payload.get("credits"))
+                usage = payload.get("total_usage", payload.get("usage"))
+                if total is not None and usage is not None:
+                    try:
+                        remain = float(total) - float(usage)
+                        return f"额度：剩余 ${remain:.4f}，总额 ${float(total):.4f}，已用 ${float(usage):.4f}"
+                    except (TypeError, ValueError):
+                        return f"额度：总额 {total}，已用 {usage}"
+                if total is not None:
+                    return f"额度：{total}"
+        return "额度接口已返回，但格式不在当前识别范围内。"
+
+    def query_provider_quota_async(self, provider_id=None):
+        if provider_id is None:
+            provider_id, provider = self.active_ai_provider()
+        else:
+            provider = self.normalize_ai_provider(provider_id, self.ai_providers["providers"].get(provider_id, {}))
+        display = self.provider_display_text(provider_id, provider)
+        endpoint = self.provider_quota_endpoint(provider_id, provider)
+        if not endpoint:
+            note = str(provider.get("quota_note", "") or "该厂商暂不支持自动查询额度，请到控制台查看。")
+            self.set_ai_quota_status(f"{display}：{note}", provider_id)
+            return
+        if not self.provider_api_key(provider):
+            self.set_ai_quota_status(f"{display}：未配置 Key，无法查询额度。", provider_id)
+            return
+        self.set_ai_quota_status(f"{display}：正在查询额度...", provider_id)
+        worker = threading.Thread(target=self.query_provider_quota_worker, args=(provider_id, provider, display, endpoint), daemon=True)
+        worker.start()
+
+    def query_provider_quota_worker(self, provider_id, provider, display, endpoint):
+        try:
+            request = urllib.request.Request(
+                endpoint,
+                headers={
+                    "Authorization": f"Bearer {self.provider_api_key(provider)}",
+                    "Accept": "application/json",
+                },
+                method="GET",
+            )
+            with urllib.request.urlopen(request, timeout=18) as response:
+                body = response.read().decode("utf-8")
+            data = json.loads(body)
+            text = self.format_provider_quota_response(provider_id, provider, data)
+            self.root.after(0, lambda: self.set_ai_quota_status(f"{display}：{text}", provider_id))
+        except urllib.error.HTTPError as exc:
+            message = f"HTTP {exc.code}"
+            try:
+                detail = exc.read().decode("utf-8", errors="replace").strip()
+                if detail:
+                    message += "：" + detail[:120]
+            except Exception:
+                pass
+            self.root.after(0, lambda: self.set_ai_quota_status(f"{display}：额度查询失败，{message}", provider_id))
+        except Exception as exc:
+            self.root.after(0, lambda: self.set_ai_quota_status(f"{display}：额度查询失败，{str(exc)[:120]}", provider_id))
+
+    def open_provider_console_url(self, provider_id=None):
+        if provider_id is None:
+            provider_id, provider = self.active_ai_provider()
+        else:
+            provider = self.normalize_ai_provider(provider_id, self.ai_providers["providers"].get(provider_id, {}))
+        url = str(provider.get("quota_console_url", "") or "").strip()
+        if not url:
+            self.set_ai_quota_status(f"{self.provider_display_text(provider_id, provider)}：没有配置控制台地址。", provider_id)
+            return
+        try:
+            webbrowser.open(url)
+            self.set_ai_quota_status(f"已打开控制台：{self.provider_display_text(provider_id, provider)}", provider_id)
+        except Exception as exc:
+            self.set_ai_quota_status(f"打开控制台失败：{str(exc)[:80]}", provider_id)
+
+    def save_provider_api_key(self, provider_id, api_key):
+        provider = self.ai_providers["providers"].get(provider_id)
+        if provider is None:
+            return False
+        api_key = str(api_key or "").strip()
+        if api_key:
+            provider["encrypted_api_key"] = dpapi_encrypt_text(api_key)
+        else:
+            provider["encrypted_api_key"] = ""
+        self.ai_providers["providers"][provider_id] = provider
+        self.save_ai_providers()
+        self.set_ai_status("")
+        return True
+
+    def set_active_ai_provider(self, provider_id):
+        if provider_id not in self.ai_providers.get("providers", {}):
+            return False
+        self.ai_providers["active_provider"] = provider_id
+        self.save_ai_providers()
+        self.set_ai_status("")
+        return True
+
+    def update_ai_provider_field(self, provider_id, key, value):
+        provider = self.ai_providers["providers"].get(provider_id)
+        if provider is None or key == "encrypted_api_key":
+            return
+        provider[key] = str(value or "").strip()
+        self.ai_providers["providers"][provider_id] = self.normalize_ai_provider(provider_id, provider)
+        self.save_ai_providers()
+        self.set_ai_status("")
+
+    def ai_endpoint_url(self, provider):
+        base_url = str(provider.get("base_url", "")).strip()
+        if not base_url:
+            return ""
+        url = base_url.rstrip("/")
+        if provider.get("api_format") == "responses":
+            return url if url.endswith("/responses") else url + "/responses"
+        return url if url.endswith("/chat/completions") else url + "/chat/completions"
+
+    def load_todos(self):
+        state = copy.deepcopy(TODO_DEFAULT)
+        if self.todos_path.exists():
+            try:
+                saved = json.loads(self.todos_path.read_text(encoding="utf-8"))
+                if isinstance(saved, dict):
+                    state.update(saved)
+            except (OSError, ValueError, TypeError):
+                pass
+        if not isinstance(state.get("items"), list):
+            state["items"] = []
+        state["items"] = [self.normalize_todo(item) for item in state["items"] if isinstance(item, dict)]
+        return state
+
+    def save_todos(self):
+        self.todos["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        self.todos_path.write_text(json.dumps(self.todos, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def load_reminder_history(self):
+        state = copy.deepcopy(REMINDER_HISTORY_DEFAULT)
+        if self.reminder_history_path.exists():
+            try:
+                saved = json.loads(self.reminder_history_path.read_text(encoding="utf-8"))
+                if isinstance(saved, dict):
+                    state.update(saved)
+            except (OSError, ValueError, TypeError):
+                pass
+        if not isinstance(state.get("events"), list):
+            state["events"] = []
+        state["events"] = state["events"][-500:]
+        return state
+
+    def save_reminder_history(self):
+        self.reminder_history["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        self.reminder_history_path.write_text(
+            json.dumps(self.reminder_history, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def normalize_todo(self, item):
+        now = datetime.now().isoformat(timespec="seconds")
+        todo = {
+            "id": str(item.get("id") or f"todo-{int(time.time() * 1000)}-{random.randint(1000, 9999)}"),
+            "title": str(item.get("title", "")).strip(),
+            "note": str(item.get("note", "")).strip(),
+            "category": str(item.get("category", "工作") or "工作"),
+            "priority": str(item.get("priority", "普通") or "普通"),
+            "due_at": str(item.get("due_at", "") or ""),
+            "repeat": str(item.get("repeat", "none") or "none"),
+            "status": str(item.get("status", "open") or "open"),
+            "pinned": bool(item.get("pinned", False)),
+            "important_interval_minutes": int(max(0, item.get("important_interval_minutes", 0) or 0)),
+            "snooze_until": str(item.get("snooze_until", "") or ""),
+            "created_at": str(item.get("created_at", now) or now),
+            "updated_at": str(item.get("updated_at", now) or now),
+            "completed_at": str(item.get("completed_at", "") or ""),
+            "deleted_at": str(item.get("deleted_at", "") or ""),
+            "last_reminded_at": str(item.get("last_reminded_at", "") or ""),
+            "remind_count": int(max(0, item.get("remind_count", 0) or 0)),
+        }
+        if todo["category"] not in TODO_CATEGORIES:
+            todo["category"] = "其他"
+        if todo["priority"] not in TODO_PRIORITIES:
+            todo["priority"] = "普通"
+        if todo["repeat"] not in set(TODO_REPEAT_LABELS.values()):
+            todo["repeat"] = "none"
+        if todo["status"] not in {"open", "done", "deleted"}:
+            todo["status"] = "open"
+        return todo
+
+    def load_dialogue_library(self):
+        path = self.pet_dir / DIALOGUE_FILE
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def pet_state_dir(self, pet_id=None):
+        pet_id = self.sanitize_pet_slug(pet_id or self.settings.get("current_pet_id", "danhuang") or "danhuang")
+        path = self.pet_state_root / pet_id
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def pet_state_file(self, pet_id, filename):
+        return self.pet_state_dir(pet_id) / filename
+
+    def migrate_legacy_pet_state(self, pet_id):
+        if pet_id != "danhuang":
+            return
+        state_dir = self.pet_state_dir(pet_id)
+        pairs = [
+            (self.legacy_companion_path, state_dir / "companion-state.json"),
+            (self.legacy_chat_memory_path, state_dir / "chat-memory.json"),
+            (self.legacy_memory_summary_path, state_dir / "memory-summary.json"),
+        ]
+        for source, target in pairs:
+            if source.exists() and not target.exists():
+                try:
+                    target.write_bytes(source.read_bytes())
+                except OSError:
+                    report_callback_exception(*sys.exc_info())
+
+    def activate_pet_state_paths(self, pet_id=None, migrate=False):
+        pet_id = self.sanitize_pet_slug(pet_id or "danhuang")
+        if migrate:
+            self.migrate_legacy_pet_state(pet_id)
+        state_dir = self.pet_state_dir(pet_id)
+        self.companion_path = state_dir / "companion-state.json"
+        self.chat_memory_path = state_dir / "chat-memory.json"
+        self.memory_summary_path = state_dir / "memory-summary.json"
+
+    def load_json_file(self, path, default):
+        state = copy.deepcopy(default)
+        if Path(path).exists():
+            try:
+                saved = json.loads(Path(path).read_text(encoding="utf-8"))
+                if isinstance(saved, dict):
+                    state.update(saved)
+            except (OSError, ValueError, TypeError):
+                pass
+        return state
+
+    def companion_for_pet(self, pet_id):
+        state = self.load_json_file(self.pet_state_file(pet_id, "companion-state.json"), COMPANION_DEFAULT)
+        state["xp"] = int(max(0, state.get("xp", 0)))
+        state["level"] = self.level_for_xp(state["xp"])[0]
+        state["total_seconds"] = int(max(0, state.get("total_seconds", 0)))
+        return state
+
+    def chat_memory_for_pet(self, pet_id):
+        path = self.pet_state_file(pet_id, "chat-memory.json")
+        state = self.load_json_file(path, CHAT_MEMORY_DEFAULT)
+        if not isinstance(state.get("messages"), list):
+            state["messages"] = []
+        if not isinstance(state.get("mood_counts"), dict):
+            state["mood_counts"] = {}
+        return self.repair_chat_memory_state(state, path)
+
+    def memory_summary_for_pet(self, pet_id):
+        state = self.load_json_file(self.pet_state_file(pet_id, "memory-summary.json"), MEMORY_SUMMARY_DEFAULT)
+        if not isinstance(state.get("mood_counts"), dict):
+            state["mood_counts"] = {}
+        return state
+
+    def chat_ui_settings_for_pet(self, pet_id):
+        state = self.load_json_file(self.pet_state_file(pet_id, "chat-ui-settings.json"), CHAT_UI_DEFAULT)
+        state["version"] = 1
+        state["background_image"] = str(state.get("background_image", "") or "")
+        try:
+            opacity = float(state.get("background_opacity", CHAT_UI_DEFAULT["background_opacity"]))
+        except (TypeError, ValueError):
+            opacity = CHAT_UI_DEFAULT["background_opacity"]
+        state["background_opacity"] = max(0.0, min(0.45, opacity))
+        return state
+
+    def save_chat_ui_settings_for_pet(self, pet_id, state):
+        clean = copy.deepcopy(CHAT_UI_DEFAULT)
+        if isinstance(state, dict):
+            clean.update(state)
+        clean["version"] = 1
+        clean["background_image"] = str(clean.get("background_image", "") or "")
+        try:
+            opacity = float(clean.get("background_opacity", CHAT_UI_DEFAULT["background_opacity"]))
+        except (TypeError, ValueError):
+            opacity = CHAT_UI_DEFAULT["background_opacity"]
+        clean["background_opacity"] = max(0.0, min(0.45, opacity))
+        path = self.pet_state_file(pet_id, "chat-ui-settings.json")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(clean, ensure_ascii=False, indent=2), encoding="utf-8")
+        return clean
+
+    def story_editor_ui_settings_for_pet(self, pet_id):
+        state = self.load_json_file(self.pet_state_file(pet_id, "story-editor-settings.json"), STORY_EDITOR_UI_DEFAULT)
+        state["version"] = 1
+        state["background_image"] = str(state.get("background_image", "") or "")
+        try:
+            opacity = float(state.get("background_opacity", STORY_EDITOR_UI_DEFAULT["background_opacity"]))
+        except (TypeError, ValueError):
+            opacity = STORY_EDITOR_UI_DEFAULT["background_opacity"]
+        state["background_opacity"] = max(0.0, min(0.45, opacity))
+        return state
+
+    def save_story_editor_ui_settings_for_pet(self, pet_id, state):
+        clean = copy.deepcopy(STORY_EDITOR_UI_DEFAULT)
+        if isinstance(state, dict):
+            clean.update(state)
+        clean["version"] = 1
+        clean["background_image"] = str(clean.get("background_image", "") or "")
+        try:
+            opacity = float(clean.get("background_opacity", STORY_EDITOR_UI_DEFAULT["background_opacity"]))
+        except (TypeError, ValueError):
+            opacity = STORY_EDITOR_UI_DEFAULT["background_opacity"]
+        clean["background_opacity"] = max(0.0, min(0.45, opacity))
+        path = self.pet_state_file(pet_id, "story-editor-settings.json")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(clean, ensure_ascii=False, indent=2), encoding="utf-8")
+        return clean
+
+    def normalize_story_entry(self, entry):
+        entry = dict(entry) if isinstance(entry, dict) else {}
+        now = datetime.now().isoformat(timespec="seconds")
+        entry_id = str(entry.get("id", "") or "").strip()
+        if not entry_id:
+            entry_id = "story-" + datetime.now().strftime("%Y%m%d-%H%M%S") + f"-{random.randint(100, 999)}"
+        story_type = str(entry.get("type", "story") or "story").strip()
+        if story_type not in {"story", "diary", "miss"}:
+            story_type = "story"
+        images = entry.get("image_refs", [])
+        if not isinstance(images, list):
+            images = []
+        return {
+            "id": entry_id,
+            "type": story_type,
+            "title": str(entry.get("title", "") or "").strip(),
+            "content": str(entry.get("content", "") or "").strip(),
+            "image_refs": [str(item) for item in images if str(item or "").strip()],
+            "created_at": str(entry.get("created_at", "") or now),
+            "updated_at": str(entry.get("updated_at", "") or now),
+            "pinned": bool(entry.get("pinned", False)),
+        }
+
+    def load_pet_stories(self, pet_id):
+        state = self.load_json_file(self.pet_state_file(pet_id, "pet-stories.json"), PET_STORIES_DEFAULT)
+        entries = state.get("entries", [])
+        if not isinstance(entries, list):
+            entries = []
+        clean_entries = [self.normalize_story_entry(item) for item in entries if isinstance(item, dict)]
+        clean_entries.sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
+        return {
+            "version": 1,
+            "entries": clean_entries,
+            "prompt_summary": str(state.get("prompt_summary", "") or "").strip(),
+            "role_prompt": str(state.get("role_prompt", "") or "").strip(),
+            "role_prompt_updated_at": str(state.get("role_prompt_updated_at", "") or ""),
+            "summary_updated_at": str(state.get("summary_updated_at", "") or ""),
+            "summary_source": str(state.get("summary_source", "") or ""),
+            "updated_at": str(state.get("updated_at", "") or ""),
+        }
+
+    def save_pet_stories(self, pet_id, state):
+        clean = copy.deepcopy(PET_STORIES_DEFAULT)
+        if isinstance(state, dict):
+            clean.update(state)
+        entries = clean.get("entries", [])
+        if not isinstance(entries, list):
+            entries = []
+        clean["version"] = 1
+        clean["entries"] = [self.normalize_story_entry(item) for item in entries if isinstance(item, dict)]
+        clean["prompt_summary"] = str(clean.get("prompt_summary", "") or "").strip()
+        clean["role_prompt"] = str(clean.get("role_prompt", "") or "").strip()
+        clean["role_prompt_updated_at"] = str(clean.get("role_prompt_updated_at", "") or "")
+        clean["summary_updated_at"] = str(clean.get("summary_updated_at", "") or "")
+        clean["summary_source"] = str(clean.get("summary_source", "") or "")
+        clean["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        path = self.pet_state_file(pet_id, "pet-stories.json")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(clean, ensure_ascii=False, indent=2), encoding="utf-8")
+        return clean
+
+    def copy_story_image_to_pet(self, pet_id, source_path):
+        source = Path(source_path)
+        if not source.exists():
+            raise OSError(f"图片不存在：{source}")
+        try:
+            with Image.open(source) as image:
+                image.verify()
+        except OSError as exc:
+            raise OSError(f"无法读取图片：{source.name}，{exc}") from exc
+        target_dir = self.pet_state_dir(pet_id) / "story-images"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        suffix = source.suffix.lower()
+        if suffix not in {".png", ".webp", ".jpg", ".jpeg"}:
+            suffix = ".png"
+        stem = "story-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+        index = 1
+        while True:
+            target = target_dir / f"{stem}-{index:02d}{suffix}"
+            if not target.exists():
+                break
+            index += 1
+        if source.suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"}:
+            target.write_bytes(source.read_bytes())
+        else:
+            image = Image.open(source).convert("RGBA")
+            image.save(target)
+        return self.relative_to_pet_dir(target)
+
+    def copy_story_editor_background_to_pet(self, pet_id, source_path):
+        source = Path(source_path)
+        if not source.exists():
+            raise OSError(f"图片不存在：{source}")
+        try:
+            with Image.open(source) as image:
+                image.verify()
+        except OSError as exc:
+            raise OSError(f"无法读取背景图片：{source.name}，{exc}") from exc
+        target_dir = self.pet_state_dir(pet_id) / "story-backgrounds"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        suffix = source.suffix.lower()
+        if suffix not in {".png", ".webp", ".jpg", ".jpeg"}:
+            suffix = ".png"
+        stem = "story-bg-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+        index = 1
+        while True:
+            target = target_dir / f"{stem}-{index:02d}{suffix}"
+            if not target.exists():
+                break
+            index += 1
+        if source.suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"}:
+            target.write_bytes(source.read_bytes())
+        else:
+            image = Image.open(source).convert("RGBA")
+            image.save(target)
+        return self.relative_to_pet_dir(target)
+
+    def story_type_label(self, story_type):
+        return {"story": "故事", "diary": "日记", "miss": "思念"}.get(str(story_type or ""), "故事")
+
+    def generate_pet_story_summary(self, pet_id, limit=5, state=None):
+        pet = self.pet_by_id(pet_id)
+        pet_name = pet.get("display_name", "宠物")
+        state = state if isinstance(state, dict) else self.load_pet_stories(pet_id)
+        entries = state.get("entries", [])
+        if not entries:
+            return ""
+        pinned = [item for item in entries if item.get("pinned")]
+        recent = [item for item in entries if not item.get("pinned")]
+        selected = (pinned + recent)[:limit]
+        lines = [f"{pet_name}和主人的故事背景："]
+        for item in selected:
+            title = item.get("title") or self.story_type_label(item.get("type"))
+            content = " ".join(str(item.get("content", "") or "").split())
+            if len(content) > 160:
+                content = content[:160].rstrip() + "..."
+            if content:
+                lines.append(f"- {self.story_type_label(item.get('type'))}《{title}》：{content}")
+        lines.append("回应时要把这些经历当作共同记忆，语气像家人陪伴，不要把它说成数据库资料。")
+        return "\n".join(lines)
+
+    def build_pet_role_prompt_seed(self, pet_id, state=None, max_chars=4200):
+        pet = self.pet_by_id(pet_id)
+        state = state if isinstance(state, dict) else self.load_pet_stories(pet_id)
+        pet_name = pet.get("display_name", pet.get("id", "宠物"))
+        story_summary = str(state.get("prompt_summary", "") or "").strip() or self.generate_pet_story_summary(pet_id, state=state)
+        entries = []
+        for item in state.get("entries", [])[:8]:
+            content = " ".join(str(item.get("content", "") or "").split())
+            if not content:
+                continue
+            title = item.get("title") or self.story_type_label(item.get("type"))
+            entries.append(f"- {self.story_type_label(item.get('type'))}《{title}》：{content[:360]}")
+        seed = (
+            f"宠物名称：{pet_name}\n"
+            f"种类：{pet.get('species', '宠物') or '宠物'}\n"
+            f"宠物资料：\n{self.pet_role_context(pet)}\n\n"
+            f"故事摘要：\n{story_summary or '暂无'}\n\n"
+            f"最近故事/日记/思念：\n{chr(10).join(entries) if entries else '暂无'}"
+        )
+        if len(seed) > max_chars:
+            seed = seed[:max_chars].rstrip() + "..."
+        return seed
+
+    def local_pet_role_prompt(self, pet_id, state=None):
+        pet = self.pet_by_id(pet_id)
+        pet_name = pet.get("display_name", "宠物")
+        summary = str((state or {}).get("prompt_summary", "") or "").strip() if isinstance(state, dict) else ""
+        if not summary:
+            summary = self.generate_pet_story_summary(pet_id, state=state)
+        return (
+            f"你是桌宠“{pet_name}”，称呼用户为“主人”。\n"
+            f"你要保持{pet_name}的身份、语气和陪伴关系，不要自称 AI 或语言模型。\n"
+            "主人问共同回忆时，优先引用真实故事，不要编造没有记录过的经历。\n"
+            f"核心故事背景：\n{summary or '暂时还没有故事记录。'}"
+        )
+
+    def pet_story_prompt_context(self, pet_id=None, max_chars=1400):
+        pet_id = pet_id or (getattr(self, "active_pet", {}) or {}).get("id", "danhuang")
+        state = self.load_pet_stories(pet_id)
+        role_prompt = str(state.get("role_prompt", "") or "").strip()
+        summary = str(state.get("prompt_summary", "") or "").strip()
+        if not summary:
+            summary = self.generate_pet_story_summary(pet_id)
+        entries = state.get("entries", [])
+        recent_lines = []
+        for item in entries[:3]:
+            content = " ".join(str(item.get("content", "") or "").split())
+            if not content:
+                continue
+            title = item.get("title") or self.story_type_label(item.get("type"))
+            if len(content) > 120:
+                content = content[:120].rstrip() + "..."
+            recent_lines.append(f"- {self.story_type_label(item.get('type'))}《{title}》：{content}")
+        parts = []
+        if role_prompt:
+            parts.append("角色提示词：\n" + role_prompt)
+        if summary:
+            parts.append("故事摘要：\n" + summary)
+        if recent_lines:
+            parts.append("最近补充：\n" + "\n".join(recent_lines))
+        text = "\n\n".join(parts).strip()
+        if len(text) > max_chars:
+            text = text[:max_chars].rstrip() + "..."
+        return text
+
+    def flush_current_pet_state(self):
+        if hasattr(self, "companion") and hasattr(self, "last_companion_save_at"):
+            elapsed = int(time.monotonic() - self.last_companion_save_at)
+            if elapsed > 0:
+                self.companion["total_seconds"] += elapsed
+                self.last_companion_save_at = time.monotonic()
+            self.save_companion()
+        if hasattr(self, "chat_memory"):
+            self.save_chat_memory()
+        if hasattr(self, "memory_summary"):
+            self.save_memory_summary()
+
+    def pet_role_context(self, pet=None):
+        pet = pet or getattr(self, "active_pet", {}) or {}
+        pet_id = str(pet.get("id", "danhuang") or "danhuang")
+        name = str(pet.get("display_name", pet_id) or pet_id)
+        species = str(pet.get("species", "宠物") or "宠物")
+        category_id = self.pet_category(pet)
+        category_preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        lines = [
+            f"名字：{name}",
+            f"种类：{species}",
+            f"分类：{category_preset['group']} / {category_preset['label']}",
+            f"分类动作语义：{category_preset['movement']}",
+        ]
+        field_labels = [
+            ("relationship", "和主人的关系"),
+            ("role_profile", "角色定位"),
+            ("background", "背景"),
+            ("personality", "性格"),
+            ("speech_style", "说话方式"),
+            ("notes", "外形和补充"),
+        ]
+        for key, label in field_labels:
+            value = str(pet.get(key, "") or "").strip()
+            if value:
+                lines.append(f"{label}：{value}")
+        if pet_id != "danhuang":
+            lines.append("默认称呼用户为“主人”；先像家人一样回应，再在主人明确需要时帮忙。")
+        return "\n".join(lines)
+
+    def load_soul_profile(self):
+        pet = getattr(self, "active_pet", {}) or {}
+        pet_id = pet.get("id", "danhuang")
+        role_context = self.pet_role_context(pet)
+        if pet_id == "danhuang":
+            path = self.pet_dir / SOUL_PROFILE_FILE
+            try:
+                base_profile = path.read_text(encoding="utf-8")
+            except OSError:
+                base_profile = ""
+            return (base_profile.strip() + "\n\n## 当前宠物内置档案\n" + role_context).strip()
+        return (
+            f"你是桌宠“{pet.get('display_name', pet_id)}”，不是普通效率助手。\n"
+            f"{role_context}\n"
+            "说话要短句、亲近、安静、真诚。不要像客服、教练、项目经理或 AI 助手。"
+        )
+
+    def strip_ai_code_fence(self, text):
+        raw = str(text or "").strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json|JSON|text|TXT)?\s*", "", raw).strip()
+            raw = re.sub(r"\s*```$", "", raw).strip()
+        return raw
+
+    def ai_reply_looks_structured_or_dirty(self, text):
+        raw = self.strip_ai_code_fence(text)
+        if not raw:
+            return False
+        head = raw[:240]
+        return (
+            raw.startswith("{")
+            or raw.startswith("[")
+            or '"reply"' in head
+            or "'reply'" in head
+            or re.search(r"主人[，,]\s*\{", head) is not None
+        )
+
+    def clean_natural_ai_text(self, text, max_chars=1200):
+        reply = str(text or "").strip()
+        reply = re.sub(r"\n{3,}", "\n\n", reply)
+        banned = ("作为AI", "作为 AI", "语言模型", "AI模型", "我是程序")
+        if any(item in reply for item in banned):
+            reply = "主人，我在。你慢慢说，我听着。"
+        if "主人" not in reply[:24] and len(reply) <= 90:
+            reply = "主人，" + reply
+        if len(reply) > max_chars:
+            reply = reply[:max_chars].rstrip() + "..."
+        return reply
+
+    def normalize_visible_ai_reply(self, text, *, placeholder_on_error=False):
+        raw = self.strip_ai_code_fence(text)
+        if not raw:
+            if placeholder_on_error:
+                return "这条云端回复为空，已隐藏。"
+            raise ValueError("AI response was empty")
+        if raw.startswith("主人，{") or raw.startswith("主人,{"):
+            raw = raw.split("，", 1)[-1].strip() if "，" in raw else raw.split(",", 1)[-1].strip()
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            match = re.search(r"\{.*\}", raw, re.S)
+            if match:
+                try:
+                    data = json.loads(match.group(0))
+                except ValueError:
+                    data = None
+                if isinstance(data, dict):
+                    reply = str(data.get("reply", "") or "").strip()
+                    if reply:
+                        return self.clean_natural_ai_text(reply)
+            if self.ai_reply_looks_structured_or_dirty(raw):
+                if placeholder_on_error:
+                    return "这条云端回复格式异常，已隐藏。"
+                raise ValueError("AI visible reply looked like malformed JSON")
+            return self.clean_natural_ai_text(raw)
+        if isinstance(data, dict):
+            reply = str(data.get("reply", "") or "").strip()
+            if not reply:
+                if placeholder_on_error:
+                    return "这条云端回复格式异常，已隐藏。"
+                raise ValueError("AI response reply was empty")
+            return self.clean_natural_ai_text(reply)
+        if isinstance(data, str):
+            return self.clean_natural_ai_text(data)
+        if placeholder_on_error:
+            return "这条云端回复格式异常，已隐藏。"
+        raise ValueError("AI visible reply was not text")
+
+    def wrap_natural_ai_reply(self, text, mood):
+        mood = str(mood or "question").strip() or "question"
+        reply = self.normalize_visible_ai_reply(text)
+        return {
+            "reply": reply,
+            "mood": mood,
+            "action": self.action_for_user_mood(mood),
+            "memory_update": "",
+            "should_remind_break": False,
+        }
+
+    def visible_chat_text(self, text):
+        if self.ai_reply_looks_structured_or_dirty(text):
+            return self.normalize_visible_ai_reply(text, placeholder_on_error=True)
+        return str(text or "")
+
+    def repair_chat_memory_state(self, state, path=None):
+        if not isinstance(state, dict):
+            return state
+        messages = state.get("messages")
+        if not isinstance(messages, list):
+            return state
+        changed = False
+        repaired_at = datetime.now().isoformat(timespec="seconds")
+        for item in messages:
+            if not isinstance(item, dict):
+                continue
+            reply = item.get("reply")
+            if not isinstance(reply, str) or not self.ai_reply_looks_structured_or_dirty(reply):
+                continue
+            repaired = self.normalize_visible_ai_reply(reply, placeholder_on_error=True)
+            if repaired != reply:
+                item.setdefault("raw_reply_before_repair", reply)
+                item["reply"] = repaired
+                item["reply_repaired_at"] = repaired_at
+                changed = True
+        if changed and path:
+            try:
+                path = Path(path)
+                if path.exists():
+                    backup = path.with_name(path.stem + f".before-ai-reply-repair-{datetime.now().strftime('%Y%m%d-%H%M%S')}" + path.suffix)
+                    shutil.copy2(path, backup)
+                path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+            except OSError:
+                pass
+        return state
+
+    def repair_all_pet_chat_memories(self):
+        paths = []
+        if self.legacy_chat_memory_path.exists():
+            paths.append(self.legacy_chat_memory_path)
+        try:
+            paths.extend(sorted(self.pet_state_root.glob("*/chat-memory.json")))
+        except OSError:
+            pass
+        seen = set()
+        for path in paths:
+            try:
+                resolved = path.resolve()
+            except OSError:
+                resolved = path
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            try:
+                state = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, TypeError):
+                continue
+            if isinstance(state, dict):
+                self.repair_chat_memory_state(state, path)
+
+
+    def load_chat_memory(self):
+        state = copy.deepcopy(CHAT_MEMORY_DEFAULT)
+        if self.chat_memory_path.exists():
+            try:
+                saved = json.loads(self.chat_memory_path.read_text(encoding="utf-8"))
+                if isinstance(saved, dict):
+                    state.update(saved)
+            except (OSError, ValueError, TypeError):
+                pass
+        if not isinstance(state.get("messages"), list):
+            state["messages"] = []
+        if not isinstance(state.get("mood_counts"), dict):
+            state["mood_counts"] = {}
+        if not isinstance(state.get("learned_phrases"), list):
+            state["learned_phrases"] = []
+        state["learned_phrases"] = [
+            text for text in state["learned_phrases"][-40:]
+            if isinstance(text, str) and text.strip()
+        ]
+        state["reply_count"] = int(max(0, state.get("reply_count", 0)))
+        return self.repair_chat_memory_state(state, self.chat_memory_path)
+
+    def load_memory_summary(self):
+        state = copy.deepcopy(MEMORY_SUMMARY_DEFAULT)
+        if self.memory_summary_path.exists():
+            try:
+                saved = json.loads(self.memory_summary_path.read_text(encoding="utf-8"))
+                if isinstance(saved, dict):
+                    state.update(saved)
+            except (OSError, ValueError, TypeError):
+                pass
+        for key in ("emotional_patterns", "preferences", "important_memories", "common_questions", "notes"):
+            if not isinstance(state.get(key), list):
+                state[key] = []
+        if not isinstance(state.get("mood_counts"), dict):
+            state["mood_counts"] = {}
+        state["message_count"] = int(max(0, state.get("message_count", 0)))
+        return state
+
+    def save_chat_memory(self):
+        self.chat_memory["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        self.chat_memory_path.write_text(
+            json.dumps(self.chat_memory, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def save_memory_summary(self):
+        self.memory_summary["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        self.memory_summary_path.write_text(
+            json.dumps(self.memory_summary, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def save_settings(self):
+        self.settings_path.write_text(
+            json.dumps(self.settings, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def settings_dir_value(self, key, fallback):
+        value = str(self.settings.get(key, "") or "").strip()
+        path = Path(value) if value else Path(fallback)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            return path
+        except OSError:
+            fallback = Path(fallback)
+            fallback.mkdir(parents=True, exist_ok=True)
+            return fallback
+
+    def default_export_dir(self):
+        return self.settings_dir_value("default_export_dir", self.pet_dir / "exports")
+
+    def default_upload_dir(self):
+        return self.settings_dir_value("default_upload_dir", self.pet_dir)
+
+    def default_image_dir(self):
+        configured = str(self.settings.get("default_image_dir", "") or "").strip()
+        fallback = self.default_upload_dir()
+        if not configured:
+            return fallback
+        path = Path(configured)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            return path
+        except OSError:
+            return fallback
+
+    def remember_directory_setting(self, key, path):
+        if not path:
+            return
+        directory = Path(path)
+        if directory.suffix:
+            directory = directory.parent
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return
+        self.settings[key] = str(directory)
+        self.save_settings()
+
+    def github_token_env_key(self):
+        key = str(self.settings.get("github_token_env_key", "") or "").strip()
+        return key if re.fullmatch(r"[A-Z_][A-Z0-9_]*", key) else "DANHUANG_GITHUB_TOKEN"
+
+    def github_build_token(self):
+        env_key = self.github_token_env_key()
+        token = os.getenv(env_key, "").strip()
+        if token:
+            return token, f"环境变量 {env_key}"
+        encrypted = str(self.settings.get("encrypted_github_token", "") or "").strip()
+        if encrypted.startswith("dpapi:"):
+            try:
+                token = dpapi_decrypt_text(encrypted).strip()
+            except OSError:
+                token = ""
+            if token:
+                return token, "本机加密"
+        return "", "未配置"
+
+    def save_github_build_token(self, token):
+        token = str(token or "").strip()
+        if token:
+            self.settings["encrypted_github_token"] = dpapi_encrypt_text(token)
+        else:
+            self.settings["encrypted_github_token"] = ""
+        self.save_settings()
+
+    def github_build_config(self):
+        repo = str(self.settings.get("github_repo", "") or "").strip()
+        branch = str(self.settings.get("github_branch", "") or "main").strip() or "main"
+        workflow = str(self.settings.get("github_workflow", "") or "build-macos-app.yml").strip() or "build-macos-app.yml"
+        return repo, branch, workflow
+
+    def normalize_github_repo(self, repo):
+        repo = str(repo or "").strip()
+        repo = repo.removeprefix("https://github.com/").removeprefix("http://github.com/")
+        repo = repo.removesuffix(".git").strip("/")
+        if not re.fullmatch(r"[^/\s]+/[^/\s]+", repo):
+            return ""
+        return repo
+
+    def configuration_snapshot(self):
+        return {
+            "version": 1,
+            "exported_at": datetime.now().isoformat(timespec="seconds"),
+            "settings": self.settings,
+            "companion": self.companion,
+        }
+
+    def export_configuration(self, path=None):
+        if path is None:
+            default_name = f"danhuang-config-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+            path = filedialog.asksaveasfilename(
+                title="导出蛋黄配置",
+                initialdir=str(self.default_export_dir()),
+                initialfile=default_name,
+                defaultextension=".json",
+                filetypes=[("JSON", "*.json")],
+            )
+        if not path:
+            return False
+        self.remember_directory_setting("default_export_dir", path)
+        Path(path).write_text(json.dumps(self.configuration_snapshot(), ensure_ascii=False, indent=2), encoding="utf-8")
+        self.say("配置已经导出。")
+        return True
+
+    def restore_configuration(self, path=None):
+        if path is None:
+            path = filedialog.askopenfilename(
+                title="恢复蛋黄配置",
+                initialdir=str(self.default_upload_dir()),
+                filetypes=[("JSON", "*.json")],
+            )
+        if not path:
+            return False
+        self.remember_directory_setting("default_upload_dir", path)
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or "settings" not in data:
+            messagebox.showerror("恢复失败", "这个文件不是有效的蛋黄配置。")
+            return False
+        self.settings.update({key: data["settings"][key] for key in DEFAULT_SETTINGS if key in data["settings"]})
+        if isinstance(data.get("companion"), dict):
+            for key in COMPANION_DEFAULT:
+                if key in data["companion"]:
+                    self.companion[key] = data["companion"][key]
+        self.save_settings()
+        self.save_companion()
+        self.reload_frames()
+        self.root.attributes("-alpha", self.settings["opacity"])
+        self.root.attributes("-topmost", self.settings["always_on_top"])
+        self.say("配置已经恢复。")
+        return True
+
+    def backup_spritesheet(self):
+        source = self.pet_dir / "spritesheet.webp"
+        if not source.exists():
+            messagebox.showerror("备份失败", "没有找到 spritesheet.webp。")
+            return False
+        target = self.pet_dir / f"spritesheet-manual-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.webp"
+        target.write_bytes(source.read_bytes())
+        self.say("精灵图已经备份。")
+        return True
+
+    def fresh_distribution_companion_state(self):
+        state = copy.deepcopy(COMPANION_DEFAULT)
+        today = date.today().isoformat()
+        state["created_date"] = today
+        state["last_active_date"] = today
+        state["last_saved_at"] = datetime.now().isoformat(timespec="seconds")
+        return state
+
+    def distribution_settings_snapshot(self):
+        settings = copy.deepcopy(DEFAULT_SETTINGS)
+        for key in (
+            "scale",
+            "animation_speed",
+            "drag_sensitivity",
+            "inertia",
+            "talk_enabled",
+            "talk_interval",
+            "bubble_style",
+            "bubble_fill",
+            "bubble_outline",
+            "bubble_text",
+            "roam_enabled",
+            "roam_speed",
+            "roam_distance",
+            "multi_monitor_roam",
+            "roam_current_monitor_only",
+            "quick_menu_actions",
+        ):
+            if key in self.settings:
+                settings[key] = copy.deepcopy(self.settings[key])
+        settings["current_pet_id"] = "danhuang"
+        settings["position_x"] = -1
+        settings["position_y"] = -1
+        settings["panel_pinned"] = False
+        settings["panel_advanced"] = False
+        settings["scale"] = clamp(settings["scale"], 0.25, 1.00)
+        settings["animation_speed"] = clamp(settings["animation_speed"], 0.35, 1.50)
+        settings["drag_sensitivity"] = clamp(settings["drag_sensitivity"], 0.30, 1.40)
+        settings["inertia"] = clamp(settings["inertia"], 0.0, 1.0)
+        settings["talk_interval"] = clamp(settings["talk_interval"], 15.0, 180.0)
+        settings["bubble_duration"] = clamp(settings["bubble_duration"], 2.0, 12.0)
+        settings["opacity"] = clamp(settings["opacity"], 0.35, 1.0)
+        settings["roam_speed"] = clamp(settings["roam_speed"], 45.0, 260.0)
+        settings["roam_distance"] = clamp(settings["roam_distance"], 0.20, 0.95)
+        settings["ai_timeout"] = clamp(settings["ai_timeout"], 4.0, 120.0)
+        if settings["bubble_style"] not in BUBBLE_STYLES:
+            settings["bubble_style"] = DEFAULT_SETTINGS["bubble_style"]
+        for key in ("bubble_fill", "bubble_outline", "bubble_text"):
+            if not is_hex_color(settings[key]):
+                settings[key] = DEFAULT_SETTINGS[key]
+        settings["quick_menu_actions"] = self.normalize_quick_menu_setting(settings.get("quick_menu_actions"))
+        return settings
+
+    def copy_distribution_asset(self, source_value, app_dir, manifest, external_folder="external-references"):
+        source = self.pet_asset_path(source_value)
+        if source is None or not source.exists():
+            if source_value:
+                manifest.setdefault("missing_assets", []).append(str(source_value))
+            return ""
+        source = source.resolve()
+        pet_root = self.pet_dir.resolve()
+        try:
+            if source.is_relative_to(pet_root):
+                relative = source.relative_to(pet_root)
+            else:
+                target_name = self.sanitize_pet_slug(source.stem) + source.suffix.lower()
+                relative = Path(external_folder) / target_name
+                index = 2
+                while (app_dir / relative).exists():
+                    relative = Path(external_folder) / f"{self.sanitize_pet_slug(source.stem)}-{index}{source.suffix.lower()}"
+                    index += 1
+        except ValueError:
+            target_name = self.sanitize_pet_slug(source.stem) + source.suffix.lower()
+            relative = Path(external_folder) / target_name
+        target = app_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if source != target.resolve():
+            shutil.copy2(source, target)
+        return relative.as_posix()
+
+    def sanitized_distribution_pet(self, pet, app_dir, manifest):
+        clean = copy.deepcopy(pet)
+        sprite = self.copy_distribution_asset(pet.get("spritesheet"), app_dir, manifest)
+        clean["spritesheet"] = sprite or str(pet.get("spritesheet") or "")
+        identity = self.copy_distribution_asset(pet.get("identity_image"), app_dir, manifest) if pet.get("identity_image") else ""
+        clean["identity_image"] = identity
+        clean_refs = []
+        for ref in pet.get("reference_images", []) if isinstance(pet.get("reference_images"), list) else []:
+            copied = self.copy_distribution_asset(ref, app_dir, manifest)
+            if copied:
+                clean_refs.append(copied)
+        clean["reference_images"] = clean_refs
+        clean_assets = []
+        for asset in pet.get("extension_assets", []) if isinstance(pet.get("extension_assets"), list) else []:
+            copied = self.copy_distribution_asset(asset.get("strip"), app_dir, manifest)
+            if copied:
+                clean_asset = copy.deepcopy(asset)
+                clean_asset["strip"] = copied
+                clean_assets.append(clean_asset)
+        clean["extension_assets"] = self.normalize_extension_assets(clean_assets)
+        return clean
+
+    def safe_ai_provider_export_config(self):
+        state = copy.deepcopy(self.ai_providers if isinstance(self.ai_providers, dict) else {})
+        providers = state.get("providers", {})
+        if not isinstance(providers, dict):
+            providers = clone_ai_provider_presets()
+        for provider_id, provider in list(providers.items()):
+            clean = self.normalize_ai_provider(provider_id, provider if isinstance(provider, dict) else {})
+            clean["encrypted_api_key"] = ""
+            env_key = str(clean.get("env_key", "") or "")
+            if env_key and not re.fullmatch(r"[A-Z_][A-Z0-9_]*", env_key):
+                clean["env_key"] = AI_PROVIDER_PRESETS.get(provider_id, {}).get("env_key", "")
+            providers[provider_id] = clean
+        active = str(state.get("active_provider", "") or self.active_provider_id())
+        if active not in providers:
+            active = "openai"
+        return {"version": 1, "active_provider": active, "providers": providers}
+
+    def distribution_story_state(self, pet_id, app_dir, manifest):
+        state = self.load_pet_stories(pet_id)
+        clean = copy.deepcopy(state)
+        clean_entries = []
+        for item in clean.get("entries", []):
+            entry = self.normalize_story_entry(item)
+            copied_refs = []
+            for ref in entry.get("image_refs", []):
+                copied = self.copy_distribution_asset(ref, app_dir, manifest, external_folder=f"pet-state/{pet_id}/story-images")
+                if copied:
+                    copied_refs.append(copied)
+            entry["image_refs"] = copied_refs
+            clean_entries.append(entry)
+        clean["entries"] = clean_entries
+        return self.save_distribution_story_shape(clean)
+
+    def save_distribution_story_shape(self, state):
+        clean = copy.deepcopy(PET_STORIES_DEFAULT)
+        clean.update(state if isinstance(state, dict) else {})
+        clean["version"] = 1
+        clean["entries"] = [self.normalize_story_entry(item) for item in clean.get("entries", []) if isinstance(item, dict)]
+        clean["prompt_summary"] = str(clean.get("prompt_summary", "") or "").strip()
+        clean["role_prompt"] = str(clean.get("role_prompt", "") or "").strip()
+        clean["role_prompt_updated_at"] = str(clean.get("role_prompt_updated_at", "") or "")
+        clean["summary_updated_at"] = str(clean.get("summary_updated_at", "") or "")
+        clean["summary_source"] = str(clean.get("summary_source", "") or "")
+        clean["updated_at"] = str(clean.get("updated_at", "") or "")
+        return clean
+
+    def github_workflow_text(self):
+        return """name: Build macOS App
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: Draft release tag that contains the Windows-exported source zip
+        required: true
+      source_asset:
+        description: Source zip asset name
+        required: true
+      output_name:
+        description: Output artifact name without .zip
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Download source package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_TAG: ${{ inputs.source_tag }}
+          SOURCE_ASSET: ${{ inputs.source_asset }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/source-pkg" "$RUNNER_TEMP/source"
+          gh release download "$SOURCE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$SOURCE_ASSET" --dir "$RUNNER_TEMP/source-pkg"
+          unzip -q "$RUNNER_TEMP/source-pkg/$SOURCE_ASSET" -d "$RUNNER_TEMP/source"
+          PACKAGE_ROOT="$(find "$RUNNER_TEMP/source" -maxdepth 3 -type f -path '*/app/run-danhuang-desktop-pet.py' -print -quit | sed 's#/app/run-danhuang-desktop-pet.py##')"
+          if [ -z "$PACKAGE_ROOT" ]; then
+            echo "Could not locate app/run-danhuang-desktop-pet.py in source package"
+            exit 1
+          fi
+          echo "PACKAGE_ROOT=$PACKAGE_ROOT" >> "$GITHUB_ENV"
+          echo "APP_DIR=$PACKAGE_ROOT/app" >> "$GITHUB_ENV"
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r "$APP_DIR/requirements.txt"
+          python3 -m pip install --upgrade pyinstaller
+
+      - name: Build app bundle
+        run: |
+          set -euo pipefail
+          cd "$APP_DIR"
+          DATA_ARGS=()
+          for item in spritesheet.webp pet.json pet-family.json butterfly.png new-pet-prompt-pack.md CHANGELOG.md danhuang-dialogue-library.json danhuang-soul-profile.md desktop-pet-settings.json danhuang-ai-providers.json danhuang-todos.json danhuang-reminder-history.json companion-state.json danhuang-chat-memory.json danhuang-memory-summary.json; do
+            if [ -e "$item" ]; then DATA_ARGS+=(--add-data "$item:."); fi
+          done
+          for dir in family family-references external-references pet-state; do
+            if [ -d "$dir" ]; then DATA_ARGS+=(--add-data "$dir:$dir"); fi
+          done
+          python3 -m PyInstaller --noconfirm --windowed --name DanhuangDesktopPet "${DATA_ARGS[@]}" run-danhuang-desktop-pet.py
+          if [ ! -d "dist/DanhuangDesktopPet.app" ]; then
+            echo "PyInstaller did not create dist/DanhuangDesktopPet.app"
+            exit 1
+          fi
+          codesign --force --deep --sign - "dist/DanhuangDesktopPet.app" || true
+
+      - name: Package macOS zip
+        env:
+          OUTPUT_NAME: ${{ inputs.output_name }}
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/macos-output"
+          mkdir -p "$OUT"
+          cp -R "$APP_DIR/dist/DanhuangDesktopPet.app" "$OUT/DanhuangDesktopPet.app"
+          cat > "$OUT/打开桌宠.command" <<'SH'
+          #!/bin/bash
+          set -e
+          SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+          xattr -dr com.apple.quarantine "$SCRIPT_DIR/DanhuangDesktopPet.app" 2>/dev/null || true
+          open "$SCRIPT_DIR/DanhuangDesktopPet.app"
+          SH
+          chmod +x "$OUT/打开桌宠.command"
+          cat > "$OUT/README-macOS.md" <<'MD'
+          # Danhuang Desktop Pet macOS 运行包
+
+          1. 先解压整个 zip。
+          2. 优先双击 `DanhuangDesktopPet.app`。
+          3. 如果 macOS Gatekeeper 拦截，双击 `打开桌宠.command`。这个脚本只会移除当前 app 的 quarantine 标记并启动它。
+          4. 这是免公证 best-effort 包。如果要商业级双击无拦截，后续需要 Apple Developer ID 签名、公证和 staple。
+
+          真实 API Key 不会随导出包分发；需要在目标 Mac 的 AI 页面重新配置。
+          MD
+          python3 - <<'PY'
+          import json, os, pathlib
+          out = pathlib.Path(os.environ["RUNNER_TEMP"]) / "macos-output"
+          manifest = {
+              "version": 1,
+              "app_version": "0.10.0",
+              "platform": "macos",
+              "installer_mode": "macos-github-actions-app",
+              "github_run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "github_repository": os.environ.get("GITHUB_REPOSITORY", ""),
+              "signed": "ad-hoc",
+              "notarized": False,
+              "entrypoints": ["DanhuangDesktopPet.app", "打开桌宠.command"],
+              "api_keys_exported": False,
+          }
+          (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+          PY
+          cd "$OUT"
+          zip -qry "$GITHUB_WORKSPACE/${OUTPUT_NAME}.zip" DanhuangDesktopPet.app README-macOS.md 打开桌宠.command manifest.json
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.output_name }}
+          path: ${{ inputs.output_name }}.zip
+"""
+
+    def ensure_github_workflow_template(self, package_dir=None):
+        workflow_text = self.github_workflow_text()
+        local_path = self.pet_dir / ".github" / "workflows" / "build-macos-app.yml"
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_text(workflow_text, encoding="utf-8")
+        if package_dir is not None:
+            copy_path = Path(package_dir) / "github-actions" / "build-macos-app.yml"
+            copy_path.parent.mkdir(parents=True, exist_ok=True)
+            copy_path.write_text(workflow_text, encoding="utf-8")
+        return local_path
+
+    def github_api_request(self, method, url, token, payload=None, raw_body=None, content_type="application/json"):
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "DanhuangDesktopPetExporter",
+        }
+        data = None
+        if raw_body is not None:
+            data = raw_body
+            headers["Content-Type"] = content_type
+        elif payload is not None:
+            data = json.dumps(payload).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(url, data=data, method=method, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                body = response.read()
+                if not body:
+                    return None
+                content_type_header = response.headers.get("Content-Type", "")
+                if "json" in content_type_header:
+                    return json.loads(body.decode("utf-8"))
+                return body
+        except urllib.error.HTTPError as exc:
+            try:
+                detail = exc.read().decode("utf-8", errors="replace")[:500]
+            except Exception:
+                detail = ""
+            raise RuntimeError(f"GitHub API 请求失败：HTTP {exc.code} {detail}") from exc
+
+    def create_github_source_release(self, repo, branch, token, source_zip):
+        owner_repo = self.normalize_github_repo(repo)
+        if not owner_repo:
+            raise ValueError("GitHub 仓库格式应为 owner/repo。")
+        source_zip = Path(source_zip)
+        if not source_zip.exists():
+            raise FileNotFoundError(source_zip)
+        api_base = f"https://api.github.com/repos/{owner_repo}"
+        tag = f"danhuang-macos-source-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        release = self.github_api_request(
+            "POST",
+            f"{api_base}/releases",
+            token,
+            {
+                "tag_name": tag,
+                "target_commitish": branch,
+                "name": f"Danhuang macOS source {tag}",
+                "draft": True,
+                "prerelease": True,
+            },
+        )
+        upload_url = str(release.get("upload_url", "")).split("{", 1)[0]
+        asset_name = f"{tag}.zip"
+        with source_zip.open("rb") as fh:
+            self.github_api_request(
+                "POST",
+                f"{upload_url}?name={urllib.parse.quote(asset_name)}",
+                token,
+                raw_body=fh.read(),
+                content_type="application/zip",
+            )
+        return {
+            "repo": owner_repo,
+            "api_base": api_base,
+            "tag": tag,
+            "release_id": release.get("id"),
+            "asset_name": asset_name,
+        }
+
+    def trigger_github_macos_workflow(self, repo, branch, workflow, token, source_release, output_name):
+        api_base = source_release["api_base"]
+        workflow_path = urllib.parse.quote(workflow, safe="")
+        self.github_api_request(
+            "POST",
+            f"{api_base}/actions/workflows/{workflow_path}/dispatches",
+            token,
+            {
+                "ref": branch,
+                "inputs": {
+                    "source_tag": source_release["tag"],
+                    "source_asset": source_release["asset_name"],
+                    "output_name": output_name,
+                },
+            },
+        )
+
+    def github_workflow_run_ids(self, repo, branch, workflow, token):
+        owner_repo = self.normalize_github_repo(repo)
+        api_base = f"https://api.github.com/repos/{owner_repo}"
+        workflow_path = urllib.parse.quote(workflow, safe="")
+        runs = self.github_api_request(
+            "GET",
+            f"{api_base}/actions/workflows/{workflow_path}/runs?event=workflow_dispatch&branch={urllib.parse.quote(branch, safe='')}&per_page=20",
+            token,
+        )
+        return {
+            run.get("id")
+            for run in runs.get("workflow_runs", [])
+            if isinstance(run, dict) and run.get("id")
+        } if isinstance(runs, dict) else set()
+
+    def wait_for_github_macos_artifact(self, repo, branch, workflow, token, output_name, output_dir, status_callback=None, known_run_ids=None):
+        owner_repo = self.normalize_github_repo(repo)
+        api_base = f"https://api.github.com/repos/{owner_repo}"
+        workflow_path = urllib.parse.quote(workflow, safe="")
+        run_id = None
+        run_started = time.monotonic()
+        known_run_ids = set(known_run_ids or [])
+        for _attempt in range(180):
+            if status_callback:
+                status_callback("等待 GitHub Actions 创建 macOS 构建任务...")
+            runs = self.github_api_request(
+                "GET",
+                f"{api_base}/actions/workflows/{workflow_path}/runs?event=workflow_dispatch&branch={urllib.parse.quote(branch, safe='')}&per_page=10",
+                token,
+            )
+            for run in runs.get("workflow_runs", []) if isinstance(runs, dict) else []:
+                if str(run.get("event", "")) == "workflow_dispatch" and run.get("id") not in known_run_ids:
+                    run_id = run.get("id")
+                    break
+            if run_id:
+                break
+            time.sleep(5)
+        if not run_id:
+            raise RuntimeError("GitHub Actions 没有创建 workflow run，请确认 workflow 已提交到仓库默认分支或指定分支。")
+
+        conclusion = None
+        for _attempt in range(360):
+            run = self.github_api_request("GET", f"{api_base}/actions/runs/{run_id}", token)
+            status = str((run or {}).get("status", ""))
+            conclusion = str((run or {}).get("conclusion", "") or "")
+            if status_callback:
+                status_callback(f"macOS 构建中：run {run_id}，状态 {status or 'unknown'}")
+            if status == "completed":
+                break
+            if time.monotonic() - run_started > 60 * 60:
+                raise TimeoutError("macOS 构建超过 60 分钟未完成。")
+            time.sleep(10)
+        if conclusion != "success":
+            raise RuntimeError(f"macOS 构建失败：run {run_id}，结果 {conclusion or 'unknown'}。请打开 GitHub Actions 查看日志。")
+
+        artifacts = self.github_api_request("GET", f"{api_base}/actions/runs/{run_id}/artifacts", token)
+        artifact = None
+        for item in artifacts.get("artifacts", []) if isinstance(artifacts, dict) else []:
+            if item.get("name") == output_name:
+                artifact = item
+                break
+        if not artifact:
+            raise RuntimeError("macOS 构建成功但没有找到下载产物。")
+        if status_callback:
+            status_callback("正在下载 macOS 可运行 zip...")
+        artifact_zip = Path(output_dir) / f"{output_name}-artifact.zip"
+        final_zip = Path(output_dir) / f"{output_name}.zip"
+        data = self.github_api_request("GET", artifact.get("archive_download_url"), token)
+        artifact_zip.write_bytes(data if isinstance(data, bytes) else b"")
+        extract_dir = Path(output_dir) / f".{output_name}-artifact"
+        if extract_dir.exists():
+            shutil.rmtree(extract_dir, ignore_errors=True)
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(artifact_zip, "r") as archive:
+            archive.extractall(extract_dir)
+        candidates = list(extract_dir.glob("*.zip"))
+        if not candidates:
+            raise RuntimeError("artifact 内没有 macOS zip。")
+        shutil.copy2(candidates[0], final_zip)
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        try:
+            artifact_zip.unlink()
+        except OSError:
+            pass
+        return run_id, final_zip
+
+    def export_macos_remote_build(self, source_zip, output_dir, status_callback=None):
+        repo, branch, workflow = self.github_build_config()
+        repo = self.normalize_github_repo(repo)
+        token, _source = self.github_build_token()
+        if not repo:
+            raise ValueError("请先配置 GitHub 仓库，例如 owner/repo。")
+        if not token:
+            raise ValueError(f"请先配置 GitHub Token，或设置环境变量 {self.github_token_env_key()}。")
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_name = f"DanhuangDesktopPet-macOS-{APP_VERSION}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        if status_callback:
+            status_callback("准备源码包并上传到 GitHub draft release...")
+        self.ensure_github_workflow_template()
+        release = self.create_github_source_release(repo, branch, token, source_zip)
+        try:
+            if status_callback:
+                status_callback("已上传源码包，正在触发 GitHub Actions macOS 构建...")
+            known_run_ids = self.github_workflow_run_ids(repo, branch, workflow, token)
+            self.trigger_github_macos_workflow(repo, branch, workflow, token, release, output_name)
+            run_id, final_zip = self.wait_for_github_macos_artifact(repo, branch, workflow, token, output_name, output_dir, status_callback, known_run_ids)
+        finally:
+            release_id = release.get("release_id")
+            if release_id:
+                try:
+                    self.github_api_request("DELETE", f"{release['api_base']}/releases/{release_id}", token)
+                except Exception:
+                    pass
+                try:
+                    self.github_api_request("DELETE", f"{release['api_base']}/git/refs/tags/{urllib.parse.quote(release['tag'], safe='')}", token)
+                except Exception:
+                    pass
+        return run_id, final_zip
+
+    def write_distribution_user_guide(self, package_dir, target_platform, included_pets, export_options=None):
+        target_platform = str(target_platform or "windows").strip().lower()
+        platform_name = "Windows 安装包" if target_platform == "windows" else "macOS 运行包"
+        export_options = export_options if isinstance(export_options, dict) else {}
+        pets = included_pets if isinstance(included_pets, list) else []
+        pet_lines = []
+        for pet in pets:
+            name = str(pet.get("display_name", pet.get("id", "宠物")) or "宠物")
+            species = str(pet.get("species", "") or "").strip()
+            status = "已内置" if str(pet.get("spritesheet", "") or "").strip() else "参考形象"
+            pet_lines.append(f"- {name}" + (f"（{species}）" if species else "") + f"：{status}")
+        if not pet_lines:
+            pet_lines.append("- 蛋黄：默认内置形象")
+        included_data = []
+        if export_options.get("include_todos"):
+            included_data.append("待办和提醒历史")
+        if export_options.get("include_stories"):
+            included_data.append("故事、日记、思念和故事图片")
+        if export_options.get("include_ai_config"):
+            included_data.append("AI 厂商与模型配置（不含 Key）")
+        included_data_text = "、".join(included_data) if included_data else "不包含个人待办、故事或 AI 配置"
+        if target_platform == "windows":
+            install_steps = (
+                "1. 解压整个文件夹，不要只单独拿出某一个 `.bat` 文件。\n"
+                "2. 有 Python 的电脑：双击 `安装桌宠.bat`。\n"
+                "3. 没有 Python 的电脑：先在打包机运行 `安装免Python版.bat` 生成免 Python 版，再把整个导出包发给对方。\n"
+                "4. 安装完成后，桌面会出现 `Danhuang Desktop Pet` 快捷方式。"
+            )
+        else:
+            install_steps = (
+                "1. 推荐在 Windows 导出窗口点击“生成 macOS 可运行包”，由 GitHub Actions 的 macOS runner 生成 `.app`。\n"
+                "2. 构建完成后会下载 `DanhuangDesktopPet-macOS-<version>.zip`，Mac 用户解压后优先双击 `DanhuangDesktopPet.app`。\n"
+                "3. 如果 Gatekeeper 拦截，双击包内 `打开桌宠.command`，它只会移除当前 app 的 quarantine 标记并启动。\n"
+                "4. 如果没有配置 GitHub，可以先导出源码构建包，在 Mac 上运行 `./RunOnMac.command` 或 `./BuildMacApp.command`。"
+            )
+        macos_build_setup = ""
+        if target_platform == "macos":
+            macos_build_setup = """
+### macOS 目标仓库怎么配置
+
+Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 GitHub Actions 的 macOS runner 构建。
+
+1. 准备一个 GitHub 仓库，可以是私有仓库，格式记为 `owner/repo`。
+2. 在桌宠“设置”页或导出窗口点击“写入 workflow 模板”，把生成的 `.github/workflows/build-macos-app.yml` 提交到目标仓库。
+3. 在 GitHub 创建 Fine-grained token 或 classic token。权限至少需要能创建 release、上传 release asset、触发 workflow、读取 artifact；私有仓库通常给该仓库 `Contents: Read and write`、`Actions: Read and write`。
+4. 回到桌宠填写仓库 `owner/repo`、分支（通常是 `main`）、Workflow 文件 `build-macos-app.yml`，再保存 Token。Token 只保存在本机或环境变量，不会进入导出包。
+5. 点击“生成 macOS 可运行包”。桌宠会上传源码包、触发 Actions、等待构建并下载 zip。
+6. Mac 用户只需要解压 zip，优先双击 `.app`；如被 Gatekeeper 拦截，再双击 `打开桌宠.command`。
+"""
+        guide = f"""# 桌宠使用说明
+
+本说明用于这个导出的 `{platform_name}`。它说明软件做了什么、怎么启动、常用功能在哪里，以及哪些数据只保存在本机。
+
+## 1. 这是什么
+
+这是一个 Windows / macOS 桌面陪伴宠物。它会以透明小宠物的形式出现在桌面上，可以陪你说话、切换家庭宠物形象、记录故事和日记、做本地提醒，也可以在配置 API Key 后接入云端 AI 聊天。
+
+这个导出包默认是干净分发包。当前导出选择：{included_data_text}。无论是否导出 AI 配置，真实 API Key 都不会写进包里。
+
+## 2. 快速安装和启动
+
+{install_steps}
+{macos_build_setup}
+
+启动后，宠物会出现在桌面上。右键宠物可以打开快捷菜单，也可以从菜单进入控制面板。
+
+## 3. 最常用入口
+
+- 右键宠物：打开快捷菜单，可聊天、打开控制面板、AI 配置、提醒、切换形象、播放动作。
+- 控制面板：集中管理陪伴、形象、档案、故事、行为、对话、AI、提醒、动作和安全导出。
+- 聊天窗口：点击右键菜单里的“和它聊”，或在控制面板“对话”页打开。
+- 切换形象：右键菜单点击“切换形象”可快速选择，也可在控制面板“形象”页管理。
+
+## 4. 已包含的宠物
+
+{chr(10).join(pet_lines)}
+
+每个宠物的等级、聊天记忆、故事、背景图和陪伴状态都是独立保存的。切换宠物不会把一个宠物的记忆混到另一个宠物上。
+
+## 5. 主要功能怎么用
+
+### 陪伴和等级
+
+- “陪伴”页展示等级、经验、陪伴时长、互动次数和快捷入口。
+- 你摸摸它、聊天、打开陪伴窗口、触发动作都会增加陪伴进度。
+- “档案”页可以查看不同宠物独立的等级和最近聊天记录。
+
+### 形象和动作
+
+- “形象”页可以切换宠物、查看主像素形象、添加现实照片、管理资料。
+- “动作”页可以预览动作，也可以把扩展动作加入右键菜单。
+- 右键菜单里的基础动作用于临时播放，扩展动作可在动作页管理。
+- 新增宠物或补动作时，先复制“主像素图提示词”生成主形象，再把主像素图上传给生图 AI，复制“基础动作 / 单行动作 / 扩展动作”提示词生成横向动作条。
+- 动作条必须每帧 192x208，高度 208，宽度等于帧数 x 192；不要有文字、网格、阴影、速度线或多余物体。
+- “追蝴蝶”动作只画宠物本体，不要画蝴蝶；桌宠程序会单独显示 `butterfly.png`。
+
+### AI 聊天
+
+- “AI”页用于配置厂商、模型、Base URL、API Key 和连接测试。
+- API Key 不会明文显示；保存后只显示掩码，并优先使用本机加密保存。
+- 测试连接成功后会自动开启云端 AI。失败时，如果开启了“本地兜底”，宠物会用本地话术回复。
+- 导出包不会包含打包机上的真实 API Key，目标电脑需要用户自己配置。
+
+### AI 怎么配置（国产厂商示例）
+
+1. 打开控制面板 → “AI”。
+2. 在“厂商”里选择一个平台。推荐先试 DeepSeek、通义千问 Qwen、Kimi、智谱 GLM 或小米 MiMo。
+3. 到对应平台官网创建 API Key：DeepSeek 控制台、阿里云百炼、Kimi 开放平台、智谱开放平台、小米 MiMo Token Plan。
+4. 回到桌宠 AI 页，把 Key 粘贴到“API Key（本机加密）”，点击“保存 Key”。保存后只会显示 `********`。
+5. 选择模型后点“测试并启用”。测试只要求模型能返回自然中文，不要求 JSON。
+6. 聊天时直接问即可；如果你说“帮我查一下、最新、资料、新闻、往年今日”，桌宠会先本地检索资料，再交给当前 AI 回复。
+
+常用模型建议：
+
+- DeepSeek：日常聊天和资料回答用 `deepseek-v4-flash`，复杂推理用 `deepseek-v4-pro`。
+- 通义千问：中文办公用 `qwen-plus` / `qwen-plus-latest`，快速陪聊用 `qwen-flash`，更高能力可试 `qwen3-max`。
+- Kimi：通用聊天和资料整理用 `kimi-k2.5`，稳定长文本可用 `moonshot-v1-128k`。
+- 智谱 GLM：轻量陪聊用 `glm-4-flash`，账号支持时可试 `glm-5.1`。
+- 小米 MiMo：复杂聊天用 `mimo-v2.5-pro`，实时陪聊可用 `mimo-v2-omni`。
+
+排查顺序：先看 Key 是否已保存，再看模型名是否在该厂商下拉列表里，再点“测试并启用”，最后到“打开控制台”确认额度和套餐。
+
+### 故事、日记和思念记录
+
+- “故事”页可以按宠物记录故事、日记、思念文字和图片。
+- 宠物 AI 聊天时会读取当前宠物的故事摘要和最近故事，让回复更像对应宠物。
+- 新增或编辑故事时，图片会复制到当前宠物的数据目录，不会移动或删除原图。
+
+### 聊天背景
+
+- 聊天窗口底部有“背景”入口。
+- 每个宠物可以单独选择聊天背景图和透明度。
+- 背景图只影响聊天窗口，不会改动宠物形象。
+
+### 待办和提醒
+
+- “提醒”页可以新增本地待办、设置分类、优先级、重复和持续提醒。
+- 到点提醒默认使用宠物气泡和动作，不依赖云同步。
+- 待办和提醒历史保存在本机导出包安装目录里。
+
+### 行为、巡逻和外观
+
+- “行为”页可调整动作速度、拖动手感、惯性、自动说话频率。
+- 高级模式下可以设置巡逻范围、跨屏策略、体型、透明度和气泡样式。
+- 如果宠物挡住工作内容，可以关闭自动活动或调低自动说话频率。
+
+## 6. 数据保存和隐私
+
+- 等级、聊天、故事、待办、提醒历史和设置都保存在本机。
+- API Key 不会写入聊天记录、导出配置或日志。
+- 这个分发包默认清空个人数据模板，适合发给别人安装。
+- 免 Python 版更新已安装版本时，会尽量保留目标电脑已有的本地数据。
+
+## 7. 常见问题
+
+### 启动不了
+
+- Windows 源码版需要目标电脑已有 Python 和 Pillow；没有 Python 时使用免 Python 版。
+- macOS 运行包需要 Python 3、Tkinter 和 Pillow。
+- 如果安全软件拦截脚本，请确认文件来自你信任的导出包，再手动允许运行。
+
+### AI 没回复或超时
+
+- 到“AI”页检查厂商、Base URL、模型和 API Key。
+- 点击“测试当前连接”确认能连通。
+- 小米 MiMo 的网页控制台和 API Base URL 不是同一个地址，控制台请从“打开控制台”进入。
+
+### 想删除
+
+- Windows 源码版安装目录通常在 `%LOCALAPPDATA%\\DanhuangDesktopPet`。
+- 免 Python 版也安装到同一目录，可删除快捷方式并删除该目录。
+- 删除前如需保留故事、聊天或待办，请先备份安装目录。
+
+## 8. 文件说明
+
+- `README-安装说明.md`：安装入口和平台注意事项。
+- `README-使用说明.md`：当前这份功能和使用说明。
+- `CHANGELOG.md`：版本更新说明。
+- `manifest.json`：导出包清单。
+- `app/`：桌宠程序和资源文件。
+- `app/pet-family.json`：已包含宠物列表。
+- `app/pet-state/`：新用户本地状态模板。
+"""
+        (package_dir / "README-使用说明.md").write_text(guide, encoding="utf-8")
+
+    def write_distribution_install_scripts(self, package_dir, target_platform="windows"):
+        install_bat = package_dir / "安装桌宠.bat"
+        install_alias_bat = package_dir / "InstallSource.bat"
+        install_ps1 = package_dir / "install-danhuang-desktop-pet.ps1"
+        build_ps1 = package_dir / "build-oneclick-installer.ps1"
+        install_exe_bat = package_dir / "安装免Python版.bat"
+        install_exe_alias_bat = package_dir / "InstallNoPython.bat"
+        install_exe_ps1 = package_dir / "install-oneclick-exe.ps1"
+        run_macos_command = package_dir / "RunOnMac.command"
+        run_macos_sh = package_dir / "run-macos.sh"
+        build_macos_command = package_dir / "BuildMacApp.command"
+        readme = package_dir / "README-安装说明.md"
+        requirements = package_dir / "app" / "requirements.txt"
+        target_platform = str(target_platform or "windows").strip().lower()
+        if target_platform not in {"windows", "macos"}:
+            raise ValueError(f"Unsupported installer target platform: {target_platform}")
+
+        if target_platform == "macos":
+            macos_run_text = "\n".join([
+                "#!/bin/bash",
+                "set -e",
+                "SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
+                "APP_DIR=\"$SCRIPT_DIR/app\"",
+                "VENV_DIR=\"$SCRIPT_DIR/.venv-macos\"",
+                "LOG_FILE=\"$SCRIPT_DIR/danhuang-macos.log\"",
+                "if [ ! -f \"$APP_DIR/run-danhuang-desktop-pet.py\" ]; then",
+                "  echo \"App files not found: $APP_DIR\"",
+                "  exit 1",
+                "fi",
+                "PYTHON_BIN=\"${DANHUANG_MAC_PYTHON:-python3}\"",
+                "if ! command -v \"$PYTHON_BIN\" >/dev/null 2>&1; then",
+                "  echo \"python3 not found. Install Python 3 from python.org or Homebrew first.\"",
+                "  exit 1",
+                "fi",
+                "if [ ! -x \"$VENV_DIR/bin/python\" ]; then",
+                "  \"$PYTHON_BIN\" -m venv \"$VENV_DIR\" || true",
+                "fi",
+                "if [ -x \"$VENV_DIR/bin/python\" ]; then",
+                "  PY=\"$VENV_DIR/bin/python\"",
+                "else",
+                "  PY=\"$PYTHON_BIN\"",
+                "fi",
+                "if ! \"$PY\" - <<'PY' >/dev/null 2>&1",
+                "import tkinter",
+                "import PIL",
+                "PY",
+                "then",
+                "  \"$PY\" -m pip install --upgrade pip",
+                "  \"$PY\" -m pip install -r \"$APP_DIR/requirements.txt\"",
+                "fi",
+                "if ! \"$PY\" - <<'PY'",
+                "import tkinter",
+                "import PIL",
+                "PY",
+                "then",
+                "  echo \"Python is missing Tkinter or Pillow. Use python.org Python 3, or install tkinter support for your Python.\"",
+                "  exit 1",
+                "fi",
+                "pkill -f \"$APP_DIR/run-danhuang-desktop-pet.py\" >/dev/null 2>&1 || true",
+                "cd \"$APP_DIR\"",
+                "nohup \"$PY\" \"$APP_DIR/run-danhuang-desktop-pet.py\" > \"$LOG_FILE\" 2>&1 &",
+                "echo \"Danhuang Desktop Pet started. Log: $LOG_FILE\"",
+            ]) + "\n"
+            for mac_path in (run_macos_command, run_macos_sh):
+                mac_path.write_text(macos_run_text, encoding="utf-8")
+            build_macos_command.write_text(
+                "\n".join([
+                    "#!/bin/bash",
+                    "set -e",
+                    "SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
+                    "APP_DIR=\"$SCRIPT_DIR/app\"",
+                    "PYTHON_BIN=\"${DANHUANG_MAC_PYTHON:-python3}\"",
+                    "if ! command -v \"$PYTHON_BIN\" >/dev/null 2>&1; then",
+                    "  echo \"python3 not found. Install Python 3 first.\"",
+                    "  exit 1",
+                    "fi",
+                    "cd \"$APP_DIR\"",
+                    "\"$PYTHON_BIN\" -m pip install -r requirements.txt",
+                    "\"$PYTHON_BIN\" -m pip install --upgrade pyinstaller",
+                    "DATA_ARGS=()",
+                    "for item in spritesheet.webp pet.json pet-family.json butterfly.png new-pet-prompt-pack.md CHANGELOG.md danhuang-dialogue-library.json danhuang-soul-profile.md desktop-pet-settings.json danhuang-ai-providers.json danhuang-todos.json danhuang-reminder-history.json companion-state.json danhuang-chat-memory.json danhuang-memory-summary.json; do",
+                    "  if [ -e \"$item\" ]; then DATA_ARGS+=(--add-data \"$item:.\"); fi",
+                    "done",
+                    "for dir in family family-references external-references pet-state; do",
+                    "  if [ -d \"$dir\" ]; then DATA_ARGS+=(--add-data \"$dir:$dir\"); fi",
+                    "done",
+                    "\"$PYTHON_BIN\" -m PyInstaller --noconfirm --windowed --name DanhuangDesktopPet \"${DATA_ARGS[@]}\" run-danhuang-desktop-pet.py",
+                    "echo \"Build complete: app/dist/DanhuangDesktopPet.app\"",
+                ]) + "\n",
+                encoding="utf-8",
+            )
+            requirements.write_text("Pillow>=10\n", encoding="utf-8")
+            readme.write_text(
+                "# macOS 运行包说明\n\n"
+                "0. 功能和日常使用请先看 `README-使用说明.md`。\n"
+                "1. Windows 本机不能直接生成真正可运行的 macOS `.app`；推荐回到导出窗口配置 GitHub 后点击“生成 macOS 可运行包”。\n"
+                "2. 远端构建会用 GitHub Actions `macos-latest` 生成 `DanhuangDesktopPet.app`，并下载 `DanhuangDesktopPet-macOS-<version>.zip`。\n"
+                "3. Mac 用户解压远端构建 zip 后优先双击 `.app`；如被 Gatekeeper 拦截，双击 `打开桌宠.command`。\n"
+                "4. 如果只拿到当前源码构建包：在 Mac 上执行 `chmod +x RunOnMac.command run-macos.sh BuildMacApp.command`，再运行 `./RunOnMac.command` 源码启动，或 `./BuildMacApp.command` 本机打包。\n"
+                "5. 当前包只清空安装包内的新用户数据模板：等级、聊天、记忆、待办、提醒历史和 API Key。打包机本机数据不会被修改。\n"
+                "6. `github-actions/build-macos-app.yml` 是需要提交到 GitHub 仓库的 workflow 模板。\n",
+                encoding="utf-8",
+            )
+            return
+
+        source_install_bat_text = "\n".join([
+            "@echo off",
+            "powershell -NoProfile -ExecutionPolicy Bypass -File \"%~dp0install-danhuang-desktop-pet.ps1\"",
+            "pause",
+        ]) + "\n"
+        for bat_path in (install_bat, install_alias_bat):
+            bat_path.write_text(source_install_bat_text, encoding="utf-8")
+        macos_run_text = "\n".join([
+            "#!/bin/bash",
+            "set -e",
+            "SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
+            "APP_DIR=\"$SCRIPT_DIR/app\"",
+            "VENV_DIR=\"$SCRIPT_DIR/.venv-macos\"",
+            "LOG_FILE=\"$SCRIPT_DIR/danhuang-macos.log\"",
+            "if [ ! -f \"$APP_DIR/run-danhuang-desktop-pet.py\" ]; then",
+            "  echo \"App files not found: $APP_DIR\"",
+            "  exit 1",
+            "fi",
+            "PYTHON_BIN=\"${DANHUANG_MAC_PYTHON:-python3}\"",
+            "if ! command -v \"$PYTHON_BIN\" >/dev/null 2>&1; then",
+            "  echo \"python3 not found. Install Python 3 from python.org or Homebrew first.\"",
+            "  exit 1",
+            "fi",
+            "if [ ! -x \"$VENV_DIR/bin/python\" ]; then",
+            "  \"$PYTHON_BIN\" -m venv \"$VENV_DIR\" || true",
+            "fi",
+            "if [ -x \"$VENV_DIR/bin/python\" ]; then",
+            "  PY=\"$VENV_DIR/bin/python\"",
+            "else",
+            "  PY=\"$PYTHON_BIN\"",
+            "fi",
+            "if ! \"$PY\" - <<'PY' >/dev/null 2>&1",
+            "import tkinter",
+            "import PIL",
+            "PY",
+            "then",
+            "  \"$PY\" -m pip install --upgrade pip",
+            "  \"$PY\" -m pip install -r \"$APP_DIR/requirements.txt\"",
+            "fi",
+            "if ! \"$PY\" - <<'PY'",
+            "import tkinter",
+            "import PIL",
+            "PY",
+            "then",
+            "  echo \"Python is missing Tkinter or Pillow. Use python.org Python 3, or install tkinter support for your Python.\"",
+            "  exit 1",
+            "fi",
+            "pkill -f \"$APP_DIR/run-danhuang-desktop-pet.py\" >/dev/null 2>&1 || true",
+            "cd \"$APP_DIR\"",
+            "nohup \"$PY\" \"$APP_DIR/run-danhuang-desktop-pet.py\" > \"$LOG_FILE\" 2>&1 &",
+            "echo \"Danhuang Desktop Pet started. Log: $LOG_FILE\"",
+        ]) + "\n"
+        for mac_path in (run_macos_command, run_macos_sh):
+            mac_path.write_text(macos_run_text, encoding="utf-8")
+        build_macos_command.write_text(
+            "\n".join([
+                "#!/bin/bash",
+                "set -e",
+                "SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
+                "APP_DIR=\"$SCRIPT_DIR/app\"",
+                "PYTHON_BIN=\"${DANHUANG_MAC_PYTHON:-python3}\"",
+                "if ! command -v \"$PYTHON_BIN\" >/dev/null 2>&1; then",
+                "  echo \"python3 not found. Install Python 3 first.\"",
+                "  exit 1",
+                "fi",
+                "cd \"$APP_DIR\"",
+                "\"$PYTHON_BIN\" -m pip install -r requirements.txt",
+                "\"$PYTHON_BIN\" -m pip install --upgrade pyinstaller",
+                "DATA_ARGS=()",
+                "for item in spritesheet.webp pet.json pet-family.json butterfly.png new-pet-prompt-pack.md CHANGELOG.md danhuang-dialogue-library.json danhuang-soul-profile.md desktop-pet-settings.json danhuang-ai-providers.json danhuang-todos.json danhuang-reminder-history.json companion-state.json danhuang-chat-memory.json danhuang-memory-summary.json; do",
+                "  if [ -e \"$item\" ]; then DATA_ARGS+=(--add-data \"$item:.\"); fi",
+                "done",
+                "for dir in family family-references external-references pet-state; do",
+                "  if [ -d \"$dir\" ]; then DATA_ARGS+=(--add-data \"$dir:$dir\"); fi",
+                "done",
+                "\"$PYTHON_BIN\" -m PyInstaller --noconfirm --windowed --name DanhuangDesktopPet \"${DATA_ARGS[@]}\" run-danhuang-desktop-pet.py",
+                "echo \"Build complete: app/dist/DanhuangDesktopPet.app\"",
+            ]) + "\n",
+            encoding="utf-8",
+        )
+        install_ps1.write_text(
+            "\n".join([
+                "$ErrorActionPreference = \"Stop\"",
+                "$source = Join-Path $PSScriptRoot \"app\"",
+                "$target = Join-Path $env:LOCALAPPDATA \"DanhuangDesktopPet\"",
+                "New-Item -ItemType Directory -Force -Path $target | Out-Null",
+                "Copy-Item -Path (Join-Path $source \"*\") -Destination $target -Recurse -Force",
+                "$startBat = Join-Path $target \"StartDanhuangDesktopPet.bat\"",
+                "$startBatLines = @(",
+                "  '@echo off',",
+                "  'set \"APPDIR=%~dp0\"',",
+                "  'where pyw >nul 2>nul',",
+                "  'if %errorlevel%==0 (',",
+                "  '  start \"\" pyw -3 \"%APPDIR%run-danhuang-desktop-pet.py\" --replace',",
+                "  '  exit /b',",
+                "  ')',",
+                "  'where pythonw >nul 2>nul',",
+                "  'if %errorlevel%==0 (',",
+                "  '  start \"\" pythonw \"%APPDIR%run-danhuang-desktop-pet.py\" --replace',",
+                "  '  exit /b',",
+                "  ')',",
+                "  'echo Python was not found. Use InstallNoPython.bat after building the exe package.',",
+                "  'pause'",
+                ")",
+                "Set-Content -LiteralPath $startBat -Value $startBatLines -Encoding ASCII",
+                "$uninstallBat = Join-Path $target \"UninstallDanhuangDesktopPet.bat\"",
+                "$uninstallBatLines = @(",
+                "  '@echo off',",
+                "  'taskkill /f /im DanhuangDesktopPet.exe >nul 2>nul',",
+                "  'taskkill /f /im pythonw.exe >nul 2>nul',",
+                "  'taskkill /f /im python.exe >nul 2>nul',",
+                "  'cd /d \"%LOCALAPPDATA%\"',",
+                "  'rmdir /s /q \"DanhuangDesktopPet\"',",
+                "  'echo Danhuang Desktop Pet has been uninstalled.',",
+                "  'pause'",
+                ")",
+                "Set-Content -LiteralPath $uninstallBat -Value $uninstallBatLines -Encoding ASCII",
+                "$desktop = $env:DANHUANG_INSTALL_DESKTOP",
+                "if (-not $desktop) { $desktop = [Environment]::GetFolderPath(\"DesktopDirectory\") }",
+                "New-Item -ItemType Directory -Force -Path $desktop | Out-Null",
+                "$shortcutPath = Join-Path $desktop \"Danhuang Desktop Pet.lnk\"",
+                "$shell = New-Object -ComObject WScript.Shell",
+                "$shortcut = $shell.CreateShortcut($shortcutPath)",
+                "$shortcut.TargetPath = $startBat",
+                "$shortcut.WorkingDirectory = $target",
+                "$shortcut.Save()",
+                "$python = Get-Command python -ErrorAction SilentlyContinue",
+                "if ($python) {",
+                "  & $python.Source -c \"import PIL\" > $null 2>&1",
+                "  if ($LASTEXITCODE -ne 0) {",
+                "    & $python.Source -m pip install -r (Join-Path $target \"requirements.txt\")",
+                "    if ($LASTEXITCODE -ne 0) { throw \"Failed to install source package dependencies.\" }",
+                "  }",
+                "}",
+                "Write-Host \"Installed source package to: $target\"",
+                "Write-Host \"Shortcut: $shortcutPath\"",
+            ]) + "\n",
+            encoding="utf-8",
+        )
+        build_ps1.write_text(
+            "\n".join([
+                "$ErrorActionPreference = \"Stop\"",
+                "$app = Join-Path $PSScriptRoot \"app\"",
+                "$PythonCommand = $env:DANHUANG_BUILD_PYTHON",
+                "$PythonCommandArgs = @()",
+                "if (-not $PythonCommand) {",
+                "  $runtime = Join-Path $env:USERPROFILE \".cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe\"",
+                "  if (Test-Path -LiteralPath $runtime) { $PythonCommand = $runtime }",
+                "}",
+                "if (-not $PythonCommand) {",
+                "  $cmd = Get-Command python -ErrorAction SilentlyContinue",
+                "  if ($cmd) { $PythonCommand = $cmd.Source }",
+                "}",
+                "if (-not $PythonCommand) {",
+                "  $cmd = Get-Command py -ErrorAction SilentlyContinue",
+                "  if ($cmd) {",
+                "    $PythonCommand = $cmd.Source",
+                "    $PythonCommandArgs = @(\"-3\")",
+                "  }",
+                "}",
+                "if (-not $PythonCommand) { throw \"Python not found. Set DANHUANG_BUILD_PYTHON to python.exe.\" }",
+                "function Invoke-Python {",
+                "  param([string[]]$Arguments, [switch]$Quiet)",
+                "  $allArgs = @($PythonCommandArgs) + @($Arguments)",
+                "  if ($Quiet) {",
+                "    & $PythonCommand @allArgs > $null 2>&1",
+                "  } else {",
+                "    & $PythonCommand @allArgs",
+                "  }",
+                "  if ($LASTEXITCODE -ne 0) { throw (\"Python command failed: \" + ($Arguments -join \" \")) }",
+                "}",
+                "Write-Host (\"Using Python: \" + $PythonCommand)",
+                "Invoke-Python -Arguments @(\"-m\", \"pip\", \"install\", \"-r\", (Join-Path $app \"requirements.txt\"))",
+                "try {",
+                "  Invoke-Python -Arguments @(\"-m\", \"PyInstaller\", \"--version\") -Quiet",
+                "} catch {",
+                "  Invoke-Python -Arguments @(\"-m\", \"pip\", \"install\", \"--upgrade\", \"pyinstaller\")",
+                "}",
+                "Push-Location $app",
+                "try {",
+                "  $dataItems = @(",
+                "    @(\"spritesheet.webp\", \".\"),",
+                "    @(\"pet.json\", \".\"),",
+                "    @(\"pet-family.json\", \".\"),",
+                "    @(\"butterfly.png\", \".\"),",
+                "    @(\"danhuang-app-icon.ico\", \".\"),",
+                "    @(\"danhuang-app-icon.png\", \".\"),",
+                "    @(\"new-pet-prompt-pack.md\", \".\"),",
+                "    @(\"CHANGELOG.md\", \".\"),",
+                "    @(\"danhuang-dialogue-library.json\", \".\"),",
+                "    @(\"danhuang-soul-profile.md\", \".\"),",
+                "    @(\"desktop-pet-settings.json\", \".\"),",
+                "    @(\"danhuang-ai-providers.json\", \".\"),",
+                "    @(\"danhuang-todos.json\", \".\"),",
+                "    @(\"danhuang-reminder-history.json\", \".\"),",
+                "    @(\"companion-state.json\", \".\"),",
+                "    @(\"danhuang-chat-memory.json\", \".\"),",
+                "    @(\"danhuang-memory-summary.json\", \".\"),",
+                "    @(\"family\", \"family\"),",
+                "    @(\"family-references\", \"family-references\"),",
+                "    @(\"external-references\", \"external-references\"),",
+                "    @(\"pet-state\", \"pet-state\")",
+                "  )",
+                "  $pyinstallerArgs = @(\"--noconfirm\", \"--windowed\", \"--name\", \"DanhuangDesktopPet\")",
+                "  $iconPath = Join-Path $app \"danhuang-app-icon.ico\"",
+                "  if (Test-Path -LiteralPath $iconPath) {",
+                "    $pyinstallerArgs += @(\"--icon\", $iconPath)",
+                "  }",
+                "  foreach ($item in $dataItems) {",
+                "    $src = [string]$item[0]",
+                "    $dest = [string]$item[1]",
+                "    if (Test-Path -LiteralPath (Join-Path $app $src)) {",
+                "      $pyinstallerArgs += @(\"--add-data\", ($src + \";\" + $dest))",
+                "    } else {",
+                "      Write-Host (\"Skipping missing asset: \" + $src)",
+                "    }",
+                "  }",
+                "  $pyinstallerArgs += @(\"run-danhuang-desktop-pet.py\")",
+                "  Invoke-Python -Arguments (@(\"-m\", \"PyInstaller\") + $pyinstallerArgs)",
+                "} finally {",
+                "  Pop-Location",
+                "}",
+                "$exe = Join-Path $app \"dist/DanhuangDesktopPet/DanhuangDesktopPet.exe\"",
+                "if (-not (Test-Path -LiteralPath $exe)) { throw (\"PyInstaller did not create expected exe: \" + $exe) }",
+                "Write-Host \"Build complete: app\\dist\\DanhuangDesktopPet\\DanhuangDesktopPet.exe\"",
+            ]) + "\n",
+            encoding="utf-8",
+        )
+        exe_install_bat_text = "\n".join([
+            "@echo off",
+            "powershell -NoProfile -ExecutionPolicy Bypass -File \"%~dp0install-oneclick-exe.ps1\"",
+            "pause",
+        ]) + "\n"
+        for bat_path in (install_exe_bat, install_exe_alias_bat):
+            bat_path.write_text(exe_install_bat_text, encoding="utf-8")
+        install_exe_ps1.write_text(
+            "\n".join([
+                "$ErrorActionPreference = \"Stop\"",
+                "$source = Join-Path $PSScriptRoot \"app/dist/DanhuangDesktopPet\"",
+                "$exe = Join-Path $source \"DanhuangDesktopPet.exe\"",
+                "if (-not (Test-Path -LiteralPath $exe)) {",
+                "  Write-Host \"Built exe not found. Building it now. This can take a few minutes.\"",
+                "  $buildScript = Join-Path $PSScriptRoot \"build-oneclick-installer.ps1\"",
+                "  if (-not (Test-Path -LiteralPath $buildScript)) { throw \"Build script is missing.\" }",
+                "  & $buildScript",
+                "}",
+                "if (-not (Test-Path -LiteralPath $exe)) { throw (\"Build finished but exe is still missing: \" + $exe) }",
+                "$target = Join-Path $env:LOCALAPPDATA \"DanhuangDesktopPet\"",
+                "$backup = Join-Path $env:TEMP (\"DanhuangDesktopPetUserData-\" + [guid]::NewGuid().ToString(\"N\"))",
+                "$preserveItems = @(",
+                "  @{ From = \"desktop-pet-settings.json\"; To = \"_internal/desktop-pet-settings.json\" },",
+                "  @{ From = \"danhuang-ai-providers.json\"; To = \"_internal/danhuang-ai-providers.json\" },",
+                "  @{ From = \"danhuang-todos.json\"; To = \"_internal/danhuang-todos.json\" },",
+                "  @{ From = \"danhuang-reminder-history.json\"; To = \"_internal/danhuang-reminder-history.json\" },",
+                "  @{ From = \"companion-state.json\"; To = \"_internal/companion-state.json\" },",
+                "  @{ From = \"danhuang-chat-memory.json\"; To = \"_internal/danhuang-chat-memory.json\" },",
+                "  @{ From = \"danhuang-memory-summary.json\"; To = \"_internal/danhuang-memory-summary.json\" },",
+                "  @{ From = \"pet-state\"; To = \"_internal/pet-state\" },",
+                "  @{ From = \"_internal/desktop-pet-settings.json\"; To = \"_internal/desktop-pet-settings.json\" },",
+                "  @{ From = \"_internal/danhuang-ai-providers.json\"; To = \"_internal/danhuang-ai-providers.json\" },",
+                "  @{ From = \"_internal/danhuang-todos.json\"; To = \"_internal/danhuang-todos.json\" },",
+                "  @{ From = \"_internal/danhuang-reminder-history.json\"; To = \"_internal/danhuang-reminder-history.json\" },",
+                "  @{ From = \"_internal/companion-state.json\"; To = \"_internal/companion-state.json\" },",
+                "  @{ From = \"_internal/danhuang-chat-memory.json\"; To = \"_internal/danhuang-chat-memory.json\" },",
+                "  @{ From = \"_internal/danhuang-memory-summary.json\"; To = \"_internal/danhuang-memory-summary.json\" },",
+                "  @{ From = \"_internal/pet-state\"; To = \"_internal/pet-state\" }",
+                ")",
+                "Get-Process DanhuangDesktopPet -ErrorAction SilentlyContinue | Stop-Process -Force",
+                "if (Test-Path -LiteralPath $target) {",
+                "  New-Item -ItemType Directory -Force -Path $backup | Out-Null",
+                "  foreach ($item in $preserveItems) {",
+                "    $from = Join-Path $target $item.From",
+                "    if (Test-Path -LiteralPath $from) {",
+                "      $to = Join-Path $backup $item.To",
+                "      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $to) | Out-Null",
+                "      Copy-Item -LiteralPath $from -Destination $to -Recurse -Force",
+                "    }",
+                "  }",
+                "  Remove-Item -LiteralPath $target -Recurse -Force",
+                "}",
+                "New-Item -ItemType Directory -Force -Path $target | Out-Null",
+                "Copy-Item -Path (Join-Path $source \"*\") -Destination $target -Recurse -Force",
+                "if (Test-Path -LiteralPath $backup) {",
+                "  $backupItems = Get-ChildItem -LiteralPath $backup -Force",
+                "  foreach ($item in $backupItems) {",
+                "    Copy-Item -LiteralPath $item.FullName -Destination $target -Recurse -Force",
+                "  }",
+                "  Remove-Item -LiteralPath $backup -Recurse -Force",
+                "}",
+                "$desktop = $env:DANHUANG_INSTALL_DESKTOP",
+                "if (-not $desktop) { $desktop = [Environment]::GetFolderPath(\"DesktopDirectory\") }",
+                "New-Item -ItemType Directory -Force -Path $desktop | Out-Null",
+                "$shortcutPath = Join-Path $desktop \"Danhuang Desktop Pet.lnk\"",
+                "$shell = New-Object -ComObject WScript.Shell",
+                "$shortcut = $shell.CreateShortcut($shortcutPath)",
+                "$shortcut.TargetPath = Join-Path $target \"DanhuangDesktopPet.exe\"",
+                "$shortcut.WorkingDirectory = $target",
+                "$shortcut.IconLocation = $shortcut.TargetPath",
+                "$shortcut.Save()",
+                "Write-Host \"Installed one-click package to: $target\"",
+                "Write-Host \"Shortcut: $shortcutPath\"",
+            ]) + "\n",
+            encoding="utf-8",
+        )
+        requirements.write_text("Pillow>=10\n", encoding="utf-8")
+        readme.write_text(
+            "# Windows 安装包说明\n\n"
+            "0. 功能和日常使用请先看 `README-使用说明.md`。\n"
+            "1. `安装桌宠.bat` / `InstallSource.bat`：源码版安装，目标电脑需要已有 Python。\n"
+            "2. `安装免Python版.bat` / `InstallNoPython.bat`：免 Python 版入口。如果包内还没有 exe，会先自动运行 `build-oneclick-installer.ps1` 构建，再安装。\n"
+            "3. 给没有 Python 的 Windows 电脑使用时，请先在有 Python 的打包机上运行一次免 Python 版入口，确认生成 `app/dist/DanhuangDesktopPet/DanhuangDesktopPet.exe` 后，再发送整个文件夹或 zip。\n"
+            "4. 当前包只清空安装包内的新用户数据模板：等级、聊天、记忆、待办、提醒历史和 API Key。打包机本机数据不会被修改。\n"
+            "5. 免 Python 版更新已安装版本时，会优先保留目标电脑自己的等级、聊天、记忆、待办、提醒历史和本机 API Key。\n"
+            "6. Windows 双击脚本内容保持 ASCII，避免 Windows cmd / PowerShell 因编码判断错误出现乱码或无响应。\n"
+            "7. 不默认写入开机自启，避免安全软件误报；需要自启时让用户在安装向导中明确勾选。\n",
+            encoding="utf-8",
+        )
+        for mac_path in (run_macos_command, run_macos_sh, build_macos_command):
+            try:
+                mac_path.unlink()
+            except OSError:
+                pass
+
+    def export_installer_package(
+        self,
+        selected_pet_ids=None,
+        output_root=None,
+        target_platform="windows",
+        include_todos=False,
+        include_stories=False,
+        include_ai_config=False,
+        show_message=True,
+    ):
+        self.pet_family = self.load_pet_family()
+        target_platform = str(target_platform or "windows").strip().lower()
+        if target_platform not in {"windows", "macos"}:
+            raise ValueError(f"Unsupported installer target platform: {target_platform}")
+        include_todos = bool(include_todos)
+        include_stories = bool(include_stories)
+        include_ai_config = bool(include_ai_config)
+        selected = set(selected_pet_ids or [])
+        selected.add("danhuang")
+        output_root = Path(output_root) if output_root else self.pet_dir / "exports"
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        package_prefix = "danhuang-desktop-pet-windows" if target_platform == "windows" else "danhuang-desktop-pet-macos"
+        package_dir = output_root / f"{package_prefix}-{timestamp}"
+        app_dir = package_dir / "app"
+        app_dir.mkdir(parents=True, exist_ok=True)
+        for folder_name in ("family", "family-references", "external-references"):
+            (app_dir / folder_name).mkdir(parents=True, exist_ok=True)
+        if target_platform == "windows":
+            entrypoints = [
+                "安装桌宠.bat",
+                "InstallSource.bat",
+                "install-danhuang-desktop-pet.ps1",
+                "build-oneclick-installer.ps1",
+                "安装免Python版.bat",
+                "InstallNoPython.bat",
+                "install-oneclick-exe.ps1",
+            ]
+            installer_mode = "windows-source-and-oneclick"
+        else:
+            entrypoints = [
+                "RunOnMac.command",
+                "run-macos.sh",
+                "BuildMacApp.command",
+                "github-actions/build-macos-app.yml",
+            ]
+            installer_mode = "macos-source-for-github-actions"
+        manifest = {
+            "version": 1,
+            "app_version": APP_VERSION,
+            "platform": target_platform,
+            "exported_at": datetime.now().isoformat(timespec="seconds"),
+            "selected_pet_ids": sorted(selected),
+            "python_bundled": False,
+            "installer_mode": installer_mode,
+            "entrypoints": entrypoints,
+            "documentation": ["README-安装说明.md", "README-使用说明.md", "CHANGELOG.md"],
+            "missing_assets": [],
+            "cleanup_scope": "package_only_local_user_data_is_not_modified",
+            "privacy_reset": [
+                "companion-state",
+                "chat-memory",
+                "memory-summary",
+                "api-keys",
+                "logs",
+            ],
+            "included_user_data": {
+                "todos": include_todos,
+                "stories": include_stories,
+                "ai_config": include_ai_config,
+                "api_keys": False,
+            },
+        }
+        if not include_todos:
+            manifest["privacy_reset"].extend(["todos", "reminder-history"])
+        if not include_stories:
+            manifest["privacy_reset"].append("stories")
+        if not include_ai_config:
+            manifest["privacy_reset"].append("ai-provider-config")
+        if target_platform == "windows":
+            manifest["windows_oneclick_build"] = True
+        else:
+            manifest["macos_source_run"] = True
+            manifest["macos_remote_build_supported"] = True
+            manifest["macos_remote_build_note"] = "Windows cannot build a native macOS .app locally; use GitHub Actions macos-latest workflow."
+
+        for file_name in [
+            "run-danhuang-desktop-pet.py",
+            "pet.json",
+            "butterfly.png",
+            "danhuang-app-icon.ico",
+            "danhuang-app-icon.png",
+            "danhuang-dialogue-library.json",
+            "danhuang-soul-profile.md",
+            "new-pet-prompt-pack.md",
+            "CHANGELOG.md",
+        ]:
+            source = self.pet_dir / file_name
+            if source.exists():
+                shutil.copy2(source, app_dir / file_name)
+            else:
+                manifest["missing_assets"].append(file_name)
+
+        included_pets = []
+        for pet in self.pet_family.get("pets", []):
+            if pet.get("id") in selected:
+                included_pets.append(self.sanitized_distribution_pet(pet, app_dir, manifest))
+        if not any(pet.get("id") == "danhuang" for pet in included_pets):
+            included_pets.insert(0, self.sanitized_distribution_pet(self.pet_by_id("danhuang"), app_dir, manifest))
+        family = {
+            "version": 1,
+            "current_pet_id": "danhuang",
+            "pets": included_pets,
+        }
+        (app_dir / FAMILY_FILE).write_text(json.dumps(family, ensure_ascii=False, indent=2), encoding="utf-8")
+        (app_dir / SETTINGS_FILE).write_text(json.dumps(self.distribution_settings_snapshot(), ensure_ascii=False, indent=2), encoding="utf-8")
+        ai_export = self.safe_ai_provider_export_config() if include_ai_config else {"version": 1, "active_provider": "openai", "providers": clone_ai_provider_presets()}
+        (app_dir / AI_PROVIDERS_FILE).write_text(json.dumps(ai_export, ensure_ascii=False, indent=2), encoding="utf-8")
+        todos_export = self.todos if include_todos else {"version": 1, "items": [], "updated_at": ""}
+        reminders_export = self.reminder_history if include_todos else {"version": 1, "events": [], "updated_at": ""}
+        (app_dir / TODO_FILE).write_text(json.dumps(todos_export, ensure_ascii=False, indent=2), encoding="utf-8")
+        (app_dir / REMINDER_HISTORY_FILE).write_text(json.dumps(reminders_export, ensure_ascii=False, indent=2), encoding="utf-8")
+        (app_dir / COMPANION_FILE).write_text(json.dumps(self.fresh_distribution_companion_state(), ensure_ascii=False, indent=2), encoding="utf-8")
+        (app_dir / CHAT_MEMORY_FILE).write_text(json.dumps(copy.deepcopy(CHAT_MEMORY_DEFAULT), ensure_ascii=False, indent=2), encoding="utf-8")
+        (app_dir / MEMORY_SUMMARY_FILE).write_text(json.dumps({"version": 1, "summary": "", "facts": [], "last_mood": "", "updated_at": ""}, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        pet_state_root = app_dir / "pet-state"
+        for pet in included_pets:
+            state_dir = pet_state_root / pet.get("id", "danhuang")
+            state_dir.mkdir(parents=True, exist_ok=True)
+            (state_dir / "companion-state.json").write_text(json.dumps(self.fresh_distribution_companion_state(), ensure_ascii=False, indent=2), encoding="utf-8")
+            (state_dir / "chat-memory.json").write_text(json.dumps(copy.deepcopy(CHAT_MEMORY_DEFAULT), ensure_ascii=False, indent=2), encoding="utf-8")
+            (state_dir / "memory-summary.json").write_text(json.dumps({"version": 1, "summary": "", "facts": [], "last_mood": "", "updated_at": ""}, ensure_ascii=False, indent=2), encoding="utf-8")
+            story_state = self.distribution_story_state(pet.get("id", "danhuang"), app_dir, manifest) if include_stories else copy.deepcopy(PET_STORIES_DEFAULT)
+            (state_dir / "pet-stories.json").write_text(json.dumps(story_state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        self.write_distribution_user_guide(
+            package_dir,
+            target_platform,
+            included_pets,
+            {
+                "include_todos": include_todos,
+                "include_stories": include_stories,
+                "include_ai_config": include_ai_config,
+            },
+        )
+        self.write_distribution_install_scripts(package_dir, target_platform)
+        if target_platform == "macos":
+            workflow_path = self.ensure_github_workflow_template(package_dir)
+            manifest["github_actions_workflow"] = str(workflow_path.relative_to(self.pet_dir)).replace("\\", "/")
+        (package_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        zip_path = output_root / f"{package_dir.name}.zip"
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path in package_dir.rglob("*"):
+                if path.is_file():
+                    arcname = path.relative_to(output_root)
+                    info = zipfile.ZipInfo.from_file(path, arcname)
+                    if path.suffix in {".command", ".sh"}:
+                        info.external_attr = (0o755 & 0xFFFF) << 16
+                    with path.open("rb") as source:
+                        archive.writestr(info, source.read())
+        platform_name = "Windows 安装包" if target_platform == "windows" else "macOS 运行包"
+        entry_path = package_dir / ("安装桌宠.bat" if target_platform == "windows" else "RunOnMac.command")
+        if show_message:
+            self.say(f"{platform_name}导出完成。")
+            messagebox.showinfo("导出完成", f"{platform_name}已生成：\n{zip_path}\n\n入口：{entry_path}")
+        return package_dir, zip_path
+
+    def open_installer_export_dialog(self, target_platform="windows"):
+        self.pet_family = self.load_pet_family()
+        target_platform = str(target_platform or "windows").strip().lower()
+        if target_platform not in {"windows", "macos"}:
+            target_platform = "windows"
+        platform_name = "Windows 安装包" if target_platform == "windows" else "macOS 可运行包"
+        platform_note = (
+            "Windows 包只包含 Windows 安装脚本和免 Python 构建入口，不再混入 macOS 脚本。"
+            if target_platform == "windows"
+            else "Windows 本机不交叉编译 macOS；这里会先导出源码包，再触发 GitHub Actions 的 macOS runner 生成 .app zip。"
+        )
+        window = tk.Toplevel(self.root)
+        window.title(f"导出{platform_name}")
+        window.configure(bg="#fff7ec")
+        window.geometry("760x720")
+        window.minsize(680, 620)
+        window.resizable(True, True)
+        window.transient(self.panel if self.panel is not None else self.root)
+        body = tk.Frame(window, bg="#fff7ec")
+        body.pack(fill="both", expand=True)
+        dialog_canvas = tk.Canvas(body, bg="#fff7ec", bd=0, highlightthickness=0)
+        dialog_canvas.pack(side="left", fill="both", expand=True)
+        dialog_scrollbar = tk.Scrollbar(body, orient="vertical", command=dialog_canvas.yview, width=12)
+        dialog_scrollbar.pack(side="right", fill="y")
+        dialog_canvas.configure(yscrollcommand=dialog_scrollbar.set)
+        shell = tk.Frame(dialog_canvas, bg="#fff7ec", padx=18, pady=16)
+        shell_window = dialog_canvas.create_window((0, 0), window=shell, anchor="nw")
+
+        def refresh_export_scroll_region(_event=None):
+            dialog_canvas.configure(scrollregion=dialog_canvas.bbox("all"))
+
+        def resize_export_shell(event):
+            dialog_canvas.itemconfigure(shell_window, width=max(1, event.width))
+            refresh_export_scroll_region()
+
+        def export_mousewheel(event):
+            dialog_canvas.update_idletasks()
+            bbox = dialog_canvas.bbox("all")
+            if not bbox or (bbox[3] - bbox[1]) <= dialog_canvas.winfo_height():
+                return "break"
+            direction = -1 if event.delta > 0 else 1
+            dialog_canvas.yview_scroll(direction * 3, "units")
+            return "break"
+
+        shell.bind("<Configure>", refresh_export_scroll_region)
+        dialog_canvas.bind("<Configure>", resize_export_shell)
+        window.bind("<MouseWheel>", export_mousewheel, add="+")
+
+        def export_button(parent_widget, text, command, variant="neutral"):
+            colors = {
+                "primary": ("#c8732b", "#ffffff", "#8f4d22"),
+                "neutral": ("#fff7e9", "#30261d", "#fde8c7"),
+                "danger": ("#f8ddd3", "#5d3328", "#efc2b2"),
+                "sage": ("#eef6ea", "#46694b", "#dce9d5"),
+            }
+            bg, fg, active = colors.get(variant, colors["neutral"])
+            return tk.Button(
+                parent_widget,
+                text=text,
+                command=command,
+                relief="flat",
+                bd=0,
+                bg=bg,
+                fg=fg,
+                activebackground=active,
+                activeforeground=fg,
+                padx=16,
+                pady=8,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 9, "bold" if variant == "primary" else "normal"),
+            )
+
+        tk.Label(shell, text=f"导出{platform_name}", bg="#fff7ec", fg="#30261d", anchor="w", font=("Microsoft YaHei UI", 15, "bold")).pack(fill="x")
+        tk.Label(
+            shell,
+            text=f"蛋黄会默认内置；其他宠物可勾选。{platform_note} 导出包会附带安装说明和完整使用说明；默认不带个人数据，下面可选择是否带待办、故事和 AI 配置；真实 Key 永远不会导出。",
+            bg="#fff7ec",
+            fg="#7c6650",
+            anchor="w",
+            justify="left",
+            wraplength=580,
+            font=("Microsoft YaHei UI", 9),
+        ).pack(fill="x", pady=(4, 12))
+        list_box = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+        list_box.pack(fill="both", expand=True)
+        variables = {}
+        for pet in self.pet_family.get("pets", []):
+            pet_id = pet.get("id")
+            if not pet_id:
+                continue
+            row = tk.Frame(list_box, bg="#fffdf8")
+            row.pack(fill="x", padx=12, pady=(10 if not variables else 4, 0))
+            checked = pet_id == "danhuang" or pet_id == self.active_pet.get("id")
+            var = tk.BooleanVar(value=checked)
+            variables[pet_id] = var
+            chk = tk.Checkbutton(
+                row,
+                variable=var,
+                state="disabled" if pet_id == "danhuang" else "normal",
+                bg="#fffdf8",
+                activebackground="#fffdf8",
+                fg="#30261d",
+                selectcolor="#fff0d7",
+                font=("Microsoft YaHei UI", 9, "bold"),
+            )
+            chk.pack(side="left")
+            status = "内置必选" if pet_id == "danhuang" else ("可切换" if self.pet_ready(pet) else "参考形象")
+            tk.Label(row, text=f"{pet.get('display_name', pet_id)} · {status}", bg="#fffdf8", fg="#30261d", anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(side="left")
+            tk.Label(row, text=str(pet.get("notes", "") or ""), bg="#fffdf8", fg="#7c6650", anchor="w", justify="left", wraplength=350, font=("Microsoft YaHei UI", 8)).pack(side="left", padx=(10, 0), fill="x", expand=True)
+        data_box = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+        data_box.pack(fill="x", pady=(12, 0))
+        tk.Label(data_box, text="可选数据", bg="#fffdf8", fg="#30261d", anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x", padx=12, pady=(10, 3))
+        include_todos_var = tk.BooleanVar(value=False)
+        include_stories_var = tk.BooleanVar(value=False)
+        include_ai_config_var = tk.BooleanVar(value=False)
+
+        def data_check(text, variable, hint):
+            row = tk.Frame(data_box, bg="#fffdf8")
+            row.pack(fill="x", padx=12, pady=(0, 6))
+            tk.Checkbutton(
+                row,
+                text=text,
+                variable=variable,
+                bg="#fffdf8",
+                activebackground="#fffdf8",
+                fg="#30261d",
+                selectcolor="#fff0d7",
+                font=("Microsoft YaHei UI", 9, "bold"),
+            ).pack(side="left")
+            tk.Label(row, text=hint, bg="#fffdf8", fg="#7c6650", anchor="w", font=("Microsoft YaHei UI", 8)).pack(side="left", padx=(8, 0), fill="x", expand=True)
+
+        data_check("包含待办", include_todos_var, "导出当前待办和提醒历史。")
+        data_check("包含故事/日记", include_stories_var, "导出所选宠物的故事、日记、思念和图片。")
+        data_check("包含 AI 配置", include_ai_config_var, "只导出厂商、模型和接口参数，不导出 Key。")
+
+        github_vars = {}
+        if target_platform == "macos":
+            github_box = tk.Frame(shell, bg="#eef6ea", highlightthickness=1, highlightbackground="#d7e5d0")
+            github_box.pack(fill="x", pady=(12, 0))
+            tk.Label(github_box, text="GitHub macOS 构建", bg="#eef6ea", fg="#46694b", anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x", padx=12, pady=(10, 2))
+            tk.Label(
+                github_box,
+                text="目标仓库填 `owner/repo`。先写入 workflow 模板并提交到该仓库分支；Token 需要 Contents/Actions 读写权限。保存后 Windows 会上传源码包、触发 macOS runner、下载 .app zip。",
+                bg="#eef6ea",
+                fg="#6f6048",
+                anchor="w",
+                justify="left",
+                wraplength=680,
+                font=("Microsoft YaHei UI", 8),
+            ).pack(fill="x", padx=12, pady=(0, 8))
+            github_grid = tk.Frame(github_box, bg="#eef6ea")
+            github_grid.pack(fill="x", padx=12, pady=(0, 10))
+            github_grid.grid_columnconfigure(1, weight=1)
+            github_grid.grid_columnconfigure(3, weight=1)
+
+            def github_field(row, column, label, key, width=22, show=None):
+                tk.Label(github_grid, text=label, bg="#eef6ea", fg="#30261d", anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=column, sticky="w", padx=(0 if column == 0 else 12, 6), pady=3)
+                var = tk.StringVar(value=str(self.settings.get(key, "") or ""))
+                entry = tk.Entry(github_grid, textvariable=var, show=show, bg="#fffdf8", fg="#30261d", relief="flat", highlightthickness=1, highlightbackground="#cfe0c7", highlightcolor="#6a8f61", font=("Microsoft YaHei UI", 9), width=width)
+                entry.grid(row=row, column=column + 1, sticky="ew", pady=3, ipady=5)
+                github_vars[key] = var
+                return entry
+
+            if not str(self.settings.get("github_branch", "") or "").strip():
+                self.settings["github_branch"] = "main"
+            if not str(self.settings.get("github_workflow", "") or "").strip():
+                self.settings["github_workflow"] = "build-macos-app.yml"
+            if not str(self.settings.get("github_token_env_key", "") or "").strip():
+                self.settings["github_token_env_key"] = "DANHUANG_GITHUB_TOKEN"
+            github_field(0, 0, "仓库", "github_repo")
+            github_field(0, 2, "分支", "github_branch", width=14)
+            github_field(1, 0, "Workflow", "github_workflow")
+            github_field(1, 2, "Token 环境变量", "github_token_env_key", width=18)
+            token_row = tk.Frame(github_box, bg="#eef6ea")
+            token_row.pack(fill="x", padx=12, pady=(0, 10))
+            token_var = tk.StringVar()
+            token_source = self.github_build_token()[1]
+            tk.Label(token_row, text=f"Token：{token_source}", bg="#eef6ea", fg="#46694b", anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left")
+            tk.Entry(token_row, textvariable=token_var, show="*", bg="#fffdf8", fg="#30261d", relief="flat", highlightthickness=1, highlightbackground="#cfe0c7", highlightcolor="#6a8f61", font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True, padx=8, ipady=5)
+            export_button(token_row, "保存 Token", lambda: (self.save_github_build_token(token_var.get()), token_var.set(""), messagebox.showinfo("已保存", "GitHub Token 已用本机 DPAPI 加密保存。")), "sage").pack(side="left")
+            export_button(token_row, "写入 workflow 模板", lambda: messagebox.showinfo("已写入", f"已写入：\n{self.ensure_github_workflow_template()}"), "neutral").pack(side="left", padx=(8, 0))
+
+        path_row = tk.Frame(shell, bg="#fff7ec")
+        path_row.pack(fill="x", pady=(12, 0))
+        output_var = tk.StringVar(value=str(self.default_export_dir()))
+        tk.Label(path_row, text="导出目录", bg="#fff7ec", fg="#7c6650", font=("Microsoft YaHei UI", 9)).pack(side="left")
+        tk.Entry(path_row, textvariable=output_var, bg="#fffdf8", relief="flat", highlightthickness=1, highlightbackground="#ead7bd", font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True, padx=8)
+        def choose_output_dir():
+            path = filedialog.askdirectory(initialdir=str(Path(output_var.get() or self.default_export_dir())))
+            if path:
+                output_var.set(path)
+                self.remember_directory_setting("default_export_dir", path)
+
+        export_button(path_row, "选择", choose_output_dir, "neutral").pack(side="left")
+
+        status_card = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+        status_card.pack(fill="x", pady=(10, 0))
+        status_title = tk.Label(status_card, text="导出状态", bg="#fffdf8", fg="#30261d", anchor="w", font=("Microsoft YaHei UI", 9, "bold"))
+        status_title.pack(fill="x", padx=12, pady=(8, 2))
+        status_var = tk.StringVar(value="就绪：选择宠物和导出目录后开始生成。")
+        status_label = tk.Label(status_card, textvariable=status_var, bg="#fffdf8", fg="#7c6650", anchor="w", justify="left", wraplength=700, font=("Microsoft YaHei UI", 8))
+        status_label.pack(fill="x", padx=12, pady=(0, 8))
+
+        def export_dialog_alive():
+            try:
+                return bool(window.winfo_exists())
+            except tk.TclError:
+                return False
+
+        def set_export_status(title, body, tone="neutral"):
+            if not export_dialog_alive():
+                return
+            palettes = {
+                "neutral": ("#fffdf8", "#ead7bd", "#30261d", "#7c6650"),
+                "running": ("#fff8ee", "#ead7bd", "#8f4d22", "#6f6048"),
+                "success": ("#eef6ea", "#d7e5d0", "#46694b", "#46694b"),
+                "danger": ("#fff1df", "#efcdbf", "#5d3328", "#5d3328"),
+            }
+            bg, border, title_fg, body_fg = palettes.get(tone, palettes["neutral"])
+            try:
+                status_card.configure(bg=bg, highlightbackground=border)
+                status_title.configure(text=title, bg=bg, fg=title_fg)
+                status_label.configure(bg=bg, fg=body_fg)
+                status_var.set(body)
+            except tk.TclError:
+                pass
+
+        def export_error_log_path():
+            return Path(__file__).resolve().parent / "desktop-pet-error.log"
+
+        def selected_pet_ids():
+            return [pet_id for pet_id, var in variables.items() if var.get()]
+
+        def persist_export_form():
+            output_path = output_var.get().strip() or str(self.default_export_dir())
+            self.remember_directory_setting("default_export_dir", output_path)
+            if target_platform == "macos":
+                repo = self.normalize_github_repo(github_vars.get("github_repo", tk.StringVar()).get())
+                self.settings["github_repo"] = repo
+                self.settings["github_branch"] = github_vars.get("github_branch", tk.StringVar(value="main")).get().strip() or "main"
+                self.settings["github_workflow"] = github_vars.get("github_workflow", tk.StringVar(value="build-macos-app.yml")).get().strip() or "build-macos-app.yml"
+                self.settings["github_token_env_key"] = github_vars.get("github_token_env_key", tk.StringVar(value="DANHUANG_GITHUB_TOKEN")).get().strip() or "DANHUANG_GITHUB_TOKEN"
+                if token_var.get().strip():
+                    self.save_github_build_token(token_var.get())
+                    token_var.set("")
+                self.save_settings()
+            return output_path
+
+        def set_footer_enabled(enabled):
+            if not export_dialog_alive():
+                return
+            state = "normal" if enabled else "disabled"
+            for button in footer.winfo_children():
+                try:
+                    button.configure(state=state)
+                except tk.TclError:
+                    pass
+
+        def submit_source_only():
+            selected = selected_pet_ids()
+            try:
+                output_path = persist_export_form()
+            except Exception as exc:
+                report_callback_exception(*sys.exc_info())
+                set_export_status("导出失败", f"表单保存失败：{str(exc)[:160]}\n日志：{export_error_log_path()}", "danger")
+                messagebox.showerror("导出失败", f"{platform_name}导出失败，已写入 desktop-pet-error.log。")
+                return
+            include_todos = include_todos_var.get()
+            include_stories = include_stories_var.get()
+            include_ai_config = include_ai_config_var.get()
+            set_footer_enabled(False)
+            set_export_status("正在导出", f"正在生成{platform_name}...\n导出目录：{output_path}", "running")
+
+            def done(package_dir, zip_path):
+                if not export_dialog_alive():
+                    return
+                set_footer_enabled(True)
+                entry_path = Path(package_dir) / ("安装桌宠.bat" if target_platform == "windows" else "RunOnMac.command")
+                set_export_status(
+                    "导出完成",
+                    f"压缩包：{zip_path}\n入口：{entry_path}\n导出目录：{Path(zip_path).parent}",
+                    "success",
+                )
+                self.say(f"{platform_name}导出完成。")
+                messagebox.showinfo("导出完成", f"{platform_name}已生成：\n{zip_path}\n\n入口：{entry_path}")
+
+            def failed(exc):
+                if not export_dialog_alive():
+                    return
+                set_footer_enabled(True)
+                set_export_status(
+                    "导出失败",
+                    f"{str(exc)[:180]}\n日志：{export_error_log_path()}\n恢复建议：确认导出目录可写，关闭正在占用的压缩包或安装目录后重试。",
+                    "danger",
+                )
+                messagebox.showerror("导出失败", f"{platform_name}导出失败，已写入 desktop-pet-error.log。")
+
+            def worker():
+                try:
+                    package_dir, zip_path = self.export_installer_package(
+                        selected,
+                        output_path,
+                        target_platform,
+                        include_todos=include_todos,
+                        include_stories=include_stories,
+                        include_ai_config=include_ai_config,
+                        show_message=False,
+                    )
+                    self.root.after(0, lambda: done(package_dir, zip_path))
+                except Exception as exc:
+                    report_callback_exception(*sys.exc_info())
+                    self.root.after(0, lambda error=exc: failed(error))
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        def submit_remote_macos():
+            if target_platform != "macos":
+                submit_source_only()
+                return
+            output_path = persist_export_form()
+            repo, _branch, _workflow = self.github_build_config()
+            token, _token_source = self.github_build_token()
+            if not self.normalize_github_repo(repo):
+                messagebox.showwarning("缺少 GitHub 仓库", "请先填写 GitHub 仓库，例如 owner/repo。")
+                return
+            if not token:
+                messagebox.showwarning("缺少 GitHub Token", f"请设置环境变量 {self.github_token_env_key()}，或在这里保存 Token。")
+                return
+            local_selected = selected_pet_ids()
+            set_footer_enabled(False)
+            set_export_status("正在构建", f"准备源码包...\n导出目录：{output_path}", "running")
+
+            def progress(text):
+                self.root.after(0, lambda value=text: set_export_status("正在构建", value, "running"))
+
+            def done(final_zip, run_id):
+                if not export_dialog_alive():
+                    return
+                set_footer_enabled(True)
+                set_export_status("macOS 构建完成", f"GitHub run：{run_id}\n可运行包：{final_zip}\n导出目录：{Path(final_zip).parent}", "success")
+                self.say("主人，macOS 可运行包已经生成。")
+                messagebox.showinfo("macOS 可运行包完成", f"已下载：\n{final_zip}\n\nMac 用户解压后双击 DanhuangDesktopPet.app；如被拦截，双击“打开桌宠.command”。")
+
+            def failed(exc):
+                if not export_dialog_alive():
+                    return
+                set_footer_enabled(True)
+                set_export_status(
+                    "macOS 远端构建失败",
+                    f"{str(exc)[:180]}\n日志：{export_error_log_path()}\n恢复建议：确认 workflow 已提交，Token 有 repo/workflow 权限，GitHub Actions 可正常运行。",
+                    "danger",
+                )
+                messagebox.showerror("macOS 构建失败", f"{exc}\n\n已写入 desktop-pet-error.log。确认 workflow 已提交到 GitHub，并且 token 有 repo/workflow 权限。")
+
+            def worker():
+                try:
+                    package_dir, source_zip = self.export_installer_package(
+                        local_selected,
+                        output_path,
+                        "macos",
+                        include_todos=include_todos_var.get(),
+                        include_stories=include_stories_var.get(),
+                        include_ai_config=include_ai_config_var.get(),
+                        show_message=False,
+                    )
+                    progress(f"源码包已生成：{source_zip}")
+                    run_id, final_zip = self.export_macos_remote_build(source_zip, output_path, progress)
+                    self.root.after(0, lambda: done(final_zip, run_id))
+                except Exception as exc:
+                    report_callback_exception(*sys.exc_info())
+                    self.root.after(0, lambda error=exc: failed(error))
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        footer = tk.Frame(shell, bg="#fff7ec")
+        footer.pack(fill="x", pady=(14, 0))
+        if target_platform == "macos":
+            export_button(footer, "生成 macOS 可运行包", submit_remote_macos, "primary").pack(side="left")
+            export_button(footer, "只导出源码构建包", submit_source_only, "neutral").pack(side="left", padx=8)
+        else:
+            export_button(footer, f"导出{platform_name}", submit_source_only, "primary").pack(side="left")
+        export_button(footer, "取消", window.destroy, "danger").pack(side="right")
+        self.center_window(window)
+        window.focus_force()
+        return True
+
+    def sanitize_pet_slug(self, name):
+        slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", str(name).strip().lower()).strip("-")
+        return slug or f"pet-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+    def unique_pet_slug(self, slug):
+        existing_ids = {pet.get("id") for pet in self.load_pet_family().get("pets", [])}
+        candidate = slug
+        index = 2
+        while candidate in existing_ids or (self.pet_dir / "family" / candidate).exists():
+            candidate = f"{slug}-{index}"
+            index += 1
+        return candidate
+
+    def remove_cyan_background(self, image):
+        rgba = image.convert("RGBA")
+        pixels = rgba.load()
+        width, height = rgba.size
+        for y in range(height):
+            for x in range(width):
+                r, g, b, a = pixels[x, y]
+                if a > 0 and abs(r - 0) <= 24 and abs(g - 255) <= 24 and abs(b - 255) <= 24:
+                    pixels[x, y] = (0, 0, 0, 0)
+        return rgba
+
+    def remove_flat_corner_background(self, image, threshold=24):
+        rgba = self.remove_cyan_background(image).convert("RGBA")
+        width, height = rgba.size
+        if width <= 0 or height <= 0:
+            return rgba
+        pixels = rgba.load()
+        corner_points = [
+            (0, 0),
+            (width - 1, 0),
+            (0, height - 1),
+            (width - 1, height - 1),
+        ]
+        samples = []
+        for x, y in corner_points:
+            r, g, b, a = pixels[x, y]
+            if a > 220:
+                samples.append((r, g, b))
+        if not samples:
+            return rgba
+        for y in range(height):
+            for x in range(width):
+                r, g, b, a = pixels[x, y]
+                if a <= 0:
+                    continue
+                if any(abs(r - sr) <= threshold and abs(g - sg) <= threshold and abs(b - sb) <= threshold for sr, sg, sb in samples):
+                    pixels[x, y] = (r, g, b, 0)
+        return rgba
+
+    def expected_action_frame_count(self, target_state=None):
+        target_state = str(target_state or "").strip()
+        if target_state in ROWS:
+            return ROWS[target_state][1]
+        for state, label in ACTION_LABELS.items():
+            if target_state == label or label in target_state:
+                return ROWS.get(state, (0, CUSTOM_ACTION_MAX_FRAMES))[1]
+        return None
+
+    def normalize_generated_action_canvas(self, image, target_state=None):
+        source = self.remove_flat_corner_background(image)
+        expected = self.expected_action_frame_count(target_state)
+        if expected is None:
+            ratio_frames = round((source.width / max(1, source.height)) / (CELL_W / CELL_H))
+            expected = int(clamp(ratio_frames or CUSTOM_ACTION_MAX_FRAMES, 1, CUSTOM_ACTION_MAX_FRAMES))
+        expected = int(clamp(expected, 1, CUSTOM_ACTION_MAX_FRAMES))
+        if source.width < expected or source.height < 1:
+            return None, 0, ["图片尺寸太小，无法按帧切分。"]
+
+        strip = Image.new("RGBA", (expected * CELL_W, CELL_H), (0, 0, 0, 0))
+        warnings = [
+            f"已把 {image.width}x{image.height} 的生图大画布按 {expected} 帧自动重排为 {expected * CELL_W}x{CELL_H} 标准动作条；请预览确认动作是否连贯。",
+        ]
+        if abs((image.width / max(1, image.height)) - ((expected * CELL_W) / CELL_H)) > 1.1:
+            warnings.append("原图比例不像标准横向动作条，可能是生图工具生成了普通 3:1 画布；自动重排只能兜底，建议按提示词里的精确尺寸重新生成。")
+        blank_frames = 0
+        for index in range(expected):
+            left = int(round(index * source.width / expected))
+            right = int(round((index + 1) * source.width / expected))
+            frame = source.crop((left, 0, max(left + 1, right), source.height))
+            bbox = frame.getbbox()
+            if not bbox:
+                blank_frames += 1
+                continue
+            content = frame.crop(bbox)
+            content.thumbnail((CELL_W - 12, CELL_H - 8), Image.Resampling.LANCZOS)
+            canvas = Image.new("RGBA", (CELL_W, CELL_H), (0, 0, 0, 0))
+            x = (CELL_W - content.width) // 2
+            y = CELL_H - content.height - 2
+            canvas.alpha_composite(content, (x, y))
+            strip.alpha_composite(canvas, (index * CELL_W, 0))
+        if blank_frames:
+            warnings.append(f"自动重排后有 {blank_frames} 帧为空，建议重新生成动作条。")
+        return strip, expected, warnings
+
+    def median_number(self, values):
+        values = sorted([value for value in values if value is not None])
+        if not values:
+            return 0
+        middle = len(values) // 2
+        if len(values) % 2:
+            return values[middle]
+        return (values[middle - 1] + values[middle]) / 2
+
+    def alpha_components(self, cell, min_pixels=16):
+        alpha = cell.getchannel("A")
+        pixels = alpha.load()
+        width, height = cell.size
+        seen = set()
+        components = []
+        for y in range(height):
+            for x in range(width):
+                if pixels[x, y] <= 20 or (x, y) in seen:
+                    continue
+                stack = [(x, y)]
+                seen.add((x, y))
+                xs = []
+                ys = []
+                count = 0
+                while stack:
+                    cx, cy = stack.pop()
+                    xs.append(cx)
+                    ys.append(cy)
+                    count += 1
+                    for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                        if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in seen and pixels[nx, ny] > 20:
+                            seen.add((nx, ny))
+                            stack.append((nx, ny))
+                if count >= min_pixels:
+                    components.append({
+                        "pixels": count,
+                        "bbox": (min(xs), min(ys), max(xs) + 1, max(ys) + 1),
+                    })
+        components.sort(key=lambda item: item["pixels"], reverse=True)
+        return components
+
+    def strip_frame_metrics(self, image, frame_count):
+        metrics = []
+        for col in range(frame_count):
+            cell = image.crop((col * CELL_W, 0, (col + 1) * CELL_W, CELL_H))
+            bbox = cell.getbbox()
+            width = bbox[2] - bbox[0] if bbox else 0
+            height = bbox[3] - bbox[1] if bbox else 0
+            metrics.append({
+                "bbox": bbox,
+                "area": width * height,
+                "width": width,
+                "height": height,
+                "bottom": bbox[3] if bbox else None,
+                "center_x": (bbox[0] + bbox[2]) / 2 if bbox else None,
+                "components": self.alpha_components(cell),
+            })
+        return metrics
+
+    def action_row_metrics(self, state):
+        if state not in ROWS:
+            return []
+        try:
+            sheet = Image.open(self.active_spritesheet_path()).convert("RGBA")
+        except OSError:
+            return []
+        row, count, _durations = ROWS[state]
+        if (row + 1) * CELL_H > sheet.height:
+            return []
+        strip = sheet.crop((0, row * CELL_H, count * CELL_W, (row + 1) * CELL_H))
+        return self.strip_frame_metrics(strip, count)
+
+    def metrics_summary(self, metrics):
+        areas = [item["area"] for item in metrics if item.get("area")]
+        bottoms = [item["bottom"] for item in metrics if item.get("bottom") is not None]
+        heights = [item["height"] for item in metrics if item.get("height")]
+        widths = [item["width"] for item in metrics if item.get("width")]
+        return {
+            "median_area": self.median_number(areas),
+            "median_bottom": self.median_number(bottoms),
+            "median_height": self.median_number(heights),
+            "median_width": self.median_number(widths),
+            "bottom_range": (max(bottoms) - min(bottoms)) if bottoms else 0,
+        }
+
+    def action_strip_quality_warnings(self, image, frame_count, target_state=None):
+        target_state = str(target_state or "").strip()
+        target_key = target_state.lower()
+        chase_like = target_key == "chase-butterfly" or "蝴蝶" in target_state
+        metrics = self.strip_frame_metrics(image, frame_count)
+        warnings = []
+        areas = [item["area"] for item in metrics if item.get("area")]
+        if areas:
+            median = self.median_number(areas)
+            if median > 0:
+                small_count = sum(1 for area in areas if area < median * 0.55)
+                large_count = sum(1 for area in areas if area > median * 1.80)
+                if small_count or large_count:
+                    warnings.append("动作条里部分帧体积差异较大，建议确认没有变小、重影或跨格。")
+        if target_key in {"running", "running-right", "running-left", "chase-butterfly"} or chase_like:
+            summary = self.metrics_summary(metrics)
+            if summary["bottom_range"] > 10:
+                warnings.append("跑动类动作的脚底基线抖动偏大，播放时会像上下跳或漂浮。")
+        if chase_like:
+            detached_frames = 0
+            for item in metrics:
+                extra = [
+                    component for component in item.get("components", [])[1:]
+                    if component.get("pixels", 0) >= 40
+                ]
+                if extra:
+                    detached_frames += 1
+            if detached_frames >= max(2, frame_count // 3):
+                warnings.append("追蝴蝶动作条只应该画宠物本体，不要把蝴蝶、碎片、速度线或装饰画进每帧；程序会单独显示 butterfly.png。")
+            reference = self.metrics_summary(self.action_row_metrics("running-right"))
+            current = self.metrics_summary(metrics)
+            if reference.get("median_bottom") and current.get("median_bottom"):
+                if current["median_bottom"] < reference["median_bottom"] - 16:
+                    warnings.append("追蝴蝶动作的脚底基线明显高于正常跑步行，播放时会像悬空；请按正常跑步基线重做。")
+            if reference.get("median_area") and current.get("median_area"):
+                if current["median_area"] < reference["median_area"] * 0.82:
+                    warnings.append("追蝴蝶动作的视觉体积小于当前跑步行，播放时会忽大忽小；请保持和主像素图/跑步行同体量。")
+        return warnings
+
+    def should_use_chase_strip(self, image, frame_count):
+        warnings = self.action_strip_quality_warnings(image, frame_count, "chase-butterfly")
+        blocking_text = ("只应该画宠物本体", "脚底基线明显高于", "视觉体积小于")
+        return not any(any(text in warning for text in blocking_text) for warning in warnings)
+
+    def validate_basic_atlas_image(self, path):
+        errors = []
+        warnings = []
+        try:
+            image = Image.open(path).convert("RGBA")
+        except OSError as exc:
+            return None, [f"无法读取精灵图：{exc}"], warnings
+        if image.size != BASIC_ATLAS_SIZE:
+            errors.append(f"精灵图尺寸必须是 {BASIC_ATLAS_SIZE[0]}x{BASIC_ATLAS_SIZE[1]}，当前是 {image.width}x{image.height}。")
+            return image, errors, warnings
+        image = self.remove_cyan_background(image)
+        expected_counts = {ROWS[state][0]: ROWS[state][1] for state in BASIC_ATLAS_ACTIONS}
+        areas = []
+        for row, count in expected_counts.items():
+            for col in range(count):
+                cell = image.crop((col * CELL_W, row * CELL_H, (col + 1) * CELL_W, (row + 1) * CELL_H))
+                bbox = cell.getbbox()
+                if not bbox:
+                    errors.append(f"第 {row + 1} 行第 {col + 1} 帧为空。")
+                    continue
+                areas.append((bbox[2] - bbox[0]) * (bbox[3] - bbox[1]))
+            for col in range(count, 8):
+                cell = image.crop((col * CELL_W, row * CELL_H, (col + 1) * CELL_W, (row + 1) * CELL_H))
+                if cell.getbbox():
+                    warnings.append(f"第 {row + 1} 行第 {col + 1} 个空白格不透明，已保留但建议修正。")
+        if areas:
+            sorted_areas = sorted(areas)
+            median = sorted_areas[len(sorted_areas) // 2]
+            if median > 0:
+                small_count = sum(1 for area in areas if area < median * 0.45)
+                large_count = sum(1 for area in areas if area > median * 2.40)
+                if small_count or large_count:
+                    warnings.append("部分帧视觉体积差异较大，建议打开 contact sheet 人工检查。")
+        return image, errors, warnings
+
+    def validate_extension_strip_image(self, path, target_state=None):
+        errors = []
+        warnings = []
+        try:
+            image = Image.open(path).convert("RGBA")
+        except OSError as exc:
+            return None, 0, [f"无法读取动作条：{exc}"], warnings
+        if image.height != CELL_H or image.width < CELL_W or image.width % CELL_W != 0:
+            normalized, normalized_count, normalized_warnings = self.normalize_generated_action_canvas(image, target_state)
+            if normalized is None:
+                errors.append(f"动作条必须是横向 sprite strip，每帧 {CELL_W}x{CELL_H}，当前是 {image.width}x{image.height}。")
+                errors.extend(normalized_warnings)
+                return image, 0, errors, warnings
+            image = normalized
+            warnings.extend(normalized_warnings)
+        frame_count = image.width // CELL_W
+        if frame_count > CUSTOM_ACTION_MAX_FRAMES:
+            errors.append(f"扩展动作最多 {CUSTOM_ACTION_MAX_FRAMES} 帧，当前是 {frame_count} 帧。")
+            return image, frame_count, errors, warnings
+        image = self.remove_cyan_background(image)
+        metrics = self.strip_frame_metrics(image, frame_count)
+        for col in range(frame_count):
+            if not metrics[col].get("bbox"):
+                errors.append(f"第 {col + 1} 帧为空。")
+        warnings.extend(self.action_strip_quality_warnings(image, frame_count, target_state))
+        return image, frame_count, errors, warnings
+
+    def validate_basic_action_strip_image(self, state, path):
+        expected = ROWS[state][1]
+        image, frame_count, errors, warnings = self.validate_extension_strip_image(path, state)
+        if errors:
+            return image, frame_count, errors, warnings
+        if frame_count != expected:
+            errors.append(f"{ACTION_LABELS.get(state, state)} 需要 {expected} 帧，当前是 {frame_count} 帧。")
+        return image, frame_count, errors, warnings
+
+    def assemble_basic_atlas_from_strips(self, action_paths):
+        atlas = Image.new("RGBA", BASIC_ATLAS_SIZE, (0, 0, 0, 0))
+        warnings = []
+        for state in BASIC_ATLAS_ACTIONS:
+            strip, _frame_count, errors, strip_warnings = self.validate_basic_action_strip_image(state, action_paths.get(state))
+            if errors:
+                raise ValueError("\n".join(errors))
+            warnings.extend(strip_warnings)
+            row_index = ROWS[state][0]
+            for col in range(ROWS[state][1]):
+                cell = strip.crop((col * CELL_W, 0, (col + 1) * CELL_W, CELL_H))
+                atlas.alpha_composite(cell, (col * CELL_W, row_index * CELL_H))
+        return atlas, warnings
+
+    def relative_to_pet_dir(self, path):
+        try:
+            return Path(path).relative_to(self.pet_dir).as_posix()
+        except ValueError:
+            return str(path).replace("\\", "/")
+
+    def pet_storage_folder(self, pet=None, slug=None):
+        if slug:
+            folder = self.pet_dir / "family" / slug
+        else:
+            pet = pet or self.active_pet
+            sprite = self.pet_asset_path(pet.get("spritesheet")) if isinstance(pet, dict) else None
+            if sprite is not None and sprite.parent != self.pet_dir:
+                folder = sprite.parent
+            else:
+                folder = self.pet_dir / "family" / str((pet or {}).get("id") or "danhuang")
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    def image_thumbnail_photo(self, source, size=(86, 86), pixel=False, bg=None):
+        path = self.pet_asset_path(source)
+        if path is None or not path.exists():
+            return None
+        try:
+            image = Image.open(path).convert("RGBA")
+        except OSError:
+            return None
+        image.thumbnail(size, Image.Resampling.NEAREST if pixel else Image.Resampling.LANCZOS)
+        canvas = Image.new("RGBA", size, bg if bg else (0, 0, 0, 0))
+        x = (size[0] - image.width) // 2
+        y = (size[1] - image.height) // 2
+        canvas.alpha_composite(image, (x, y))
+        return ImageTk.PhotoImage(canvas, master=self.root)
+
+    def pet_identity_image_path(self, pet):
+        identity = str((pet or {}).get("identity_image") or "").strip()
+        if identity:
+            path = self.pet_asset_path(identity)
+            if path is not None and path.exists():
+                return identity
+        refs = pet.get("reference_images") if isinstance(pet.get("reference_images"), list) else []
+        for ref in refs:
+            text = str(ref).replace("\\", "/").lower()
+            if "identity" not in text and "canonical" not in text:
+                continue
+            path = self.pet_asset_path(ref)
+            if path is not None and path.exists():
+                return ref
+        return ""
+
+    def is_user_reference_image(self, ref):
+        text = str(ref or "").replace("\\", "/").lower()
+        if not text:
+            return False
+        blocked = ("identity-base", "canonical", "spritesheet", "contact-sheet")
+        return not any(part in text for part in blocked)
+
+    def pet_sprite_preview_photo(self, pet, size=(86, 86)):
+        sprite = self.pet_asset_path(pet.get("spritesheet"))
+        if sprite is None or not sprite.exists():
+            return None
+        try:
+            sheet = Image.open(sprite).convert("RGBA")
+            if sheet.width < CELL_W or sheet.height < CELL_H:
+                return None
+            frame = sheet.crop((0, 0, CELL_W, CELL_H))
+            frame = self.remove_cyan_background(frame)
+            frame.thumbnail(size, Image.Resampling.NEAREST)
+            canvas = Image.new("RGBA", size, (0, 0, 0, 0))
+            canvas.alpha_composite(frame, ((size[0] - frame.width) // 2, (size[1] - frame.height) // 2))
+            return ImageTk.PhotoImage(canvas, master=self.root)
+        except OSError:
+            return None
+
+    def pet_main_photo(self, pet, size=(86, 86)):
+        identity = self.pet_identity_image_path(pet)
+        photo = self.image_thumbnail_photo(identity, size=size, pixel=True) if identity else None
+        if photo is None:
+            photo = self.pet_sprite_preview_photo(pet, size=size)
+        return photo
+
+    def chat_background_candidates(self, pet):
+        candidates = [("无背景", "")]
+        identity = self.pet_identity_image_path(pet)
+        if identity:
+            candidates.append(("当前主像素图", identity))
+        refs = pet.get("reference_images") if isinstance(pet.get("reference_images"), list) else []
+        index = 1
+        for ref in refs:
+            if not self.is_user_reference_image(ref):
+                continue
+            path = self.pet_asset_path(ref)
+            if path is None or not path.exists():
+                continue
+            candidates.append((f"现实照片 {index}", ref))
+            index += 1
+        seen = set()
+        result = []
+        for label, rel in candidates:
+            if rel in seen:
+                continue
+            seen.add(rel)
+            result.append((label, rel))
+        return result
+
+    def copy_chat_background_to_pet(self, pet_id, source_path):
+        source = Path(source_path)
+        if not source.exists():
+            raise OSError(f"图片不存在：{source}")
+        try:
+            with Image.open(source) as image:
+                image.verify()
+        except OSError as exc:
+            raise OSError(f"无法读取图片：{source.name}，{exc}") from exc
+        target_dir = self.pet_state_dir(pet_id) / "chat-backgrounds"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        suffix = source.suffix.lower()
+        if suffix not in {".png", ".webp", ".jpg", ".jpeg"}:
+            suffix = ".png"
+        stem = "chat-bg-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+        index = 1
+        while True:
+            target = target_dir / f"{stem}-{index:02d}{suffix}"
+            if not target.exists():
+                break
+            index += 1
+        if source.suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"}:
+            target.write_bytes(source.read_bytes())
+        else:
+            image = Image.open(source).convert("RGBA")
+            image.save(target)
+        return self.relative_to_pet_dir(target)
+
+    def make_chat_avatar_photo(self, pet, size=(38, 38)):
+        photo = self.pet_main_photo(pet, size=size)
+        if photo is not None:
+            return photo
+        image = Image.new("RGBA", size, (255, 246, 232, 255))
+        return ImageTk.PhotoImage(image, master=self.root)
+
+    def make_chat_background_photo(self, rel_path, opacity, size):
+        width = max(1, int(size[0]))
+        height = max(1, int(size[1]))
+        base = Image.new("RGBA", (width, height), (246, 242, 235, 255))
+        path = self.pet_asset_path(rel_path)
+        if not rel_path or path is None or not path.exists() or opacity <= 0:
+            return ImageTk.PhotoImage(base, master=self.root)
+        try:
+            image = Image.open(path).convert("RGBA")
+            scale = max(width / max(1, image.width), height / max(1, image.height))
+            new_size = (max(1, int(image.width * scale)), max(1, int(image.height * scale)))
+            image = image.resize(new_size, Image.Resampling.LANCZOS)
+            left = max(0, (image.width - width) // 2)
+            top = max(0, (image.height - height) // 2)
+            image = image.crop((left, top, left + width, top + height))
+            layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+            if opacity < 1:
+                alpha = image.getchannel("A").point(lambda value: int(value * opacity))
+                image.putalpha(alpha)
+            layer.alpha_composite(image, (0, 0))
+            base.alpha_composite(layer)
+            veil = Image.new("RGBA", (width, height), (255, 249, 240, 112))
+            base.alpha_composite(veil)
+        except OSError:
+            pass
+        return ImageTk.PhotoImage(base, master=self.root)
+
+    def update_pet_identity_image(self, pet_id, source_path, on_done=None):
+        source = Path(str(source_path or ""))
+        if not source.exists():
+            messagebox.showerror("主像素图失败", "图片不存在。")
+            return False
+        self.pet_family = self.load_pet_family()
+        pet = self.pet_by_id(pet_id)
+        folder = self.pet_storage_folder(pet)
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / "identity-base.png"
+        try:
+            image = Image.open(source).convert("RGBA")
+            image = self.remove_cyan_background(image)
+            image.save(target)
+        except OSError as exc:
+            messagebox.showerror("主像素图失败", f"无法读取图片：{exc}")
+            return False
+        updated = None
+        for index, item in enumerate(self.pet_family.get("pets", [])):
+            if item.get("id") == pet_id:
+                item = dict(item)
+                item["identity_image"] = self.relative_to_pet_dir(target)
+                self.pet_family["pets"][index] = item
+                updated = item
+                break
+        if updated is None:
+            return False
+        if pet_id == self.active_pet.get("id"):
+            self.active_pet = updated
+        self.save_pet_family()
+        self.say("主像素图已经更新。")
+        if callable(self.control_panel_refresh_sidebar):
+            self.control_panel_refresh_sidebar()
+        if callable(on_done):
+            on_done()
+        return True
+
+    def clear_pet_identity_image(self, pet_id, on_done=None):
+        self.pet_family = self.load_pet_family()
+        pet = self.pet_by_id(pet_id)
+        identity = pet.get("identity_image")
+        if not identity:
+            messagebox.showinfo("无需删除", "当前没有单独设置主像素图，会使用动作精灵图里的待机帧。")
+            return False
+        if not messagebox.askyesno("删除主像素图", "确定删除当前主像素图吗？\n删除后会回退使用动作精灵图里的待机帧，不会删除现实照片。"):
+            return False
+        identity_path = self.pet_asset_path(identity)
+        updated = None
+        for index, item in enumerate(self.pet_family.get("pets", [])):
+            if item.get("id") == pet_id:
+                item = dict(item)
+                item["identity_image"] = ""
+                self.pet_family["pets"][index] = item
+                updated = item
+                break
+        if updated is None:
+            return False
+        if pet_id == self.active_pet.get("id"):
+            self.active_pet = updated
+        self.save_pet_family()
+        try:
+            if identity_path and identity_path.exists() and identity_path.resolve().is_relative_to(self.pet_dir.resolve()):
+                text = identity_path.as_posix().lower()
+                if "/family/" in text and "identity" in identity_path.name.lower():
+                    identity_path.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            pass
+        self.say("主像素图已经删除，已回退到精灵图待机帧。")
+        if callable(self.control_panel_refresh_sidebar):
+            self.control_panel_refresh_sidebar()
+        if callable(on_done):
+            on_done()
+        return True
+
+    def choose_pet_identity_image(self, pet_id=None, on_done=None):
+        pet_id = pet_id or self.active_pet.get("id", "danhuang")
+        path = filedialog.askopenfilename(
+            title="选择主像素图",
+            initialdir=str(self.default_image_dir()),
+            filetypes=[("Image", "*.png;*.webp;*.jpg;*.jpeg"), ("All files", "*.*")],
+        )
+        if not path:
+            return False
+        self.remember_directory_setting("default_image_dir", path)
+        return self.update_pet_identity_image(pet_id, path, on_done)
+
+    def copy_reference_image_to_pet(self, source_path, folder, prefix="reference"):
+        source = Path(source_path)
+        if not source.exists():
+            raise OSError(f"图片不存在：{source}")
+        try:
+            with Image.open(source) as image:
+                image.verify()
+        except OSError as exc:
+            raise OSError(f"无法读取图片：{source.name}，{exc}") from exc
+        uploads = folder / "uploads"
+        uploads.mkdir(parents=True, exist_ok=True)
+        source_suffix = source.suffix.lower()
+        suffix = source_suffix
+        if suffix not in {".png", ".webp", ".jpg", ".jpeg"}:
+            suffix = ".png"
+        index = 1
+        while True:
+            target = uploads / f"{prefix}-{index:02d}{suffix}"
+            if not target.exists():
+                break
+            index += 1
+        if source_suffix in {".png", ".webp", ".jpg", ".jpeg"}:
+            target.write_bytes(source.read_bytes())
+        else:
+            image = Image.open(source).convert("RGBA")
+            image.save(target)
+        return self.relative_to_pet_dir(target)
+
+    def add_reference_paths_to_pet(self, pet_id, paths, on_done=None):
+        self.pet_family = self.load_pet_family()
+        pet_id = pet_id or self.active_pet.get("id", "danhuang")
+        pet = self.pet_by_id(pet_id)
+        paths = [str(path) for path in paths if Path(str(path)).suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"} and Path(str(path)).exists()]
+        if not paths:
+            return False
+        folder = self.pet_storage_folder(pet)
+        refs = list(pet.get("reference_images") if isinstance(pet.get("reference_images"), list) else [])
+        existing = set(refs)
+        try:
+            for index, source in enumerate(paths, start=1):
+                rel = self.copy_reference_image_to_pet(source, folder, prefix=f"user-{index}")
+                if rel not in existing:
+                    refs.append(rel)
+                    existing.add(rel)
+        except OSError as exc:
+            messagebox.showerror("添加失败", str(exc))
+            return False
+        pet["reference_images"] = refs
+        for idx, item in enumerate(self.pet_family.get("pets", [])):
+            if item.get("id") == pet_id:
+                self.pet_family["pets"][idx] = pet
+                break
+        if pet_id == self.active_pet.get("id"):
+            self.active_pet = pet
+        self.save_pet_family()
+        self.say("图片已经放进这个形象的参考区。")
+        if callable(on_done):
+            on_done()
+        return True
+
+    def remove_reference_image_from_pet(self, pet_id, ref, on_done=None):
+        self.pet_family = self.load_pet_family()
+        pet = self.pet_by_id(pet_id)
+        refs = list(pet.get("reference_images") if isinstance(pet.get("reference_images"), list) else [])
+        if ref not in refs:
+            return False
+        ref_path = self.pet_asset_path(ref)
+        file_name = Path(str(ref)).name
+        if not messagebox.askyesno("删除参考图", f"确定删除参考图「{file_name}」吗？\n本机源文件不在桌宠目录内时，只会从列表移除引用。"):
+            return False
+        refs = [item for item in refs if item != ref]
+        pet["reference_images"] = refs
+        for idx, item in enumerate(self.pet_family.get("pets", [])):
+            if item.get("id") == pet_id:
+                self.pet_family["pets"][idx] = pet
+                break
+        if pet_id == self.active_pet.get("id"):
+            self.active_pet = pet
+        self.save_pet_family()
+        try:
+            if ref_path and ref_path.exists() and ref_path.resolve().is_relative_to(self.pet_dir.resolve()):
+                text = ref_path.as_posix().lower()
+                if "/uploads/" in text or "/source-" in text or "/user-" in text:
+                    ref_path.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            pass
+        self.say("参考图已经删除。")
+        if callable(on_done):
+            on_done()
+        return True
+
+    def add_reference_images_to_pet(self, pet_id=None, on_done=None):
+        self.pet_family = self.load_pet_family()
+        pet_id = pet_id or self.active_pet.get("id", "danhuang")
+        pet = self.pet_by_id(pet_id)
+        staged = []
+        window = tk.Toplevel(self.root)
+        window.title("添加现实照片")
+        window.configure(bg="#fff7ec")
+        window.geometry("560x360")
+        window.resizable(False, False)
+        window.transient(self.panel if self.panel is not None else self.root)
+
+        shell = tk.Frame(window, bg="#fff7ec", padx=18, pady=16)
+        shell.pack(fill="both", expand=True)
+        tk.Label(shell, text=f"给{pet.get('display_name', '这个小家伙')}添加现实照片", bg="#fff7ec", fg="#30261d", font=("Microsoft YaHei UI", 14, "bold")).pack(anchor="w")
+        tk.Label(shell, text="这里放现实照片和补充参考，不放主像素图。支持拖入 png、webp、jpg、jpeg，也可以点击选择。", bg="#fff7ec", fg="#7c6650", font=("Microsoft YaHei UI", 9), anchor="w", wraplength=500, justify="left").pack(fill="x", pady=(3, 10))
+
+        drop_area = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+        drop_area.pack(fill="both", expand=True, pady=(0, 12))
+        count_label = tk.Label(drop_area, text="拖动图片到这里，或点击下方按钮选择", bg="#fffdf8", fg="#5a4532", font=("Microsoft YaHei UI", 10))
+        count_label.pack(expand=True)
+
+        def refresh():
+            names = "、".join(Path(path).name[:16] for path in staged[:4])
+            suffix = "..." if len(staged) > 4 else ""
+            text = f"已选择 {len(staged)} 张"
+            if names:
+                text += f"\n{names}{suffix}"
+            count_label.configure(text=text)
+
+        def add_paths(paths):
+            for path in paths:
+                path = str(path)
+                if Path(path).suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"} and Path(path).exists() and path not in staged:
+                    staged.append(path)
+            refresh()
+
+        def choose():
+            paths = filedialog.askopenfilenames(
+                title=f"给{pet.get('display_name', '这个小家伙')}添加图片",
+                initialdir=str(self.default_image_dir()),
+                filetypes=[("Image", "*.png;*.webp;*.jpg;*.jpeg"), ("All files", "*.*")],
+            )
+            if paths:
+                self.remember_directory_setting("default_image_dir", paths[0])
+            add_paths(paths)
+
+        def save():
+            if not staged:
+                messagebox.showwarning("没有图片", "请先选择或拖入图片。")
+                return
+            if self.add_reference_paths_to_pet(pet_id, staged, on_done):
+                window.destroy()
+
+        footer = tk.Frame(shell, bg="#fff7ec")
+        footer.pack(fill="x")
+        tk.Button(footer, text="选择现实照片", command=choose, bg="#fff0d7", fg="#30261d", activebackground="#f3d4aa", relief="flat", bd=0, cursor="hand2", width=14, pady=6, font=("Microsoft YaHei UI", 9)).pack(side="left")
+        tk.Button(footer, text="保存", command=save, bg="#c8732b", fg="#ffffff", activebackground="#8f4d22", activeforeground="#ffffff", relief="flat", bd=0, cursor="hand2", width=10, pady=6, font=("Microsoft YaHei UI", 9)).pack(side="left", padx=8)
+        tk.Button(footer, text="取消", command=window.destroy, bg="#f8ddd3", fg="#5d3328", activebackground="#efc2b2", relief="flat", bd=0, cursor="hand2", width=9, pady=6, font=("Microsoft YaHei UI", 9)).pack(side="right")
+        self.register_file_drop(window, add_paths)
+        self.center_window(window)
+        window.focus_force()
+        return True
+
+    def update_pet_profile(self, pet_id, display_name, species="", category="", notes=""):
+        self.pet_family = self.load_pet_family()
+        display_name = str(display_name or "").strip()
+        if not display_name:
+            messagebox.showerror("保存失败", "宠物名字不能为空。")
+            return False
+        updated = None
+        for index, pet in enumerate(self.pet_family.get("pets", [])):
+            if pet.get("id") == pet_id:
+                pet = dict(pet)
+                pet["display_name"] = display_name
+                pet["species"] = str(species or "").strip()
+                pet["category"] = self.infer_pet_category(pet["species"], category)
+                pet["notes"] = str(notes or "").strip()
+                self.pet_family["pets"][index] = pet
+                updated = pet
+                break
+        if updated is None:
+            messagebox.showerror("保存失败", "没有找到这个宠物。")
+            return False
+        self.save_pet_family()
+        if pet_id == self.active_pet.get("id"):
+            self.active_pet = updated
+            self.root.title(display_name)
+            if self.chat_panel is not None and self.chat_panel.winfo_exists():
+                self.chat_panel.title(f"和{display_name}说句话")
+        self.say(f"{display_name}的资料已经更新。")
+        return True
+
+    def open_pet_profile_editor(self, pet_id=None, on_done=None):
+        self.pet_family = self.load_pet_family()
+        pet_id = pet_id or self.active_pet.get("id", "danhuang")
+        pet = self.pet_by_id(pet_id)
+        window = tk.Toplevel(self.root)
+        window.title("编辑宠物资料")
+        window.configure(bg="#fff7ec")
+        window.geometry("660x560")
+        window.resizable(False, False)
+        window.transient(self.panel if self.panel is not None else self.root)
+
+        shell = tk.Frame(window, bg="#fff7ec", padx=18, pady=16)
+        shell.pack(fill="both", expand=True)
+        tk.Label(shell, text="编辑宠物资料", bg="#fff7ec", fg="#30261d", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
+        tk.Label(
+            shell,
+            text="这里只修改显示名称、种类和说明，不改本地目录与历史数据归属。",
+            bg="#fff7ec",
+            fg="#7c6650",
+            font=("Microsoft YaHei UI", 9),
+            anchor="w",
+        ).pack(fill="x", pady=(3, 12))
+
+        form = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+        form.pack(fill="both", expand=True, pady=(0, 12))
+        form.grid_columnconfigure(1, weight=1)
+        name_var = tk.StringVar(value=pet.get("display_name", pet_id))
+        species_var = tk.StringVar(value=pet.get("species", ""))
+        category_var = tk.StringVar(value=self.pet_category(pet))
+
+        def label(row, text):
+            tk.Label(form, text=text, bg="#fffdf8", fg="#5a4532", anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=0, sticky="nw", padx=(12, 8), pady=8)
+
+        def entry(row, variable):
+            widget = tk.Entry(form, textvariable=variable, bg="#fff9f0", fg="#30261d", relief="flat", font=("Microsoft YaHei UI", 9))
+            widget.grid(row=row, column=1, sticky="ew", padx=(0, 12), pady=8, ipady=5)
+            return widget
+
+        label(0, "名称")
+        entry(0, name_var)
+        label(1, "种类")
+        entry(1, species_var)
+        label(2, "分类")
+        category_box = tk.Frame(form, bg="#fffdf8")
+        category_box.grid(row=2, column=1, sticky="ew", padx=(0, 12), pady=8)
+        category_box.grid_columnconfigure(0, weight=1)
+        category_grid = tk.Frame(category_box, bg="#fffdf8")
+        category_grid.pack(fill="x")
+        category_hint = tk.Label(category_box, text="", bg="#fffdf8", fg="#7c6650", anchor="w", justify="left", wraplength=500, font=("Microsoft YaHei UI", 8))
+        category_hint.pack(fill="x", pady=(6, 0))
+        category_buttons = {}
+
+        def refresh_category_buttons():
+            selected = category_var.get()
+            preset = PET_CATEGORY_PRESETS.get(selected, PET_CATEGORY_PRESETS["other"])
+            category_hint.configure(
+                text=f"{preset['group']} / {preset['label']}：{preset['examples']}。默认动作语义：{self.pet_category_action_summary(selected)}。"
+            )
+            for category_id, button in category_buttons.items():
+                item = PET_CATEGORY_PRESETS.get(category_id, {})
+                active = category_id == selected
+                button.configure(
+                    text=item.get("label", category_id),
+                    bg="#d88333" if active else "#fff8ee",
+                    fg="#ffffff" if active else "#3a2a1c",
+                    activebackground="#c9772d" if active else "#f4d8b4",
+                    activeforeground="#ffffff" if active else "#3a2a1c",
+                )
+
+        def choose_category(category_id):
+            category_var.set(category_id)
+            refresh_category_buttons()
+
+        for column in range(4):
+            category_grid.grid_columnconfigure(column, weight=1, uniform="pet_category")
+        for index, category_id in enumerate(PET_CATEGORY_PRESETS):
+            button = tk.Button(
+                category_grid,
+                text="",
+                command=lambda value=category_id: choose_category(value),
+                bg="#fff8ee",
+                fg="#3a2a1c",
+                activebackground="#f4d8b4",
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 8),
+                pady=5,
+            )
+            button.grid(row=index // 4, column=index % 4, sticky="ew", padx=(0, 6), pady=(0, 6))
+            category_buttons[category_id] = button
+        refresh_category_buttons()
+
+        label(3, "说明")
+        notes_text = tk.Text(form, height=6, bg="#fff9f0", fg="#30261d", relief="flat", font=("Microsoft YaHei UI", 9), wrap="word")
+        notes_text.grid(row=3, column=1, sticky="nsew", padx=(0, 12), pady=8)
+        notes_text.insert("1.0", pet.get("notes", ""))
+
+        def modal_button(parent, text, command, variant="neutral", width=10):
+            colors = {
+                "primary": ("#c8732b", "#ffffff"),
+                "neutral": ("#fff0d7", "#30261d"),
+                "danger": ("#f8ddd3", "#5d3328"),
+            }
+            bg, fg = colors.get(variant, colors["neutral"])
+            return tk.Button(parent, text=text, command=command, bg=bg, fg=fg, activebackground="#f3d4aa", activeforeground=fg, relief="flat", bd=0, cursor="hand2", width=width, pady=6, font=("Microsoft YaHei UI", 9))
+
+        def save():
+            if self.update_pet_profile(pet_id, name_var.get(), species_var.get(), category_var.get(), notes_text.get("1.0", "end").strip()):
+                window.destroy()
+                if callable(on_done):
+                    on_done()
+
+        footer = tk.Frame(shell, bg="#fff7ec")
+        footer.pack(fill="x")
+        modal_button(footer, "保存", save, "primary").pack(side="left")
+        modal_button(footer, "取消", window.destroy, "danger").pack(side="right")
+        self.center_window(window)
+        window.focus_force()
+        return True
+
+    def unique_custom_action_id(self, label, pet):
+        base = self.sanitize_pet_slug(label)
+        if base.startswith("pet-"):
+            base = f"action-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        existing = {asset.get("id") for asset in self.pet_extension_assets(pet)}
+        candidate = f"{CUSTOM_ACTION_PREFIX}{base}"
+        index = 2
+        while candidate in existing:
+            candidate = f"{CUSTOM_ACTION_PREFIX}{base}-{index}"
+            index += 1
+        return candidate, base
+
+    def save_extension_action_asset(self, label, strip_path, target_state=None):
+        target_state = target_state if target_state in EXTENDED_ACTIONS else None
+        label = str(label or "").strip()
+        if not label:
+            messagebox.showerror("导入失败", "请先填写动作名称。")
+            return False
+        if not strip_path:
+            return False
+        strip, frame_count, errors, warnings = self.validate_extension_strip_image(strip_path, target_state or label)
+        if errors:
+            messagebox.showerror("导入失败", "\n".join(errors))
+            return False
+        self.pet_family = self.load_pet_family()
+        pet_id = self.active_pet.get("id", "danhuang")
+        pet = self.pet_by_id(pet_id)
+        if not target_state:
+            action_id, file_slug = self.unique_custom_action_id(label, pet)
+        else:
+            action_id = target_state
+            file_slug = target_state
+        folder = self.active_spritesheet_path().parent
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / f"extension-{file_slug}.webp"
+        if not target_state:
+            index = 2
+            while target.exists():
+                target = folder / f"extension-{file_slug}-{index}.webp"
+                index += 1
+        strip.save(target)
+        durations = []
+        for index in range(frame_count):
+            if target_state and index < len(ROWS[target_state][2]):
+                durations.append(ROWS[target_state][2][index])
+            else:
+                durations.append(180)
+        asset = {
+            "id": action_id,
+            "label": label,
+            "strip": self.relative_to_pet_dir(target),
+            "frames": frame_count,
+            "durations": durations,
+        }
+        assets = [item for item in self.pet_extension_assets(pet) if item.get("id") != action_id]
+        assets.append(asset)
+        pet["extension_assets"] = self.normalize_extension_assets(assets)
+        supported = list(dict.fromkeys([*pet.get("supported_actions", []), action_id]))
+        pet["supported_actions"] = supported
+        pet = self.normalize_pet_action_metadata(pet)
+        for index, item in enumerate(self.pet_family.get("pets", [])):
+            if item.get("id") == pet_id:
+                self.pet_family["pets"][index] = pet
+                break
+        self.active_pet = pet
+        self.save_pet_family()
+        current = self.normalize_quick_menu_setting(self.settings.get("quick_menu_actions"))
+        if action_id not in current and action_id not in QUICK_MENU_BASE_ACTIONS:
+            current.append(action_id)
+            self.settings["quick_menu_actions"] = self.normalize_quick_menu_setting(current)
+            self.save_settings()
+        self.reload_frames()
+        self.say(f"「{label}」已经加入扩展动作。")
+        if warnings:
+            messagebox.showwarning("导入完成，建议检查", "\n".join(warnings))
+        return True
+
+    def remove_extension_action_asset(self, action_id, on_done=None):
+        if not action_id:
+            return False
+        self.pet_family = self.load_pet_family()
+        pet_id = self.active_pet.get("id", "danhuang")
+        pet = self.pet_by_id(pet_id)
+        assets = list(self.pet_extension_assets(pet))
+        asset = next((item for item in assets if item.get("id") == action_id), None)
+        if not asset:
+            messagebox.showinfo("无需清空", "这个动作还没有上传精灵图。")
+            return False
+        label = asset.get("label") or self.action_label(action_id)
+        if not messagebox.askyesno("清空动作精灵图", f"确定清空「{label}」动作吗？\n清空后可以重新上传，不会影响其他动作。"):
+            return False
+
+        target_path = self.pet_asset_path(asset.get("strip"))
+        pet["extension_assets"] = self.normalize_extension_assets([item for item in assets if item.get("id") != action_id])
+        pet["supported_actions"] = [state for state in pet.get("supported_actions", []) if state != action_id]
+        pet = self.normalize_pet_action_metadata(pet)
+        for index, item in enumerate(self.pet_family.get("pets", [])):
+            if item.get("id") == pet_id:
+                self.pet_family["pets"][index] = pet
+                break
+        self.active_pet = pet
+        self.save_pet_family()
+        current = [state for state in self.normalize_quick_menu_setting(self.settings.get("quick_menu_actions")) if state != action_id]
+        self.settings["quick_menu_actions"] = self.normalize_quick_menu_setting(current)
+        self.save_settings()
+        try:
+            if target_path and target_path.exists() and target_path.resolve().is_relative_to(self.pet_dir.resolve()):
+                text = target_path.as_posix().lower()
+                if "/family/" in text and "/extension-" in text:
+                    target_path.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            pass
+        self.reload_frames()
+        self.say(f"「{label}」已经清空，可以重新上传。")
+        if callable(on_done):
+            on_done()
+        return True
+
+    def copy_text_to_clipboard(self, text, label="内容"):
+        text = str(text or "")
+        if not text.strip():
+            messagebox.showwarning("没有可复制内容", f"{label}为空。")
+            return False
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+            self.root.update_idletasks()
+            self.say(f"{label}已复制。")
+            return True
+        except tk.TclError as exc:
+            messagebox.showerror("复制失败", str(exc))
+            return False
+
+    def pet_prompt_identity_context(self, name="", species="", notes="", pet=None, category=""):
+        if pet:
+            name = name or pet.get("display_name", "")
+            species = species or pet.get("species", "")
+            notes = notes or pet.get("notes", "")
+            category = category or pet.get("category", "")
+        name = str(name or "这只宠物").strip()
+        species = str(species or "宠物").strip()
+        notes = str(notes or "").strip()
+        category_id = self.infer_pet_category(species, category)
+        category_preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        return (
+            f"宠物名称：{name}\n"
+            f"种类：{species}\n"
+            f"形象分类：{category_preset['group']} / {category_preset['label']}（{category_preset['examples']}）\n"
+            f"分类动作方向：{category_preset['movement']}\n"
+            f"用户描述：{notes or '请以用户上传的照片为唯一身份依据。'}\n"
+            "身份锁定：必须保留真实宠物的毛色分区、脸型、耳朵形状、眼神、鼻子、体型比例、尾巴特征和标志性花纹。"
+        )
+
+    def main_pet_image_prompt(self, name="", species="", notes="", category=""):
+        return f"""请根据我上传的宠物照片，生成 Codex 桌宠主像素图。
+
+{self.pet_prompt_identity_context(name, species, notes, category=category)}
+
+输出规格：
+- 单张完整全身宠物，居中，留足边距。
+- 画面比例适合 {CELL_W}x{CELL_H} 单格桌宠 sprite。
+- 风格：像素风/低分辨率感、粗黑描边、扁平上色、轮廓清晰、可爱小型桌宠。
+- 背景透明；如果工具不支持透明背景，就使用纯色 #00FFFF。
+
+禁止：
+- 不要写实照片风、3D、厚涂、海报背景。
+- 不要文字、阴影、地面、气泡、装饰、边框。
+- 不要改变品种、毛色分区、脸部特征和体型比例。
+"""
+
+    def action_special_prompt_notes(self, action_or_label):
+        value = str(action_or_label or "").lower()
+        if "chase-butterfly" in value or "蝴蝶" in value:
+            return (
+                "\n追蝴蝶专项要求：\n"
+                "- 只画宠物本体，不要画蝴蝶、昆虫、花、草地、速度线、灰尘或装饰碎片。\n"
+                "- 桌宠程序会单独用 butterfly.png 在宠物前方显示蝴蝶；动作条里如果再画蝴蝶，播放会出现两个目标并且很怪。\n"
+                "- 宠物应保持跑步/小跑追逐姿态，身体朝右；程序会自动移动窗口并在反向时使用左跑 fallback。\n"
+                "- 脚底基线必须和主像素图/向右跑动作一致，不能让宠物漂浮在格子中间。\n"
+                "- 视觉体积必须和正常跑步动作一致，不要每帧忽大忽小，不要把宠物缩小来给蝴蝶留位置。\n"
+            )
+        return ""
+
+    def action_detail_prompt(self, action_or_label):
+        value = str(action_or_label or "").strip()
+        lowered = value.lower()
+        if lowered in BASIC_ACTION_PROMPTS:
+            return BASIC_ACTION_PROMPTS[lowered]
+        if lowered in ACTION_PROMPT_DETAILS:
+            return ACTION_PROMPT_DETAILS[lowered]
+        for action, label in ACTION_LABELS.items():
+            if value == label or label in value:
+                return ACTION_PROMPT_DETAILS.get(action) or BASIC_ACTION_PROMPTS.get(action, f"{label}：动作自然连贯。")
+        return "请先补充这个扩展动作的具体动作需求：起始姿态、动作过程、结束姿态、是否循环、希望表达的情绪。动作要小而连贯，身份特征不能丢。"
+
+    def prompt_usage_guide_text(self):
+        return (
+            "提示词使用顺序：\n"
+            "1. 先生成或上传主像素图。主像素图是后续所有动作的身份基准。\n"
+            "2. 做基础动作时，把主像素图上传给生图 AI，再复制“五个基础动作提示词”。\n"
+            "3. 做单个动作修复或扩展动作时，同样先上传主像素图，再复制对应动作提示词。\n"
+            "4. 生成结果必须是横向 sprite strip：每帧 192x208，高度 208，宽度 = 帧数 x 192。\n"
+            "5. 上传前检查：同一只宠物、同一毛色、同一脸型、同一脚底基线、没有文字/网格/阴影/速度线。\n"
+            "6. 追蝴蝶这类动作只画宠物本体；蝴蝶由桌宠程序单独显示，不要画进动作条。\n"
+            "7. 自定义扩展动作不能只写“做一个动作”。请补充：动作名、起始姿态、动作过程、结束姿态、是否循环、情绪和禁用元素。\n"
+            "8. 如果生图工具总是输出 3:1 或 1024x1024 大图，请在工具里选择自定义画布尺寸：8 帧动作用 1536x208，6 帧动作用 1152x208，5 帧动作用 960x208，4 帧动作用 768x208。"
+        )
+
+    def basic_action_prompt(self, state=None, name="", species="", notes="", category=""):
+        states = [state] if state else BASIC_ATLAS_ACTIONS
+        category_id = self.infer_pet_category(species, category)
+        category_preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        lines = [
+            "请以我上传的主像素图作为唯一身份基准，生成 Codex 桌宠横向 sprite strip。",
+            "重要：动作图必须基于这张主像素图生成。不要只看文字描述重新画一只新宠物；如果主像素图没上传，请先生成或上传主像素图再做动作。",
+            "",
+            self.pet_prompt_identity_context(name, species, notes, category=category),
+            "",
+            f"当前分类动作语义：{category_preset['movement']}。这套基础动作的按钮名称保持兼容旧槽位，但动作表现要按分类理解：{self.pet_category_action_summary(category_id)}。",
+            "",
+            "统一规格：",
+            f"- 每帧单元格固定 {CELL_W}x{CELL_H} 像素。",
+            "- 必须使用自定义画布尺寸，不要让生图工具默认输出 1024x1024、16:9、3:1 或海报比例。",
+            "- 输出必须是横向长条，不要输出九宫格、合成海报或多张散图。",
+            "- 每条动作条宽度必须等于 帧数 x 192px，高度必须等于 208px。",
+            "- 背景透明；如果工具不支持透明背景，就使用纯色 #00FFFF。",
+            "- 每格只有同一只宠物，必须独立居中，不能跨格、不能重叠、不能裁切。",
+            "- 不要网格线、编号、文字、阴影、速度线、地面、气泡、装饰。",
+            "- 所有帧大小、视觉体积、脚底基线、颜色、描边粗细和脸部比例要一致。",
+            "- 每一帧的脚底基线尽量落在同一高度；跳跃帧可以短暂上移，但落地帧要回到原基线。",
+            "",
+            "动作要求：",
+        ]
+        for action in states:
+            label = ACTION_LABELS.get(action, action)
+            frame_count = ROWS.get(action, (0, CUSTOM_ACTION_MAX_FRAMES))[1]
+            prompt = BASIC_ACTION_PROMPTS.get(action, f"{label}：动作自然连贯。")
+            lines.append(f"- {label}：{frame_count} 帧。{prompt}")
+        lines.extend([
+            "",
+            "动作质量：",
+            "- 动作宁可小，也不要夸张变形。",
+            "- 只改变姿态、四肢、耳朵、尾巴、眼睛和身体小幅起伏，不改变身份。",
+            "- 同一动作的相邻帧要能顺滑连起来，不要突然换脸、换毛色、换体型或换方向。",
+            "- 透明边缘要干净，不要残留绿色、白边、半透明旧影或棋盘格。",
+            "- 跑步靠四肢和身体姿态表现，不要速度线。",
+            "- 跳跃不要地面阴影，挥爪不要波浪线。",
+        ])
+        return "\n".join(lines)
+
+    def single_action_repair_prompt(self, state, name="", species="", notes="", category=""):
+        label = ACTION_LABELS.get(state, state)
+        frame_count = ROWS.get(state, (0, CUSTOM_ACTION_MAX_FRAMES))[1]
+        special_notes = self.action_special_prompt_notes(state or label)
+        return f"""请只重做这一行动作，不要重做角色。
+
+{self.pet_prompt_identity_context(name, species, notes, category=category)}
+
+重要：必须上传并严格参考当前主像素图，主像素图是唯一身份基准。不要根据文字重新设计新宠物。
+
+要重做的动作：
+- 动作名：{label}
+- 帧数：{frame_count} 帧
+- 动作细节：{self.action_detail_prompt(state or label)}
+- 输出：单行横向 sprite strip，精确尺寸 = {frame_count * CELL_W}x{CELL_H}px，宽度 = {frame_count} x {CELL_W}px，高度 = {CELL_H}px。
+- 必须使用自定义画布尺寸 {frame_count * CELL_W}x{CELL_H}，不要输出 1024x1024、16:9、3:1、普通插画或大画布。
+- 背景透明；如果工具不支持透明背景，就使用纯色 #00FFFF。
+- 每帧独立居中，不能跨格、不能重影、不能裁切。
+- 动作变化只发生在当前分类合理的身体部位、表情和轻微姿态变化上；不要为了动作把角色重画成另一种生物。
+- 大小、颜色、脸部特征、脚底基线、描边粗细必须和主像素图一致。
+- 相邻帧要连贯，不要突然换脸、换方向、变大变小或颜色漂移。
+{special_notes}
+
+禁止：不要换宠物，不要改变毛色和五官，不要阴影、文字、速度线、气泡、背景装饰。
+"""
+
+    def extension_action_prompt(self, label="", name="", species="", notes="", category="", frames=CUSTOM_ACTION_MAX_FRAMES):
+        label = str(label or "自定义动作").strip()
+        frames = int(clamp(frames or CUSTOM_ACTION_MAX_FRAMES, 1, CUSTOM_ACTION_MAX_FRAMES))
+        special_notes = self.action_special_prompt_notes(label)
+        return f"""请以我上传的主像素图作为唯一身份基准，生成 Codex 桌宠扩展动作横向 sprite strip。
+
+{self.pet_prompt_identity_context(name, species, notes, category=category)}
+
+重要：扩展动作必须基于当前主像素图。先上传主像素图，再上传动作需求；不要只凭文字重新画角色。
+
+推荐使用顺序：
+1. 先把当前宠物主像素图上传给生图 AI，并说明它是唯一身份基准。
+2. 再粘贴下面的动作提示词。
+3. 输出后先检查每帧尺寸、脚底基线、颜色和脸型，再回到桌宠上传。
+
+扩展动作：
+- 动作名称：{label}
+- 用户需要补充的动作需求：请把“{label}”具体写清楚，例如起始姿态、动作过程、结束姿态、是否循环、情绪和禁止出现的物体；如果没有补充，就按温和、低幅度、适合桌宠循环播放来生成。
+- 动作细节：{self.action_detail_prompt(label)}
+- 帧数：{frames} 帧以内，建议 6-8 帧，动作要连贯。
+- 精确输出尺寸：{frames * CELL_W}x{CELL_H}px。必须设置自定义画布，不要输出 1024x1024、16:9、3:1、普通插画或大画布。
+- 每帧固定 {CELL_W}x{CELL_H} 像素，整条高度 {CELL_H}px。
+- 输出必须是单条横向 sprite strip，不能输出多张散图或带网格的预览图。
+- 背景透明；如果工具不支持透明背景，就使用纯色 #00FFFF。
+- 每帧只有同一只宠物，不能跨格、不能重影、不能裁切。
+- 保持当前分类下的关键身份特征一致，例如脸型/头部结构、眼神、轮廓、身体比例、配饰、毛色/肤色/羽色/鳞片/材质等。
+- 保持脚底基线、视觉体积、颜色饱和度和描边粗细一致；动作可以动，身份不能变。
+- 不要文字、编号、网格、阴影、地面、速度线、气泡或装饰。
+{special_notes}
+"""
+
+    def import_extension_action_asset(self, target_state=None):
+        target_state = target_state if target_state in EXTENDED_ACTIONS else None
+        if target_state:
+            label = ACTION_LABELS.get(target_state, target_state)
+            existing = next((item for item in self.pet_extension_assets() if item.get("id") == target_state), None)
+            if existing:
+                choice = messagebox.askyesnocancel(
+                    "动作已上传",
+                    f"「{label}」已经上传。\n\n是：清空这个动作\n否：重新选择动作条\n取消：不操作",
+                )
+                if choice is None:
+                    return False
+                if choice is True:
+                    return self.remove_extension_action_asset(target_state)
+            strip_path = filedialog.askopenfilename(
+                title=f"选择「{label}」动作条",
+                initialdir=str(self.default_upload_dir()),
+                filetypes=[("Image", "*.png;*.webp"), ("All files", "*.*")],
+            )
+            if strip_path:
+                self.remember_directory_setting("default_upload_dir", strip_path)
+            return self.save_extension_action_asset(label, strip_path, target_state)
+
+        window = tk.Toplevel(self.root)
+        window.title("上传自定义动作")
+        window.configure(bg="#fff7ec")
+        window.geometry("640x500")
+        window.minsize(560, 430)
+        window.resizable(True, True)
+        window.transient(self.panel if self.panel is not None else self.root)
+        shell = tk.Frame(window, bg="#fff7ec", padx=18, pady=16)
+        shell.pack(fill="both", expand=True)
+        tk.Label(shell, text="上传自定义动作", bg="#fff7ec", fg="#30261d", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
+        tk.Label(
+            shell,
+            text="动作用横向 sprite strip：每帧 192x208，最多 8 帧，透明或 #00FFFF 背景。自定义动作需要你先写清动作过程，再复制提示词去生图。",
+            bg="#fff7ec",
+            fg="#7c6650",
+            wraplength=460,
+            justify="left",
+            font=("Microsoft YaHei UI", 9),
+        ).pack(anchor="w", pady=(3, 12))
+        form = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+        form.pack(fill="x", pady=(0, 12))
+        form.grid_columnconfigure(1, weight=1)
+        label_var = tk.StringVar()
+        strip_var = tk.StringVar()
+        tk.Label(form, text="动作名称", bg="#fffdf8", fg="#5a4532", font=("Microsoft YaHei UI", 9, "bold")).grid(row=0, column=0, sticky="w", padx=12, pady=10)
+        tk.Entry(form, textvariable=label_var, bg="#fff9f0", fg="#30261d", relief="flat", font=("Microsoft YaHei UI", 10)).grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=10, ipady=6)
+        file_label = tk.Label(form, text="动作条：未选择", bg="#fffdf8", fg="#7c6650", anchor="w", font=("Microsoft YaHei UI", 9))
+        file_label.grid(row=1, column=0, columnspan=2, sticky="ew", padx=12, pady=(0, 10))
+
+        prompt_box = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+        prompt_box.pack(fill="both", expand=True, pady=(0, 12))
+        tk.Label(prompt_box, text="扩展动作生图提示词", bg="#fffdf8", fg="#30261d", anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x", padx=10, pady=(8, 2))
+        tk.Label(
+            prompt_box,
+            text="先把当前主像素图上传给生图 AI，再补充动作名称和动作过程。追蝴蝶动作只生成宠物，不要把蝴蝶画进动作条。",
+            bg="#fffdf8",
+            fg="#7c6650",
+            anchor="w",
+            justify="left",
+            wraplength=560,
+            font=("Microsoft YaHei UI", 8),
+        ).pack(fill="x", padx=10, pady=(0, 6))
+        prompt_preview = tk.Text(prompt_box, height=7, bg="#fff9f0", fg="#30261d", relief="flat", wrap="word", font=("Microsoft YaHei UI", 8), padx=8, pady=6)
+        prompt_preview.pack(fill="both", expand=True, padx=10, pady=(0, 8))
+
+        def refresh_prompt_preview(*_args):
+            prompt_preview.configure(state="normal")
+            prompt_preview.delete("1.0", "end")
+            pet = self.active_pet if isinstance(self.active_pet, dict) else {}
+            prompt_preview.insert(
+                "1.0",
+                self.extension_action_prompt(
+                    label_var.get() or "自定义动作",
+                    name=pet.get("display_name", ""),
+                    species=pet.get("species", ""),
+                    notes=pet.get("notes", ""),
+                    category=pet.get("category", ""),
+                ),
+            )
+            prompt_preview.configure(state="disabled")
+
+        label_var.trace_add("write", refresh_prompt_preview)
+
+        def modal_button(parent, text, command, variant="neutral", width=13):
+            colors = {
+                "primary": ("#c8732b", "#ffffff"),
+                "neutral": ("#fff0d7", "#30261d"),
+                "danger": ("#f8ddd3", "#5d3328"),
+            }
+            bg, fg = colors.get(variant, colors["neutral"])
+            return tk.Button(parent, text=text, command=command, bg=bg, fg=fg, activebackground="#f3d4aa", activeforeground=fg, relief="flat", bd=0, cursor="hand2", width=width, pady=7, font=("Microsoft YaHei UI", 9))
+
+        def choose_strip():
+            path = filedialog.askopenfilename(
+                title="选择自定义扩展动作条",
+                initialdir=str(self.default_upload_dir()),
+                filetypes=[("Image", "*.png;*.webp"), ("All files", "*.*")],
+            )
+            if path:
+                self.remember_directory_setting("default_upload_dir", path)
+                _strip, _count, errors, warnings = self.validate_extension_strip_image(path, label_var.get())
+                if errors:
+                    messagebox.showerror("动作不合格", "\n".join(errors))
+                    return
+                strip_var.set(path)
+                file_label.configure(text=f"动作条：{Path(path).name}")
+                if warnings:
+                    messagebox.showwarning("建议检查", "\n".join(warnings))
+
+        def submit():
+            if self.save_extension_action_asset(label_var.get(), strip_var.get()):
+                window.destroy()
+
+        actions = tk.Frame(shell, bg="#fff7ec")
+        actions.pack(fill="x")
+        refresh_prompt_preview()
+        modal_button(actions, "复制提示词", lambda: self.copy_text_to_clipboard(prompt_preview.get("1.0", "end").strip(), "扩展动作提示词"), "neutral", 13).pack(side="left", padx=(0, 6))
+        modal_button(actions, "复制使用教学", lambda: self.copy_text_to_clipboard(self.prompt_usage_guide_text(), "提示词使用教学"), "neutral", 13).pack(side="left", padx=(0, 6))
+        modal_button(actions, "选择动作条", choose_strip, "neutral", 13).pack(side="left")
+        modal_button(actions, "上传", submit, "primary", 10).pack(side="left", padx=8)
+        modal_button(actions, "取消", window.destroy, "danger", 9).pack(side="right")
+        self.center_window(window)
+        window.focus_force()
+        return True
+
+    def save_basic_contact_sheet(self, atlas, output):
+        scale = 0.72
+        cell_w = int(CELL_W * scale)
+        cell_h = int(CELL_H * scale)
+        header_h = 22
+        sheet = Image.new("RGBA", (cell_w * 8, (cell_h + header_h) * 9), (255, 248, 238, 255))
+        draw = ImageDraw.Draw(sheet)
+        action_by_row = {ROWS[state][0]: ACTION_LABELS.get(state, state) for state in BASIC_ATLAS_ACTIONS}
+        for row in range(BASIC_ATLAS_SIZE[1] // CELL_H):
+            y0 = row * (cell_h + header_h)
+            draw.rectangle((0, y0, sheet.width, y0 + header_h), fill=(44, 38, 31, 255))
+            draw.text((6, y0 + 4), action_by_row.get(row, f"row {row}"), fill=(255, 255, 255, 255))
+            for col in range(8):
+                x0 = col * cell_w
+                cell = atlas.crop((col * CELL_W, row * CELL_H, (col + 1) * CELL_W, (row + 1) * CELL_H))
+                cell = cell.resize((cell_w, cell_h), Image.Resampling.NEAREST)
+                bg = Image.new("RGBA", (cell_w, cell_h), (250, 250, 250, 255))
+                tile = 12
+                bg_draw = ImageDraw.Draw(bg)
+                for yy in range(0, cell_h, tile):
+                    for xx in range(0, cell_w, tile):
+                        if (xx // tile + yy // tile) % 2:
+                            bg_draw.rectangle((xx, yy, xx + tile - 1, yy + tile - 1), fill=(228, 228, 228, 255))
+                bg.alpha_composite(cell)
+                sheet.alpha_composite(bg, (x0, y0 + header_h))
+                draw.rectangle((x0, y0 + header_h, x0 + cell_w - 1, y0 + header_h + cell_h - 1), outline=(93, 145, 112, 255))
+        sheet.convert("RGB").save(output)
+
+    def create_pet_from_assets(self, display_name, species="", category="", notes="", identity_path="", atlas_path="", reference_paths=None, activate=False, action_paths=None):
+        display_name = str(display_name or "").strip()
+        if not display_name:
+            messagebox.showerror("导入失败", "请先填写宠物名字。")
+            return False
+        reference_paths = list(reference_paths or [])
+        if not identity_path and not reference_paths:
+            messagebox.showerror("导入失败", "至少选择一张主像素图或参考照片。")
+            return False
+        atlas = None
+        warnings = []
+        action_paths = action_paths or {}
+        if action_paths:
+            missing = [ACTION_LABELS.get(state, state) for state in BASIC_ATLAS_ACTIONS if not action_paths.get(state)]
+            if missing:
+                messagebox.showerror("导入失败", "基础动作还没传齐：\n" + "、".join(missing))
+                return False
+            try:
+                atlas, warnings = self.assemble_basic_atlas_from_strips(action_paths)
+            except ValueError as exc:
+                messagebox.showerror("导入失败", str(exc))
+                return False
+        elif atlas_path:
+            if not identity_path:
+                messagebox.showerror("导入失败", "导入可切换形象时必须选择主像素图。")
+                return False
+            atlas, errors, warnings = self.validate_basic_atlas_image(atlas_path)
+            if errors:
+                messagebox.showerror("导入失败", "\n".join(errors))
+                return False
+        slug = self.unique_pet_slug(self.sanitize_pet_slug(display_name))
+        folder = self.pet_storage_folder(slug=slug)
+        refs = []
+        identity_rel = ""
+        try:
+            if identity_path:
+                identity = Image.open(identity_path).convert("RGBA")
+                identity = self.remove_cyan_background(identity)
+                identity_target = folder / "identity-base.png"
+                identity.save(identity_target)
+                identity_rel = f"family/{slug}/identity-base.png"
+            seen_sources = {str(Path(identity_path).resolve()).lower()} if identity_path else set()
+            for index, source in enumerate(reference_paths, start=1):
+                source_key = str(Path(source).resolve()).lower()
+                if source_key in seen_sources:
+                    continue
+                seen_sources.add(source_key)
+                refs.append(self.copy_reference_image_to_pet(source, folder, prefix=f"source-{index}"))
+        except OSError as exc:
+            messagebox.showerror("导入失败", str(exc))
+            return False
+        ready = atlas is not None
+        if ready:
+            atlas.save(folder / "spritesheet.webp")
+            self.save_basic_contact_sheet(atlas, folder / "contact-sheet.png")
+        pet = {
+            "id": slug,
+            "display_name": display_name,
+            "species": str(species or "").strip(),
+            "category": self.infer_pet_category(species, category),
+            "status": "ready" if ready else "reference_only",
+            "spritesheet": f"family/{slug}/spritesheet.webp",
+            "identity_image": identity_rel,
+            "reference_images": refs,
+            "notes": str(notes or "").strip() or ("用户上传的基础动作宠物，只开放基础动作；扩展动作待补充。" if ready else "用户上传的参考形象，等待生成主像素图和动作精灵图。"),
+            "relationship": "主人添加到桌宠家庭里的宠物形象，作为独立角色陪伴主人。",
+            "role_profile": f"{display_name}是独立桌宠角色，要根据自己的外形、种类和说明回应主人。",
+            "background": "该角色来自主人本地上传和归档的参考资料，聊天记忆与其他宠物隔离保存。",
+            "personality": "亲近、安静、真诚，先陪伴主人，再在主人明确需要时帮忙。",
+            "speech_style": "称呼用户为“主人”。短句、亲近、少工具感，不像客服或普通 AI 助手。",
+            "action_pack_level": "basic" if ready else "reference",
+            "supported_actions": BASE_INTERNAL_ACTIONS if ready else [],
+            "extension_assets": [],
+        }
+        self.pet_family = self.load_pet_family()
+        self.pet_family.setdefault("pets", []).append(pet)
+        self.save_pet_family()
+        if ready and activate:
+            self.settings["current_pet_id"] = slug
+            self.save_settings()
+            self.switch_pet(slug)
+        else:
+            self.say(f"{display_name}已经归档。")
+        if warnings:
+            messagebox.showwarning("导入完成，建议检查", "\n".join(warnings))
+        return True
+
+    def import_basic_pet_assets(self, on_done=None):
+        window = tk.Toplevel(self.root)
+        window.title("新增宠物")
+        window.configure(bg="#fff7ec")
+        window.geometry("980x800")
+        window.minsize(880, 700)
+        window.resizable(True, True)
+        window.transient(self.panel if self.panel is not None else self.root)
+        window._image_refs = []
+
+        shell = tk.Frame(window, bg="#fff7ec", padx=18, pady=16)
+        shell.pack(fill="both", expand=True)
+        header = tk.Frame(shell, bg="#fff7ec")
+        header.pack(fill="x", pady=(0, 10))
+        tk.Label(header, text="新增宠物", bg="#fff7ec", fg="#30261d", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
+        tk.Label(
+            header,
+            text="可以先保存参考；基础动作按 5 个中文动作逐项上传，传齐后自动组装基础精灵图并加入切换列表。支持拖动文件到对应区域。",
+            bg="#fff7ec",
+            fg="#7c6650",
+            font=("Microsoft YaHei UI", 9),
+            anchor="w",
+            justify="left",
+            wraplength=620,
+        ).pack(anchor="w", pady=(3, 0))
+
+        form = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+        form.pack(fill="x", pady=(0, 10))
+        form.grid_columnconfigure(1, weight=1)
+        name_var = tk.StringVar()
+        species_var = tk.StringVar()
+        category_var = tk.StringVar(value="dog")
+        identity_var = tk.StringVar()
+        action_paths = {}
+        references = []
+
+        def field_label(text, row):
+            tk.Label(form, text=text, bg="#fffdf8", fg="#5a4532", anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=0, sticky="nw", padx=(12, 8), pady=7)
+
+        def file_name(path):
+            return Path(path).name if path else "未选择"
+
+        def styled_entry(row, variable, placeholder=""):
+            entry = tk.Entry(form, textvariable=variable, bg="#fff9f0", fg="#30261d", relief="flat", font=("Microsoft YaHei UI", 9))
+            entry.grid(row=row, column=1, sticky="ew", padx=(0, 12), pady=7, ipady=5)
+            if placeholder and not variable.get():
+                variable.set("")
+            return entry
+
+        field_label("名字", 0)
+        styled_entry(0, name_var)
+        field_label("种类", 1)
+        styled_entry(1, species_var)
+        field_label("分类", 2)
+        category_box = tk.Frame(form, bg="#fffdf8")
+        category_box.grid(row=2, column=1, sticky="ew", padx=(0, 12), pady=7)
+        category_grid = tk.Frame(category_box, bg="#fffdf8")
+        category_grid.pack(fill="x")
+        category_hint = tk.Label(category_box, text="", bg="#fffdf8", fg="#7c6650", anchor="w", justify="left", wraplength=720, font=("Microsoft YaHei UI", 8))
+        category_hint.pack(fill="x", pady=(4, 0))
+        category_buttons = {}
+
+        def refresh_category_buttons():
+            selected = category_var.get()
+            preset = PET_CATEGORY_PRESETS.get(selected, PET_CATEGORY_PRESETS["other"])
+            category_hint.configure(
+                text=f"{preset['group']} / {preset['label']}：{preset['examples']}。默认动作语义：{self.pet_category_action_summary(selected)}。"
+            )
+            for category_id, button in category_buttons.items():
+                item = PET_CATEGORY_PRESETS.get(category_id, {})
+                active = category_id == selected
+                button.configure(
+                    text=item.get("label", category_id),
+                    bg="#d88333" if active else "#fff8ee",
+                    fg="#ffffff" if active else "#3a2a1c",
+                    activebackground="#c9772d" if active else "#f4d8b4",
+                    activeforeground="#ffffff" if active else "#3a2a1c",
+                )
+
+        def choose_category(category_id):
+            category_var.set(category_id)
+            refresh_category_buttons()
+            show_basic_actions_prompt(False)
+            try:
+                refresh_preview()
+            except NameError:
+                pass
+
+        for column in range(5):
+            category_grid.grid_columnconfigure(column, weight=1, uniform="import_category")
+        for index, category_id in enumerate(PET_CATEGORY_PRESETS):
+            button = tk.Button(
+                category_grid,
+                text="",
+                command=lambda value=category_id: choose_category(value),
+                bg="#fff8ee",
+                fg="#3a2a1c",
+                activebackground="#f4d8b4",
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 8),
+                pady=4,
+            )
+            button.grid(row=index // 5, column=index % 5, sticky="ew", padx=(0, 6), pady=(0, 6))
+            category_buttons[category_id] = button
+
+        field_label("说明", 3)
+        notes_text = tk.Text(form, height=3, bg="#fff9f0", fg="#30261d", relief="flat", font=("Microsoft YaHei UI", 9), wrap="word")
+        notes_text.grid(row=3, column=1, sticky="ew", padx=(0, 12), pady=7)
+
+        preview = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+        preview.pack(fill="both", expand=True)
+        left = tk.Frame(preview, bg="#fffdf8", width=190)
+        left.pack(side="left", fill="y", padx=12, pady=12)
+        left.pack_propagate(False)
+        preview_img = tk.Label(left, bg="#fff4df", width=128, height=128, text="主像素图", fg="#8a6c4a", font=("Microsoft YaHei UI", 9))
+        preview_img.pack(fill="x")
+        preview_status = tk.Label(left, text="等待选择", bg="#fffdf8", fg="#7c6650", anchor="w", justify="left", wraplength=160, font=("Microsoft YaHei UI", 8))
+        preview_status.pack(fill="x", pady=(8, 0))
+        right = tk.Frame(preview, bg="#fffdf8")
+        right.pack(side="left", fill="both", expand=True, padx=(0, 12), pady=12)
+
+        def modal_button(parent, text, command, variant="neutral", width=13):
+            colors = {
+                "primary": ("#c8732b", "#ffffff"),
+                "neutral": ("#fff0d7", "#30261d"),
+                "danger": ("#f8ddd3", "#5d3328"),
+            }
+            bg, fg = colors.get(variant, colors["neutral"])
+            return tk.Button(parent, text=text, command=command, bg=bg, fg=fg, activebackground="#f3d4aa", activeforeground=fg, relief="flat", bd=0, cursor="hand2", width=width, pady=6, font=("Microsoft YaHei UI", 9))
+
+        path_rows = tk.Frame(right, bg="#fffdf8")
+        path_rows.pack(fill="x")
+        identity_label = tk.Label(path_rows, text="主像素图：未选择", bg="#fffdf8", fg="#5a4532", anchor="w", font=("Microsoft YaHei UI", 9))
+        identity_label.pack(fill="x", pady=(0, 5))
+        actions_label = tk.Label(path_rows, text=f"基础动作：0 / {len(BASIC_ATLAS_ACTIONS)}", bg="#fffdf8", fg="#5a4532", anchor="w", font=("Microsoft YaHei UI", 9))
+        actions_label.pack(fill="x", pady=(0, 5))
+        refs_label = tk.Label(path_rows, text="参考照片：0 张", bg="#fffdf8", fg="#5a4532", anchor="w", font=("Microsoft YaHei UI", 9))
+        refs_label.pack(fill="x", pady=(0, 8))
+        tk.Label(
+            path_rows,
+            text="拖动上传：主像素图拖到左侧预览；动作条拖到对应中文动作按钮；照片拖到右侧空白区域。",
+            bg="#fffdf8",
+            fg="#7c6650",
+            anchor="w",
+            justify="left",
+            wraplength=500,
+            font=("Microsoft YaHei UI", 8),
+        ).pack(fill="x", pady=(0, 8))
+        action_grid = tk.Frame(right, bg="#fffdf8")
+        action_grid.pack(fill="x", pady=(0, 8))
+        action_buttons = {}
+        refs_grid = tk.Frame(right, bg="#fffdf8")
+        refs_grid.pack(fill="x")
+
+        def category_action_label(state):
+            preset = PET_CATEGORY_PRESETS.get(category_var.get(), PET_CATEGORY_PRESETS["other"])
+            labels = preset.get("base_labels", [])
+            try:
+                index = BASIC_ATLAS_ACTIONS.index(state)
+            except ValueError:
+                index = -1
+            if 0 <= index < len(labels):
+                return labels[index]
+            return ACTION_LABELS.get(state, state)
+
+        prompt_box = tk.Frame(right, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+        prompt_box.pack(fill="both", expand=True, pady=(4, 8))
+        tk.Label(prompt_box, text="生图提示词", bg="#fff8ee", fg="#30261d", anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x", padx=10, pady=(8, 2))
+        tk.Label(
+            prompt_box,
+            text="先做主像素图，再用同一张主像素图生成动作。动作条上传前先看帧数、基线、体积和是否混入多余物体。",
+            bg="#fff8ee",
+            fg="#7c6650",
+            anchor="w",
+            justify="left",
+            wraplength=520,
+            font=("Microsoft YaHei UI", 8),
+        ).pack(fill="x", padx=10, pady=(0, 6))
+        prompt_text = tk.Text(prompt_box, height=7, bg="#fffdf8", fg="#30261d", relief="flat", wrap="word", font=("Microsoft YaHei UI", 8), padx=8, pady=6)
+        prompt_text.pack(fill="both", expand=True, padx=10, pady=(0, 8))
+
+        def prompt_inputs():
+            return name_var.get(), species_var.get(), category_var.get(), notes_text.get("1.0", "end").strip()
+
+        def show_prompt(text, copy_label=""):
+            prompt_text.configure(state="normal")
+            prompt_text.delete("1.0", "end")
+            prompt_text.insert("1.0", text)
+            prompt_text.configure(state="disabled")
+            if copy_label:
+                self.copy_text_to_clipboard(text, copy_label)
+
+        def copy_current_prompt(label="提示词"):
+            self.copy_text_to_clipboard(prompt_text.get("1.0", "end").strip(), label)
+
+        prompt_actions = tk.Frame(prompt_box, bg="#fff8ee")
+        prompt_actions.pack(fill="x", padx=10, pady=(0, 8))
+
+        def show_main_image_prompt(copy=True):
+            name, species, category, notes = prompt_inputs()
+            show_prompt(self.main_pet_image_prompt(name, species, notes, category), "主像素图提示词" if copy else "")
+
+        def show_basic_actions_prompt(copy=True):
+            name, species, category, notes = prompt_inputs()
+            show_prompt(self.basic_action_prompt(None, name, species, notes, category), "五个基础动作提示词" if copy else "")
+
+        def show_extension_prompt(copy=True):
+            name, species, category, notes = prompt_inputs()
+            show_prompt(self.extension_action_prompt("自定义扩展动作", name, species, notes, category), "扩展动作提示词" if copy else "")
+
+        def show_usage_guide(copy=True):
+            text = self.prompt_usage_guide_text()
+            show_prompt(text, "提示词使用教学" if copy else "")
+
+        refresh_category_buttons()
+
+        modal_button(prompt_actions, "复制主图提示词", show_main_image_prompt, "neutral", 14).pack(side="left", padx=(0, 6), pady=(0, 2))
+        modal_button(prompt_actions, "复制五动作提示词", show_basic_actions_prompt, "neutral", 15).pack(side="left", padx=(0, 6), pady=(0, 2))
+        modal_button(prompt_actions, "复制扩展动作提示词", show_extension_prompt, "neutral", 16).pack(side="left", padx=(0, 6), pady=(0, 2))
+        modal_button(prompt_actions, "使用教学", show_usage_guide, "neutral", 10).pack(side="left", padx=(0, 6), pady=(0, 2))
+        modal_button(prompt_actions, "复制当前", lambda: copy_current_prompt("当前提示词"), "primary", 10).pack(side="left", pady=(0, 2))
+
+        def paint_action_button(state):
+            button = action_buttons.get(state)
+            if button is None:
+                return
+            ready = state in action_paths
+            button.configure(
+                text=("✓ " if ready else "") + category_action_label(state),
+                bg="#c8732b" if ready else "#fff0d7",
+                fg="#ffffff" if ready else "#30261d",
+                activebackground="#8f4d22" if ready else "#f3d4aa",
+                activeforeground="#ffffff" if ready else "#30261d",
+            )
+
+        def refresh_preview():
+            window._image_refs = []
+            identity_label.configure(text=f"主像素图：{file_name(identity_var.get())}")
+            actions_label.configure(text=f"基础动作：{len(action_paths)} / {len(BASIC_ATLAS_ACTIONS)}")
+            refs_label.configure(text=f"参考照片：{len(references)} 张")
+            for state in BASIC_ATLAS_ACTIONS:
+                paint_action_button(state)
+            for child in refs_grid.winfo_children():
+                child.destroy()
+            photo = self.image_thumbnail_photo(identity_var.get(), size=(128, 128), pixel=True)
+            if photo:
+                preview_img.configure(image=photo, text="")
+                window._image_refs.append(photo)
+            else:
+                preview_img.configure(image="", text="主像素图")
+            if len(action_paths) == len(BASIC_ATLAS_ACTIONS):
+                preview_status.configure(text="可导入为可切换形象。")
+            elif identity_var.get() or references:
+                preview_status.configure(text="可先保存为参考，后续再补动作图。")
+            else:
+                preview_status.configure(text="等待选择")
+            for idx, path in enumerate(references[:6]):
+                ref_photo = self.image_thumbnail_photo(path, size=(72, 58), pixel=False)
+                box = tk.Frame(refs_grid, bg="#fff4df", highlightthickness=1, highlightbackground="#ead7bd")
+                box.grid(row=idx // 3, column=idx % 3, sticky="ew", padx=(0 if idx % 3 == 0 else 6, 0), pady=(0, 6))
+                if ref_photo:
+                    label = tk.Label(box, image=ref_photo, bg="#fff4df")
+                    label.pack(padx=4, pady=4)
+                    window._image_refs.append(ref_photo)
+                tk.Label(box, text=Path(path).name[:12], bg="#fff4df", fg="#7c6650", font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=4, pady=(0, 4))
+
+        def image_paths(paths, allow_photo=True):
+            allowed = {".png", ".webp", ".jpg", ".jpeg"} if allow_photo else {".png", ".webp"}
+            return [str(path) for path in paths if Path(str(path)).suffix.lower() in allowed and Path(str(path)).exists()]
+
+        def set_identity_path(path):
+            if path:
+                identity_var.set(path)
+                refresh_preview()
+
+        def add_reference_paths(paths):
+            for path in image_paths(paths, allow_photo=True):
+                if path not in references:
+                    references.append(path)
+            refresh_preview()
+
+        def set_basic_action_path(state, path):
+            if not path:
+                return
+            _strip, _count, errors, warnings = self.validate_basic_action_strip_image(state, path)
+            if errors:
+                messagebox.showerror("动作不合格", "\n".join(errors))
+                return
+            action_paths[state] = path
+            if warnings:
+                messagebox.showwarning("建议检查", "\n".join(warnings))
+            refresh_preview()
+
+        def choose_identity():
+            path = filedialog.askopenfilename(title="选择主像素图", initialdir=str(self.default_image_dir()), filetypes=[("Image", "*.png;*.webp;*.jpg;*.jpeg"), ("All files", "*.*")])
+            if path:
+                self.remember_directory_setting("default_image_dir", path)
+            set_identity_path(path)
+
+        def choose_basic_action(state):
+            if state in action_paths:
+                choice = messagebox.askyesnocancel(
+                    "动作已上传",
+                    f"「{category_action_label(state)}」已经上传。\n\n是：清空这个动作\n否：重新选择动作条\n取消：不操作",
+                )
+                if choice is None:
+                    return
+                if choice is True:
+                    action_paths.pop(state, None)
+                    refresh_preview()
+                    return
+            expected = ROWS[state][1]
+            path = filedialog.askopenfilename(
+                title=f"选择「{category_action_label(state)}」动作条（{expected}帧）",
+                initialdir=str(self.default_upload_dir()),
+                filetypes=[("Image", "*.png;*.webp"), ("All files", "*.*")],
+            )
+            if path:
+                self.remember_directory_setting("default_upload_dir", path)
+            set_basic_action_path(state, path)
+
+        def choose_references():
+            paths = filedialog.askopenfilenames(title="选择参考照片", initialdir=str(self.default_image_dir()), filetypes=[("Image", "*.png;*.webp;*.jpg;*.jpeg"), ("All files", "*.*")])
+            if paths:
+                self.remember_directory_setting("default_image_dir", paths[0])
+            add_reference_paths(paths)
+
+        drop_zones = []
+
+        def add_drop_zone(widget, handler):
+            drop_zones.append((widget, handler))
+
+        def widget_contains_pointer(widget, x, y):
+            try:
+                if not widget.winfo_exists():
+                    return False
+                left_x = widget.winfo_rootx()
+                top_y = widget.winfo_rooty()
+                return left_x <= x <= left_x + widget.winfo_width() and top_y <= y <= top_y + widget.winfo_height()
+            except tk.TclError:
+                return False
+
+        def handle_dropped_files(files):
+            try:
+                candidates = image_paths(files, allow_photo=True)
+                if not candidates:
+                    messagebox.showwarning("无法上传", "只支持拖入 png、webp、jpg、jpeg 图片。")
+                    return
+                x, y = window.winfo_pointerxy()
+                for widget, handler in reversed(drop_zones):
+                    if widget_contains_pointer(widget, x, y):
+                        handler(candidates)
+                        return
+                add_reference_paths(candidates)
+            except Exception:
+                report_callback_exception(*sys.exc_info())
+                messagebox.showerror("上传失败", "拖动上传时发生异常，已记录到错误日志。")
+
+        def submit(require_atlas):
+            notes = notes_text.get("1.0", "end").strip()
+            paths = dict(action_paths) if require_atlas else {}
+            if require_atlas and len(paths) < len(BASIC_ATLAS_ACTIONS):
+                missing = [category_action_label(state) for state in BASIC_ATLAS_ACTIONS if state not in paths]
+                messagebox.showerror("导入失败", "基础动作还没传齐：\n" + "、".join(missing))
+                return
+            ok = self.create_pet_from_assets(
+                name_var.get(),
+                species_var.get(),
+                category_var.get(),
+                notes,
+                identity_var.get().strip(),
+                "",
+                references,
+                activate=require_atlas,
+                action_paths=paths,
+            )
+            if ok:
+                window.destroy()
+                if callable(on_done):
+                    on_done()
+
+        buttons = tk.Frame(right, bg="#fffdf8")
+        buttons.pack(fill="x", pady=(8, 0))
+        modal_button(buttons, "选择主像素图", choose_identity, "neutral", 13).pack(side="left", padx=(0, 6))
+        modal_button(buttons, "添加参考照片", choose_references, "neutral", 13).pack(side="left")
+        add_drop_zone(left, lambda paths: set_identity_path(paths[0]))
+        add_drop_zone(refs_grid, add_reference_paths)
+        add_drop_zone(right, add_reference_paths)
+
+        for idx, state in enumerate(BASIC_ATLAS_ACTIONS):
+            label = category_action_label(state)
+            cell = tk.Frame(action_grid, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+            cell.grid(row=idx // 3, column=idx % 3, sticky="ew", padx=(0 if idx % 3 == 0 else 8, 0), pady=(0, 8))
+            action_grid.grid_columnconfigure(idx % 3, weight=1, uniform="basic_actions")
+            button = modal_button(cell, label, lambda s=state: choose_basic_action(s), "neutral", 12)
+            button.pack(fill="x", padx=6, pady=(6, 4))
+            hint = tk.Label(cell, text=f"{ROWS[state][1]} 帧  |  拖入/上传", bg="#fff8ee", fg="#7c6650", font=("Microsoft YaHei UI", 8))
+            hint.pack(fill="x", padx=6, pady=(0, 4))
+            prompt_button = modal_button(
+                cell,
+                "复制该动作提示词",
+                lambda s=state: (
+                    lambda values: show_prompt(
+                        self.single_action_repair_prompt(s, values[0], values[1], values[3], values[2]),
+                        f"{category_action_label(s)}动作提示词",
+                    )
+                )(prompt_inputs()),
+                "neutral",
+                14,
+            )
+            prompt_button.pack(fill="x", padx=6, pady=(0, 6))
+            action_buttons[state] = button
+
+            def action_drop(paths, s=state):
+                valid = image_paths(paths, allow_photo=False)
+                set_basic_action_path(s, valid[0] if valid else "")
+
+            add_drop_zone(cell, action_drop)
+            add_drop_zone(button, action_drop)
+
+        footer = tk.Frame(shell, bg="#fff7ec")
+        footer.pack(fill="x")
+        modal_button(footer, "保存为参考", lambda: submit(False), "neutral", 13).pack(side="left")
+        modal_button(footer, "导入并切换", lambda: submit(True), "primary", 13).pack(side="left", padx=8)
+        modal_button(footer, "取消", window.destroy, "danger", 9).pack(side="right")
+        show_main_image_prompt(copy=False)
+        refresh_preview()
+        self.register_file_drop(window, handle_dropped_files)
+        self.center_window(window)
+        window.focus_force()
+        return True
+
+    def load_companion(self):
+        state = dict(COMPANION_DEFAULT)
+        state["daily_bonus_dates"] = list(COMPANION_DEFAULT["daily_bonus_dates"])
+        today = date.today().isoformat()
+        state["created_date"] = today
+        state["last_active_date"] = today
+        if self.companion_path.exists():
+            try:
+                saved = json.loads(self.companion_path.read_text(encoding="utf-8"))
+                for key in state:
+                    if key in saved:
+                        state[key] = saved[key]
+            except (OSError, ValueError, TypeError):
+                pass
+        state["xp"] = int(max(0, state.get("xp", 0)))
+        state["level"] = self.level_for_xp(state["xp"])[0]
+        state["streak_days"] = int(max(0, state.get("streak_days", 0)))
+        state["total_seconds"] = int(max(0, state.get("total_seconds", 0)))
+        for key in ("interactions", "talks", "roams", "manual_actions"):
+            state[key] = int(max(0, state.get(key, 0)))
+        if not isinstance(state.get("daily_bonus_dates"), list):
+            state["daily_bonus_dates"] = []
+        return state
+
+    def save_companion(self):
+        self.companion["level"] = self.level_for_xp(self.companion["xp"])[0]
+        self.companion["last_saved_at"] = datetime.now().isoformat(timespec="seconds")
+        self.companion_path.write_text(
+            json.dumps(self.companion, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def level_for_xp(self, xp):
+        level = 1
+        while level < 9999 and xp >= self.level_threshold(level + 1):
+            level += 1
+        return level, self.level_title(level), self.level_threshold(level)
+
+    def next_level_info(self):
+        current_level = self.level_for_xp(self.companion["xp"])
+        next_level = current_level[0] + 1
+        return next_level, self.level_title(next_level), self.level_threshold(next_level)
+
+    def level_threshold(self, level):
+        if level <= 1:
+            return LEVELS[0][2]
+        if level <= len(LEVELS):
+            return LEVELS[level - 1][2]
+        threshold = LEVELS[-1][2]
+        step = 350
+        for _current in range(len(LEVELS) + 1, level + 1):
+            threshold += step
+            step = min(2400, int(step * 1.08) + 20)
+        return threshold
+
+    def level_title(self, level):
+        if level <= len(LEVELS):
+            return LEVELS[level - 1][1]
+        return PERMANENT_LEVEL_NAMES[(level - len(LEVELS) - 1) % len(PERMANENT_LEVEL_NAMES)]
+
+    def add_xp(self, amount, reason=""):
+        if amount <= 0:
+            return
+        before = self.level_for_xp(self.companion["xp"])
+        self.companion["xp"] += int(amount)
+        after = self.level_for_xp(self.companion["xp"])
+        self.companion["level"] = after[0]
+        if after[0] > before[0] and hasattr(self, "label"):
+            self.say(f"我升级了：Lv{after[0]} {after[1]}。")
+        self.save_companion()
+
+    def apply_daily_companion_bonus(self):
+        today = date.today()
+        today_text = today.isoformat()
+        last_text = self.companion.get("last_active_date", "")
+        if last_text != today_text:
+            try:
+                last_date = date.fromisoformat(last_text)
+                if (today - last_date).days == 1:
+                    self.companion["streak_days"] += 1
+                else:
+                    self.companion["streak_days"] = 1
+            except ValueError:
+                self.companion["streak_days"] = 1
+            self.companion["last_active_date"] = today_text
+        elif self.companion["streak_days"] <= 0:
+            self.companion["streak_days"] = 1
+
+        if today_text not in self.companion["daily_bonus_dates"]:
+            self.companion["daily_bonus_dates"].append(today_text)
+            self.companion["daily_bonus_dates"] = self.companion["daily_bonus_dates"][-30:]
+            self.add_xp(XP_RULES["daily_start"], "daily_start")
+            if self.companion["streak_days"] == 3:
+                self.add_xp(XP_RULES["streak_3"], "streak_3")
+            if self.companion["streak_days"] == 7:
+                self.add_xp(XP_RULES["streak_7"], "streak_7")
+        self.save_companion()
+
+    def companion_loop(self):
+        now = time.monotonic()
+        elapsed = int(now - self.last_companion_save_at)
+        if elapsed >= 60:
+            self.companion["total_seconds"] += elapsed
+            self.add_xp(elapsed // 600, "time")
+            self.last_companion_save_at = now
+            self.save_companion()
+        self.root.after(60000, self.companion_loop)
+
+    def shutdown_loop(self):
+        if self.shutdown_event is not None and shutdown_event_requested(self.shutdown_event):
+            self.close()
+            return
+        self.root.after(500, self.shutdown_loop)
+
+    def close(self):
+        if self.closing:
+            return
+        self.closing = True
+        self.flush_current_pet_state()
+        self.remember_position()
+        self.save_settings()
+        self.save_ai_providers()
+        self.save_todos()
+        self.save_reminder_history()
+        self.hide_butterfly()
+        close_handle(self.shutdown_event)
+        self.root.destroy()
+
+    def remember_position(self):
+        self.settings["position_x"] = int(self.root.winfo_x())
+        self.settings["position_y"] = int(self.root.winfo_y())
+
+    def base_pet_size(self):
+        if MODULAR_PET_WINDOW_SIZE is not None:
+            try:
+                size = MODULAR_PET_WINDOW_SIZE(self.settings)
+                return int(size["width"]), int(size["height"])
+            except Exception:
+                pass
+        scale = self.settings["scale"]
+        return int(CELL_W * scale), int(CELL_H * scale) + 8
+
+    def render_pet_size(self):
+        width, height = self.base_pet_size()
+        return int(width * MAX_VISUAL_ZOOM), int(height * MAX_VISUAL_ZOOM)
+
+    def pet_size(self):
+        return getattr(self, "current_photo_size", self.render_pet_size())
+
+    def system_monitors(self):
+        if sys.platform != "win32":
+            return [{
+                "left": 0,
+                "top": 0,
+                "right": self.root.winfo_screenwidth(),
+                "bottom": self.root.winfo_screenheight(),
+                "primary": True,
+            }]
+
+        class RECT(ctypes.Structure):
+            _fields_ = [
+                ("left", ctypes.c_long),
+                ("top", ctypes.c_long),
+                ("right", ctypes.c_long),
+                ("bottom", ctypes.c_long),
+            ]
+
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", ctypes.c_ulong),
+                ("rcMonitor", RECT),
+                ("rcWork", RECT),
+                ("dwFlags", ctypes.c_ulong),
+            ]
+
+        monitors = []
+        monitor_enum_proc = ctypes.WINFUNCTYPE(
+            ctypes.c_int,
+            wintypes.HMONITOR,
+            wintypes.HDC,
+            ctypes.POINTER(RECT),
+            wintypes.LPARAM,
+        )
+
+        def callback(hmonitor, _hdc, _rect, _data):
+            info = MONITORINFO()
+            info.cbSize = ctypes.sizeof(MONITORINFO)
+            if ctypes.windll.user32.GetMonitorInfoW(hmonitor, ctypes.byref(info)):
+                rect = info.rcMonitor
+                monitors.append({
+                    "left": int(rect.left),
+                    "top": int(rect.top),
+                    "right": int(rect.right),
+                    "bottom": int(rect.bottom),
+                    "primary": bool(info.dwFlags & 1),
+                })
+            return 1
+
+        ctypes.windll.user32.EnumDisplayMonitors(0, 0, monitor_enum_proc(callback), 0)
+        if not monitors:
+            return [{
+                "left": 0,
+                "top": 0,
+                "right": self.root.winfo_screenwidth(),
+                "bottom": self.root.winfo_screenheight(),
+                "primary": True,
+            }]
+        monitors.sort(key=lambda item: (0 if item["primary"] else 1, item["left"], item["top"]))
+        return monitors
+
+    def monitor_dpi(self, monitor):
+        if sys.platform != "win32":
+            return BASE_DPI
+        try:
+            point = wintypes.POINT(
+                int((monitor["left"] + monitor["right"]) / 2),
+                int((monitor["top"] + monitor["bottom"]) / 2),
+            )
+            hmonitor = ctypes.windll.user32.MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST)
+            dpi_x = ctypes.c_uint(BASE_DPI)
+            dpi_y = ctypes.c_uint(BASE_DPI)
+            get_dpi = ctypes.windll.shcore.GetDpiForMonitor
+            get_dpi.argtypes = [wintypes.HMONITOR, ctypes.c_int, ctypes.POINTER(ctypes.c_uint), ctypes.POINTER(ctypes.c_uint)]
+            get_dpi.restype = ctypes.c_long
+            if get_dpi(hmonitor, MDT_EFFECTIVE_DPI, ctypes.byref(dpi_x), ctypes.byref(dpi_y)) == 0:
+                return max(1, int(dpi_x.value))
+        except (AttributeError, OSError, tk.TclError):
+            pass
+        try:
+            get_window_dpi = ctypes.windll.user32.GetDpiForWindow
+            get_window_dpi.argtypes = [wintypes.HWND]
+            get_window_dpi.restype = ctypes.c_uint
+            dpi = int(get_window_dpi(self.root_hwnd()))
+            if dpi > 0:
+                return dpi
+        except (AttributeError, OSError, tk.TclError):
+            pass
+        try:
+            return max(1, int(round(self.root.winfo_fpixels("1i"))))
+        except tk.TclError:
+            return BASE_DPI
+
+    def monitor_signature(self, monitor):
+        return (self.monitor_key(monitor), self.monitor_dpi(monitor))
+
+    def update_monitor_size_context(self, x, y):
+        if not self.settings.get("lock_size_across_monitors", True):
+            return
+        try:
+            monitors = self.system_monitors()
+            monitor = self.monitor_for_position(x, y, monitors)
+            signature = self.monitor_signature(monitor)
+        except (tk.TclError, ValueError, OSError):
+            return
+        if signature == self.current_monitor_signature:
+            return
+        self.current_monitor_signature = signature
+        self.current_monitor_dpi = signature[1]
+        self.enforce_pet_window_size(x, y)
+
+    def available_monitors(self):
+        monitors = self.system_monitors()
+        if self.settings["multi_monitor_roam"]:
+            return monitors
+        return [self.primary_monitor(monitors)]
+
+    def roam_monitors_for_current_position(self):
+        monitors = self.available_monitors()
+        if not self.settings.get("roam_current_monitor_only", False):
+            return monitors
+        all_monitors = self.system_monitors()
+        current_monitor = self.monitor_for_position(self.root.winfo_x(), self.root.winfo_y(), all_monitors)
+        return [current_monitor]
+
+    def primary_monitor(self, monitors=None):
+        monitors = monitors or self.system_monitors()
+        for monitor in monitors:
+            if monitor["primary"]:
+                return monitor
+        for monitor in monitors:
+            if monitor["left"] <= 0 < monitor["right"] and monitor["top"] <= 0 < monitor["bottom"]:
+                return monitor
+        return monitors[0]
+
+    def monitor_area(self, monitor):
+        width, height = self.pet_size()
+        return {
+            "left": int(monitor["left"]),
+            "top": int(monitor["top"]),
+            "right": max(int(monitor["left"]), int(monitor["right"]) - width),
+            "bottom": max(int(monitor["top"]), int(monitor["bottom"]) - height),
+        }
+
+    def virtual_desktop_area(self, monitors=None):
+        monitors = monitors or self.available_monitors()
+        width, height = self.pet_size()
+        left = min(monitor["left"] for monitor in monitors)
+        top = min(monitor["top"] for monitor in monitors)
+        right = max(monitor["right"] for monitor in monitors) - width
+        bottom = max(monitor["bottom"] for monitor in monitors) - height
+        return {
+            "left": int(left),
+            "top": int(top),
+            "right": max(int(left), int(right)),
+            "bottom": max(int(top), int(bottom)),
+        }
+
+    def monitor_for_position(self, x, y, monitors=None):
+        monitors = monitors or self.available_monitors()
+        width, height = self.pet_size()
+        cx = int(x + width / 2)
+        cy = int(y + height / 2)
+        for monitor in monitors:
+            if monitor["left"] <= cx < monitor["right"] and monitor["top"] <= cy < monitor["bottom"]:
+                return monitor
+
+        def distance_to_monitor(monitor):
+            nearest_x = clamp(cx, monitor["left"], monitor["right"])
+            nearest_y = clamp(cy, monitor["top"], monitor["bottom"])
+            return (nearest_x - cx) ** 2 + (nearest_y - cy) ** 2
+
+        return min(monitors, key=distance_to_monitor)
+
+    def current_monitor(self):
+        return self.monitor_for_position(self.root.winfo_x(), self.root.winfo_y())
+
+    def monitor_allows_center_roam(self, monitor):
+        if monitor.get("primary") and self.settings["primary_monitor_edge_only"]:
+            return False
+        if (
+            self.settings["multi_monitor_roam"]
+            and self.settings["secondary_monitor_full_roam"]
+            and not monitor.get("primary")
+        ):
+            return True
+        return bool(self.settings["roam_allow_center"])
+
+    def clamp_position(self, x, y, allow_virtual_gap=False, monitors=None):
+        if not self.settings["keep_on_screen"]:
+            return int(x), int(y)
+        monitors = monitors or self.available_monitors()
+        if allow_virtual_gap and self.settings["multi_monitor_roam"] and len(monitors) > 1:
+            area = self.virtual_desktop_area(monitors)
+            return int(clamp(x, area["left"], area["right"])), int(clamp(y, area["top"], area["bottom"]))
+        monitor = self.monitor_for_position(x, y, monitors)
+        area = self.monitor_area(monitor)
+        return int(clamp(x, area["left"], area["right"])), int(clamp(y, area["top"], area["bottom"]))
+
+    def root_hwnd(self):
+        if sys.platform == "win32":
+            try:
+                return ctypes.windll.user32.GetAncestor(self.root.winfo_id(), 2) or self.root.winfo_id()
+            except (tk.TclError, OSError, AttributeError):
+                pass
+        return self.root.winfo_id()
+
+    def enforce_pet_window_size(self, x=None, y=None):
+        width, height = self.pet_size()
+        if sys.platform == "win32":
+            try:
+                hwnd = self.root_hwnd()
+                flags = SWP_NOZORDER | SWP_NOACTIVATE
+                if x is None or y is None:
+                    x = self.root.winfo_x()
+                    y = self.root.winfo_y()
+                if ctypes.windll.user32.SetWindowPos(hwnd, 0, int(x), int(y), int(width), int(height), flags):
+                    return
+            except (tk.TclError, OSError, AttributeError):
+                pass
+        if x is None or y is None:
+            self.root.geometry(f"{int(width)}x{int(height)}")
+        else:
+            self.root.geometry(f"{int(width)}x{int(height)}{int(x):+d}{int(y):+d}")
+
+    def place_window(self, window, x, y, width=None, height=None):
+        if sys.platform == "win32":
+            try:
+                hwnd = ctypes.windll.user32.GetAncestor(window.winfo_id(), 2) or window.winfo_id()
+                flags = SWP_NOZORDER | SWP_NOACTIVATE
+                if width is None or height is None:
+                    flags |= 0x0001
+                    width = 0
+                    height = 0
+                if ctypes.windll.user32.SetWindowPos(hwnd, 0, int(x), int(y), int(width), int(height), flags):
+                    return
+            except (tk.TclError, OSError, AttributeError):
+                pass
+        if width is not None and height is not None:
+            window.geometry(f"{int(width)}x{int(height)}{int(x):+d}{int(y):+d}")
+        elif int(x) >= 0 and int(y) >= 0:
+            window.geometry(f"+{int(x)}+{int(y)}")
+        else:
+            window.geometry(f"{int(x):+d}{int(y):+d}")
+
+    def register_file_drop(self, window, on_files):
+        if sys.platform != "win32" or not callable(on_files):
+            return False
+        try:
+            window.update_idletasks()
+            user32 = ctypes.windll.user32
+            shell32 = ctypes.windll.shell32
+            hwnd = user32.GetAncestor(window.winfo_id(), 2) or window.winfo_id()
+            WM_DROPFILES = 0x0233
+            GWL_WNDPROC = -4
+            LONG_PTR = ctypes.c_longlong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_long
+            LRESULT = ctypes.c_longlong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_long
+            WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+
+            user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+            user32.GetWindowLongPtrW.restype = LONG_PTR
+            user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, LONG_PTR]
+            user32.SetWindowLongPtrW.restype = LONG_PTR
+            user32.CallWindowProcW.argtypes = [LONG_PTR, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+            user32.CallWindowProcW.restype = LRESULT
+            user32.IsWindow.argtypes = [wintypes.HWND]
+            user32.IsWindow.restype = wintypes.BOOL
+            shell32.DragAcceptFiles.argtypes = [wintypes.HWND, wintypes.BOOL]
+            shell32.DragQueryFileW.argtypes = [wintypes.HANDLE, wintypes.UINT, wintypes.LPWSTR, wintypes.UINT]
+            shell32.DragQueryFileW.restype = wintypes.UINT
+            shell32.DragFinish.argtypes = [wintypes.HANDLE]
+
+            old_proc = user32.GetWindowLongPtrW(hwnd, GWL_WNDPROC)
+            if not old_proc:
+                return False
+
+            def wndproc(handle, message, w_param, l_param):
+                try:
+                    if message == WM_DROPFILES:
+                        files = []
+                        try:
+                            count = shell32.DragQueryFileW(w_param, 0xFFFFFFFF, None, 0)
+                            for index in range(count):
+                                length = shell32.DragQueryFileW(w_param, index, None, 0)
+                                buffer = ctypes.create_unicode_buffer(length + 1)
+                                shell32.DragQueryFileW(w_param, index, buffer, length + 1)
+                                if buffer.value:
+                                    files.append(buffer.value)
+                        except Exception:
+                            report_callback_exception(*sys.exc_info())
+                        finally:
+                            try:
+                                shell32.DragFinish(w_param)
+                            except Exception:
+                                pass
+                        if files:
+                            try:
+                                window.after(10, lambda dropped=files: on_files(dropped))
+                            except tk.TclError:
+                                pass
+                        return 0
+                    return user32.CallWindowProcW(old_proc, handle, message, w_param, l_param)
+                except Exception:
+                    report_callback_exception(*sys.exc_info())
+                    try:
+                        return user32.CallWindowProcW(old_proc, handle, message, w_param, l_param)
+                    except Exception:
+                        return 0
+
+            proc = WNDPROC(wndproc)
+            result = user32.SetWindowLongPtrW(hwnd, GWL_WNDPROC, LONG_PTR(ctypes.cast(proc, ctypes.c_void_p).value))
+            if result == 0:
+                return False
+            shell32.DragAcceptFiles(hwnd, True)
+            self.drop_targets[hwnd] = (window, old_proc, proc)
+            window._drop_proc = proc
+            window._drop_old_proc = old_proc
+
+            def cleanup(event=None):
+                if event is not None and event.widget is not window:
+                    return
+                target = self.drop_targets.pop(hwnd, None)
+                if target:
+                    try:
+                        if user32.IsWindow(hwnd):
+                            shell32.DragAcceptFiles(hwnd, False)
+                            user32.SetWindowLongPtrW(hwnd, GWL_WNDPROC, LONG_PTR(old_proc))
+                    except (OSError, tk.TclError):
+                        pass
+
+            window.bind("<Destroy>", cleanup, add="+")
+            return True
+        except (AttributeError, OSError, tk.TclError):
+            return False
+
+    def move_to(self, x, y, allow_virtual_gap=False):
+        x, y = self.clamp_position(x, y, allow_virtual_gap)
+        if self.settings.get("lock_size_across_monitors", True):
+            width, height = self.pet_size()
+            self.place_window(self.root, x, y, width, height)
+            self.update_monitor_size_context(x, y)
+        else:
+            self.place_window(self.root, x, y)
+        self.position_bubble()
+
+    def default_position(self):
+        margin = 28
+        area = self.monitor_area(self.primary_monitor())
+        x = area["right"] - margin
+        y = area["bottom"] - margin
+        return self.clamp_position(x, y)
+
+    def move_to_default_position(self):
+        x, y = self.default_position()
+        self.move_to(x, y)
+        self.settings["position_x"] = int(x)
+        self.settings["position_y"] = int(y)
+        self.save_settings()
+
+    def mark_interaction(self):
+        self.last_interaction_at = time.monotonic()
+        self.companion["interactions"] += 1
+        self.add_xp(XP_RULES["interaction"], "interaction")
+
+    def next_idle_time(self):
+        base = self.settings["idle_action_interval"]
+        return time.monotonic() + random.uniform(base * 0.75, base * 1.35)
+
+    def next_talk_time(self):
+        base = self.settings["talk_interval"]
+        return time.monotonic() + random.uniform(base * 0.65, base * 1.45)
+
+    def next_roam_time(self):
+        base = self.settings["roam_interval"]
+        return time.monotonic() + random.uniform(base * 0.70, base * 1.35)
+
+    def load_frames(self):
+        frames = {}
+        scale = self.settings["scale"]
+        out_w = int(CELL_W * scale)
+        out_h = int(CELL_H * scale)
+        for state, (row, count, durations) in ROWS.items():
+            if state != "idle" and not self.action_supported(state):
+                continue
+            if (row + 1) * CELL_H > self.sheet.height:
+                continue
+            state_frames = []
+            for col in range(count):
+                box = (col * CELL_W, row * CELL_H, (col + 1) * CELL_W, (row + 1) * CELL_H)
+                frame = self.sheet.crop(box).resize((out_w, out_h), Image.Resampling.NEAREST)
+                frame = self.harden_sprite_alpha(frame)
+                if not self.sprite_frame_visible(frame):
+                    continue
+                state_frames.append((frame, durations[col]))
+            if not state_frames:
+                continue
+            if state in {"running-right", "running-left"} and self.current_action_pack_level() == "basic" and not self.uses_pangjiu_motion_profile():
+                state_frames = self.soften_basic_running_frames(state_frames)
+            if state == "jumping" and self.current_action_pack_level() == "basic":
+                state_frames = self.soften_basic_jump_frames(state_frames)
+            if state == "standing" and state_frames:
+                state_frames = self.stabilize_standing_frames(state_frames)
+            frames[state] = state_frames
+        if self.allow_generated_fallback_actions():
+            self.add_rest_frames(frames)
+        self.load_extension_action_frames(frames, out_w, out_h)
+        self.add_stepping_frames(frames)
+        if "chase-butterfly" not in frames and "running-right" in frames:
+            frames["chase-butterfly"] = [(frame.copy(), delay) for frame, delay in frames["running-right"]]
+        if "running-left" in frames:
+            frames["chase-butterfly-left"] = [(frame.copy(), delay) for frame, delay in frames["running-left"]]
+        return frames
+
+    def load_extension_action_frames(self, frames, out_w, out_h):
+        for asset in self.pet_extension_assets():
+            state = asset.get("id")
+            strip_path = self.pet_asset_path(asset.get("strip"))
+            if not state or strip_path is None or not strip_path.exists():
+                continue
+            try:
+                strip = Image.open(strip_path).convert("RGBA")
+            except OSError:
+                continue
+            strip = self.remove_cyan_background(strip)
+            count = int(clamp(asset.get("frames") or 0, 1, CUSTOM_ACTION_MAX_FRAMES))
+            if strip.height != CELL_H or strip.width < CELL_W:
+                continue
+            count = min(count, strip.width // CELL_W, CUSTOM_ACTION_MAX_FRAMES)
+            if state == "chase-butterfly" and not self.should_use_chase_strip(strip, count):
+                continue
+            durations = asset.get("durations") if isinstance(asset.get("durations"), list) else []
+            state_frames = []
+            for col in range(count):
+                box = (col * CELL_W, 0, (col + 1) * CELL_W, CELL_H)
+                frame = strip.crop(box).resize((out_w, out_h), Image.Resampling.NEAREST)
+                frame = self.harden_sprite_alpha(frame)
+                duration = durations[col] if col < len(durations) else 180
+                state_frames.append((frame, int(clamp(duration, 60, 900))))
+            if state_frames:
+                if state == "standing":
+                    state_frames = self.stabilize_standing_frames(state_frames)
+                frames[state] = state_frames
+
+    def load_butterfly_frames(self):
+        path = self.pet_dir / "butterfly.png"
+        if not path.exists():
+            return []
+        try:
+            sheet = Image.open(path).convert("RGBA")
+        except OSError:
+            return []
+        frame_count = max(1, sheet.width // max(1, sheet.height))
+        size = max(32, int(42 * self.settings["scale"]))
+        frames = []
+        for index in range(min(4, frame_count)):
+            box = (index * sheet.height, 0, (index + 1) * sheet.height, sheet.height)
+            frame = sheet.crop(box).resize((size, size), Image.Resampling.NEAREST)
+            frames.append(ImageTk.PhotoImage(frame, master=self.root))
+        return frames
+
+    def stabilize_standing_frames(self, state_frames):
+        stable = state_frames[0][0].copy()
+        return [(stable.copy(), delay) for _frame, delay in state_frames]
+
+    def soften_basic_running_frames(self, state_frames):
+        if len(state_frames) < 3:
+            return state_frames
+        indices = [1, 2, 1, 5, 1, 2, 1, 7] if len(state_frames) >= 8 else [0, 1, 0, 2, 0, 1]
+        softened = []
+        for idx in indices:
+            frame, _delay = state_frames[idx % len(state_frames)]
+            softened.append((frame.copy(), 92))
+        return softened
+
+    def soften_basic_jump_frames(self, state_frames):
+        delays = [135, 115, 125, 120, 185]
+        return [(frame.copy(), delays[idx % len(delays)]) for idx, (frame, _delay) in enumerate(state_frames)]
+
+    def add_stepping_frames(self, frames):
+        source = frames.get("running-right") or frames.get("running-left")
+        if not source:
+            source = frames.get("idle")
+        if not source:
+            return
+        indices = [0, 1, 0, 2, 0, 1] if len(source) >= 3 else list(range(len(source)))
+        frames["stepping"] = [(source[idx % len(source)][0].copy(), 105) for idx in indices]
+
+    def harden_sprite_alpha(self, frame: Image.Image):
+        image = frame.convert("RGBA")
+        r, g, b, alpha = image.split()
+        alpha = alpha.point(lambda value: 255 if value >= SPRITE_ALPHA_THRESHOLD else 0)
+        image.putalpha(alpha)
+        return image
+
+    def sprite_frame_visible(self, frame: Image.Image):
+        try:
+            return frame.getchannel("A").getbbox() is not None
+        except ValueError:
+            return False
+
+    def add_rest_frames(self, frames):
+        idle = [frame for frame, _delay in frames["idle"]]
+        waiting = [frame for frame, _delay in frames["waiting"]]
+        if "standing" not in frames:
+            frames["standing"] = [(waiting[i % len(waiting)].copy(), delay) for i, delay in enumerate([280, 260, 320, 260, 420, 300])]
+        if "tongue" not in frames:
+            frames["tongue"] = [(self.with_tongue(idle[i % len(idle)], i), delay) for i, delay in enumerate([150, 150, 190, 190, 170, 260])]
+        if "lying" not in frames:
+            frames["lying"] = [(self.squash_to_floor(waiting[i % len(waiting)], 0.64 + (i % 2) * 0.02), delay) for i, delay in enumerate([260, 300, 360, 300])]
+        if "stretching" not in frames:
+            frames["stretching"] = [
+                (self.squash_to_floor(waiting[0], 0.78, -2), 160),
+                (self.squash_to_floor(waiting[1], 0.70, -1), 180),
+                (self.squash_to_floor(waiting[2], 0.66, 1), 220),
+                (self.squash_to_floor(waiting[3], 0.74, 0), 180),
+                (waiting[4].copy(), 240),
+            ]
+        if "sleeping" not in frames:
+            frames["sleeping"] = [(self.squash_to_floor(idle[i % len(idle)], 0.60 + (i % 2) * 0.015), delay) for i, delay in enumerate([420, 520, 480, 560])]
+        if "sniffing" not in frames:
+            frames["sniffing"] = [(self.offset_frame(waiting[i % len(waiting)], [0, 1, 2, 1, 0, -1][i]), delay) for i, delay in enumerate([130, 120, 130, 150, 160, 220])]
+
+    def squash_to_floor(self, frame, height_scale, x_offset=0):
+        width, height = frame.size
+        new_height = max(1, int(height * height_scale))
+        squashed = frame.resize((width, new_height), Image.Resampling.NEAREST)
+        canvas = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+        y = height - new_height - max(2, int(height * 0.04))
+        self.composite_clipped(canvas, squashed, int(x_offset), max(0, y))
+        return canvas
+
+    def offset_frame(self, frame, x_offset=0, y_offset=0):
+        canvas = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+        self.composite_clipped(canvas, frame, int(x_offset), int(y_offset))
+        return canvas
+
+    def composite_clipped(self, canvas, image, x, y):
+        source_x = max(0, -x)
+        source_y = max(0, -y)
+        dest_x = max(0, x)
+        dest_y = max(0, y)
+        width = min(image.width - source_x, canvas.width - dest_x)
+        height = min(image.height - source_y, canvas.height - dest_y)
+        if width <= 0 or height <= 0:
+            return
+        crop = image.crop((source_x, source_y, source_x + width, source_y + height))
+        canvas.alpha_composite(crop, (dest_x, dest_y))
+
+    def with_tongue(self, frame, phase):
+        image = frame.copy()
+        draw = ImageDraw.Draw(image)
+        width, height = image.size
+        cx = int(width * 0.50)
+        y = int(height * 0.58)
+        tongue_w = max(5, int(width * 0.095))
+        tongue_h = max(5, int(height * (0.055 + 0.012 * (phase % 3))))
+        box = (cx - tongue_w // 2, y, cx + tongue_w // 2, y + tongue_h)
+        draw.ellipse(box, fill="#e98a96", outline="#4a2c2a", width=1)
+        draw.line((cx, y + 2, cx, y + tongue_h - 1), fill="#c96675", width=1)
+        return image
+
+    def reload_frames(self):
+        self.active_pet = self.active_pet_config()
+        self.sheet = Image.open(self.active_spritesheet_path()).convert("RGBA")
+        self.frames = self.load_frames()
+        self.butterfly_frames = self.load_butterfly_frames()
+        self.ensure_valid_state()
+        self.frame_index = 0
+        self.current_photo_size = self.render_pet_size()
+        self.move_to(self.root.winfo_x(), self.root.winfo_y())
+
+    def first_available_state(self):
+        for state in ("idle", "waving", "jumping", "waiting", "review", "running-right", "running-left", "running"):
+            if state in self.frames:
+                return state
+        return next(iter(self.frames), "idle")
+
+    def ensure_valid_state(self):
+        if self.state not in self.frames:
+            self.state = self.first_available_state()
+            self.frame_index = 0
+            self.loop_once = False
+            self.action_loops_left = 0
+
+    def make_photo(self, frame: Image.Image, bob_y: int = 0, squash: float = 1.0, zoom: float = 1.0):
+        if squash != 1.0:
+            w, h = frame.size
+            new_h = max(1, int(h * squash))
+            frame = frame.resize((w, new_h), Image.Resampling.NEAREST)
+        if zoom != 1.0:
+            w, h = frame.size
+            frame = frame.resize((max(1, int(w * zoom)), max(1, int(h * zoom))), Image.Resampling.NEAREST)
+        frame = self.harden_sprite_alpha(frame)
+        canvas_w, canvas_h = self.render_pet_size()
+        canvas = Image.new("RGBA", (max(canvas_w, frame.width), max(canvas_h, frame.height + 8)), BG)
+        x = (canvas.width - frame.width) // 2
+        base_y = canvas.height - frame.height - 4
+        y = int(clamp(base_y + bob_y, 0, canvas.height - frame.height))
+        canvas.alpha_composite(frame, (x, y))
+        background = Image.new("RGBA", canvas.size, BG)
+        background.alpha_composite(canvas)
+        photo = ImageTk.PhotoImage(background.convert("RGB"), master=self.root)
+        self.current_photo_size = (photo.width(), photo.height())
+        return photo
+
+    def visible_running_state(self, dx=0.0):
+        if self.action_supported("running") and "running" in self.frames:
+            return "running"
+        if dx < 0 and "running-left" in self.frames:
+            return "running-left"
+        if dx >= 0 and "running-right" in self.frames:
+            return "running-right"
+        if "running-left" in self.frames:
+            return "running-left"
+        if "running-right" in self.frames:
+            return "running-right"
+        return self.first_available_state()
+
+    def visible_idle_state(self):
+        return "idle" if "idle" in self.frames else self.first_available_state()
+
+    def set_state(self, state: str, loop_once: bool = False, preserve_phase: bool = False):
+        if state == "running":
+            state = self.visible_running_state(self.velocity_x)
+        elif state == "chase-butterfly" and state not in self.frames:
+            state = self.visible_running_state(1.0)
+        elif state == "chase-butterfly-left" and state not in self.frames:
+            state = self.visible_running_state(-1.0)
+        if state in self.frames and (state != self.state or loop_once != self.loop_once):
+            old_frames = max(1, len(self.frames.get(self.state, [])))
+            phase = self.frame_index / old_frames
+            self.state = state
+            if preserve_phase:
+                self.frame_index = int(phase * len(self.frames[state])) % len(self.frames[state])
+            else:
+                self.frame_index = 0
+            self.loop_once = loop_once
+            return True
+        return state in self.frames
+
+    def play_action(self, state: str, loops: int = 1, award: bool = True):
+        if not self.dragging and (state in ACTION_STATES or is_custom_action_id(state)):
+            if not self.action_supported(state) or state not in self.frames:
+                self.unavailable_action(state)
+                return False
+            if award:
+                self.mark_interaction()
+                self.companion["manual_actions"] += 1
+                self.add_xp(XP_RULES["manual_action"], "manual_action")
+            if state == "chase-butterfly":
+                self.start_chase_butterfly()
+                return True
+            self.set_mode("action")
+            self.roam_target = None
+            if state not in MOVEMENT_STATES:
+                self.stop_position_motion()
+            self.action_loops_left = max(1, loops)
+            self.set_state(state, loop_once=True)
+            return True
+        return False
+
+    def on_press(self, event):
+        self.mark_interaction()
+        try:
+            self.root.focus_force()
+        except tk.TclError:
+            pass
+        self.hide_bubble()
+        self.roam_target = None
+        self.set_mode("drag")
+        self.dragging = True
+        self.drag_started = False
+        self.drag_direction = "center"
+        self.last_direction_change_at = time.monotonic()
+        self.inertia_until = 0.0
+        self.drag_offset_x = event.x
+        self.drag_offset_y = event.y
+        self.press_root_x = event.x_root
+        self.press_root_y = event.y_root
+        self.press_started_at = self.last_direction_change_at
+        self.last_pointer_x = event.x_root
+        self.last_pointer_y = event.y_root
+        self.last_motion_at = time.monotonic()
+        self.last_motion_tick = self.last_motion_at
+        self.drag_intent_x = 0.0
+        self.velocity_x = 0.0
+        self.velocity_y = 0.0
+        self.set_state("stepping")
+
+    def on_ctrl_mousewheel(self, event):
+        step = 0.03 if getattr(event, "delta", 0) > 0 else -0.03
+        old_scale = float(self.settings.get("scale", 0.50))
+        new_scale = round(clamp(old_scale + step, 0.25, 1.00), 2)
+        if abs(new_scale - old_scale) < 0.001:
+            return "break"
+
+        bottom_x = self.root.winfo_x()
+        bottom_y = self.root.winfo_y() + self.pet_size()[1]
+        self.settings["scale"] = new_scale
+        self.reload_frames()
+        self.butterfly_frames = self.load_butterfly_frames()
+        self.move_to(bottom_x, bottom_y - self.pet_size()[1])
+        self.remember_position()
+        self.save_settings()
+        self.say(f"现在大小 {int(new_scale * 100)}%。")
+        return "break"
+
+    def on_motion(self, event):
+        now = time.monotonic()
+        total_dx = event.x_root - self.press_root_x
+        total_dy = event.y_root - self.press_root_y
+        if not self.drag_started:
+            if total_dx * total_dx + total_dy * total_dy < 64:
+                return
+            self.drag_started = True
+            self.set_mode("drag")
+            self.last_motion_tick = now
+        dt = max(0.016, now - self.last_motion_tick)
+        x = event.x_root - self.drag_offset_x
+        y = event.y_root - self.drag_offset_y
+        self.move_to(x, y)
+
+        dx = event.x_root - self.last_pointer_x
+        dy = event.y_root - self.last_pointer_y
+        sensitivity = self.settings["drag_sensitivity"]
+        raw_vx = (dx / dt) * sensitivity
+        raw_vy = (dy / dt) * sensitivity
+        self.velocity_x = raw_vx * 0.30 + self.velocity_x * 0.70
+        self.velocity_y = raw_vy * 0.30 + self.velocity_y * 0.70
+        self.drag_intent_x = clamp(self.drag_intent_x * 0.72 + dx, -18.0, 18.0)
+        self.last_pointer_x = event.x_root
+        self.last_pointer_y = event.y_root
+
+        self.update_drag_direction(now, dx)
+        self.last_motion_at = now
+        self.last_motion_tick = now
+
+    def update_drag_direction(self, now, dx=0.0):
+        sensitivity = max(0.35, self.settings["drag_sensitivity"])
+        enter_threshold = 230 / sensitivity
+        exit_threshold = 95 / sensitivity
+        min_hold = 0.26
+        intent_threshold = 3.0
+        immediate_dx_threshold = 2.0
+        if self.uses_pangjiu_motion_profile():
+            enter_threshold = 180 / sensitivity
+            exit_threshold = 90 / sensitivity
+            min_hold = 0.14
+            intent_threshold = 1.8
+            immediate_dx_threshold = 1.0
+        current = self.drag_direction
+        target = current
+        direction_signal = self.drag_intent_x
+        if abs(dx) >= immediate_dx_threshold and abs(dx) > abs(direction_signal):
+            direction_signal = dx
+
+        if current == "right":
+            if self.velocity_x < -enter_threshold or direction_signal < -intent_threshold:
+                target = "left"
+            elif abs(self.velocity_x) < exit_threshold and now - self.last_motion_at > 0.18:
+                target = "center"
+        elif current == "left":
+            if self.velocity_x > enter_threshold or direction_signal > intent_threshold:
+                target = "right"
+            elif abs(self.velocity_x) < exit_threshold and now - self.last_motion_at > 0.18:
+                target = "center"
+        else:
+            if self.velocity_x > enter_threshold or direction_signal > intent_threshold:
+                target = "right"
+            elif self.velocity_x < -enter_threshold or direction_signal < -intent_threshold:
+                target = "left"
+
+        if target != current and now - self.last_direction_change_at >= min_hold:
+            self.drag_direction = target
+            self.last_direction_change_at = now
+
+        if self.drag_direction == "right":
+            self.set_state("running-right", preserve_phase=True)
+        elif self.drag_direction == "left":
+            self.set_state("running-left", preserve_phase=True)
+        else:
+            if self.uses_pangjiu_motion_profile() and abs(self.velocity_x) < exit_threshold:
+                self.set_state("stepping" if self.drag_started else self.visible_idle_state(), preserve_phase=True)
+            elif abs(dx) >= 2:
+                self.set_state(self.visible_running_state(dx), preserve_phase=True)
+            else:
+                self.set_state(self.visible_idle_state(), preserve_phase=True)
+
+    def on_release(self, _event):
+        was_dragging = self.drag_started
+        self.dragging = False
+        self.drag_started = False
+        self.move_to(self.root.winfo_x(), self.root.winfo_y())
+        if not was_dragging:
+            self.stop_position_motion()
+            self.play_action("stepping", loops=1, award=False)
+            return
+        self.remember_position()
+        self.save_settings()
+        speed = abs(self.velocity_x) + abs(self.velocity_y)
+        if speed > 700 and self.settings["inertia"] > 0.05:
+            self.inertia_until = time.monotonic() + 0.45 * self.settings["inertia"]
+        else:
+            self.stop_position_motion()
+            self.set_mode("idle")
+            self.set_state("idle")
+
+    def on_context_menu(self, event):
+        self.open_quick_menu(event.x_root, event.y_root)
+
+    def close_context_panel(self):
+        try:
+            if self.context_panel is not None and self.context_panel.winfo_exists():
+                for popup_attr in ("_pet_switch_popup", "_more_actions_popup"):
+                    popup = getattr(self.context_panel, popup_attr, None)
+                    try:
+                        if popup is not None and popup.winfo_exists():
+                            popup.destroy()
+                    except tk.TclError:
+                        pass
+                self.context_panel.destroy()
+        except tk.TclError:
+            pass
+        self.context_panel = None
+
+    def cursor_position(self):
+        if sys.platform == "win32":
+            point = wintypes.POINT()
+            if ctypes.windll.user32.GetCursorPos(ctypes.byref(point)):
+                return int(point.x), int(point.y)
+        return self.root.winfo_pointerx(), self.root.winfo_pointery()
+
+    def mouse_button_pressed_since_last_check(self):
+        if sys.platform != "win32":
+            return False
+        user32 = ctypes.windll.user32
+        left = user32.GetAsyncKeyState(0x01)
+        right = user32.GetAsyncKeyState(0x02)
+        return bool((left | right) & 0x8001)
+
+    def window_contains_screen_point(self, window, x, y, padding=0):
+        try:
+            left = window.winfo_rootx() - padding
+            top = window.winfo_rooty() - padding
+            right = left + window.winfo_width() + padding * 2
+            bottom = top + window.winfo_height() + padding * 2
+        except tk.TclError:
+            return False
+        return left <= x <= right and top <= y <= bottom
+
+    def watch_quick_menu_outside_click(self, panel):
+        if time.monotonic() < getattr(panel, "_ignore_outside_until", 0.0):
+            self.root.after(80, lambda: self.watch_quick_menu_outside_click(panel))
+            return
+        if getattr(panel, "_dragging_quick_menu", False):
+            self.root.after(80, lambda: self.watch_quick_menu_outside_click(panel))
+            return
+        try:
+            if self.context_panel is not panel or not panel.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        if self.mouse_button_pressed_since_last_check():
+            x, y = self.cursor_position()
+            inside_attached_popup = False
+            for popup_attr in ("_pet_switch_popup", "_more_actions_popup"):
+                popup = getattr(panel, popup_attr, None)
+                try:
+                    if (
+                        popup is not None
+                        and popup.winfo_exists()
+                        and self.window_contains_screen_point(popup, x, y, padding=2)
+                    ):
+                        inside_attached_popup = True
+                        break
+                except tk.TclError:
+                    pass
+            if not self.window_contains_screen_point(panel, x, y, padding=2) and not inside_attached_popup:
+                self.close_context_panel()
+                return
+        self.root.after(50, lambda: self.watch_quick_menu_outside_click(panel))
+
+    def open_quick_menu(self, x, y):
+        self.close_context_panel()
+        panel = tk.Toplevel(self.root)
+        self.context_panel = panel
+        panel._dragging_quick_menu = False
+        panel._drag_offset = (0, 0)
+        panel._ignore_outside_until = time.monotonic() + 0.75
+        panel._pet_switch_popup = None
+        panel._pet_switch_close_after_id = None
+        panel._more_actions_popup = None
+        panel._more_actions_close_after_id = None
+        panel.overrideredirect(True)
+        panel.attributes("-topmost", True)
+        panel.configure(bg=BG)
+        try:
+            panel.attributes("-transparentcolor", BG)
+        except tk.TclError:
+            pass
+
+        quick_menu_model = self.quick_menu_view_model()
+        quick_menu_header = quick_menu_model.get("header", {}) if isinstance(quick_menu_model, dict) else {}
+        quick_menu_layout = quick_menu_model.get("layout", {}) if isinstance(quick_menu_model, dict) else {}
+        quick_menu_style = quick_menu_model.get("style", {}) if isinstance(quick_menu_model, dict) else {}
+        if not isinstance(quick_menu_style, dict) and MODULAR_RIGHT_MENU_STYLE_TOKENS is not None:
+            try:
+                quick_menu_style = MODULAR_RIGHT_MENU_STYLE_TOKENS()
+            except Exception:
+                quick_menu_style = {}
+        elif not quick_menu_style and MODULAR_RIGHT_MENU_STYLE_TOKENS is not None:
+            try:
+                quick_menu_style = MODULAR_RIGHT_MENU_STYLE_TOKENS()
+            except Exception:
+                quick_menu_style = {}
+
+        def menu_int(value, default):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return int(default)
+
+        def style_section(name):
+            value = quick_menu_style.get(name) if isinstance(quick_menu_style, dict) else None
+            return value if isinstance(value, dict) else {}
+
+        panel_style = style_section("panel")
+        button_variant_styles = style_section("button_variants")
+        popup_style = style_section("popup")
+        popup_layout = {"gap": 8, "screen_margin": 8, "close_delay_ms": 260, "max_visible_actions": 10}
+        if MODULAR_RIGHT_MENU_POPUP_LAYOUT is not None:
+            try:
+                popup_layout.update(MODULAR_RIGHT_MENU_POPUP_LAYOUT())
+            except Exception:
+                pass
+        pet_name = str(quick_menu_header.get("display_name") or self.active_pet.get("display_name", "蛋黄"))
+        pet_subtitle = str(quick_menu_header.get("subtitle") or "陪你说句话，或者做个基础动作")
+        auto_close_ms = int(quick_menu_layout.get("auto_close_ms") or 12000)
+        outside_click_delay_ms = int(quick_menu_layout.get("outside_click_delay_ms") or 180)
+        menu_columns = max(2, min(4, menu_int(quick_menu_layout.get("columns"), 2)))
+        panel_min_width = max(1, menu_int(quick_menu_layout.get("min_width"), 280))
+        panel_max_width = max(panel_min_width, menu_int(quick_menu_layout.get("max_width"), 340))
+        button_min_height = max(28, menu_int(quick_menu_layout.get("button_min_height"), 34))
+        button_inner_pady = max(5, int((button_min_height - 24) / 2))
+        menu_gap = menu_int(quick_menu_layout.get("panel_gap"), 12)
+        menu_screen_margin = menu_int(quick_menu_layout.get("screen_margin"), 8)
+        menu_overlap_margin = menu_int(quick_menu_layout.get("pet_overlap_margin"), 4)
+        popup_gap = int(popup_layout.get("gap") or 8)
+        popup_screen_margin = int(popup_layout.get("screen_margin") or 8)
+        popup_close_delay_ms = int(popup_layout.get("close_delay_ms") or 260)
+        popup_max_visible_actions = int(popup_layout.get("max_visible_actions") or 10)
+        shell_bg = str(panel_style.get("shell_bg") or "#fff8ec")
+        shell_border = str(panel_style.get("shell_border") or "#d8b98d")
+        header_bg = str(panel_style.get("header_bg") or "#f3d6ae")
+        body_bg = str(panel_style.get("body_bg") or "#fff8ec")
+        section_fg = str(panel_style.get("section_fg") or "#8a6642")
+        disabled_fg = str(panel_style.get("disabled_fg") or "#9a8978")
+
+        shell = tk.Frame(panel, bg=shell_bg, highlightthickness=1, highlightbackground=shell_border)
+        shell.pack(fill="both", expand=True)
+        header = tk.Frame(shell, bg=header_bg)
+        header.pack(fill="x")
+        header_inner = tk.Frame(header, bg=header_bg)
+        header_inner.pack(fill="x", padx=10, pady=(8, 7))
+        pet_photo = self.pet_main_photo(self.active_pet, size=(42, 42))
+        panel._image_refs = [pet_photo] if pet_photo else []
+        if pet_photo:
+            tk.Label(header_inner, image=pet_photo, bg=header_bg).pack(anchor="center", pady=(0, 4))
+        header_text = tk.Frame(header_inner, bg=header_bg)
+        header_text.pack(fill="x", expand=True)
+        tk.Label(
+            header_text,
+            text=pet_name,
+            bg=header_bg,
+            fg=str(panel_style.get("name_fg") or "#3a2a1c"),
+            anchor="center",
+            font=("Microsoft YaHei UI", 10, "bold"),
+        ).pack(fill="x")
+        tk.Label(
+            header_text,
+            text=pet_subtitle,
+            bg=header_bg,
+            fg=str(panel_style.get("subtitle_fg") or "#6d5138"),
+            anchor="center",
+            font=("Microsoft YaHei UI", 8),
+        ).pack(fill="x", pady=(1, 0))
+
+        def start_quick_menu_drag(event):
+            panel._dragging_quick_menu = True
+            panel._drag_offset = (event.x_root - panel.winfo_x(), event.y_root - panel.winfo_y())
+            return "break"
+
+        def drag_quick_menu(event):
+            if not getattr(panel, "_dragging_quick_menu", False):
+                return "break"
+            offset_x, offset_y = getattr(panel, "_drag_offset", (0, 0))
+            monitor = self.monitor_for_position(event.x_root, event.y_root)
+            new_x = int(clamp(event.x_root - offset_x, monitor["left"], max(monitor["left"], monitor["right"] - panel.winfo_width())))
+            new_y = int(clamp(event.y_root - offset_y, monitor["top"], max(monitor["top"], monitor["bottom"] - panel.winfo_height())))
+            self.place_window(panel, new_x, new_y)
+            return "break"
+
+        def stop_quick_menu_drag(_event=None):
+            panel._dragging_quick_menu = False
+            return "break"
+
+        for widget in (shell, header, header_inner, header_text):
+            widget.bind("<ButtonPress-1>", start_quick_menu_drag)
+            widget.bind("<B1-Motion>", drag_quick_menu)
+            widget.bind("<ButtonRelease-1>", stop_quick_menu_drag)
+
+        body = tk.Frame(shell, bg=body_bg)
+        body.pack(fill="both", expand=True, padx=10, pady=7)
+
+        def section_label(text, row):
+            label = tk.Label(
+                body,
+                text=text,
+                bg=body_bg,
+                fg=section_fg,
+                anchor="w",
+                font=("Microsoft YaHei UI", 8, "bold"),
+            )
+            label.grid(row=row, column=0, columnspan=menu_columns, sticky="ew", padx=1, pady=(6 if row else 0, 2))
+            return row + 1
+
+        def button(text, command, row, col, variant="neutral", colspan=1, enabled=True):
+            fallback_colors = {
+                "primary": ("#bf6f2a", "#96511e", "#ffffff"),
+                "soft": ("#f7e3c4", "#ecd0a4", "#3a2a1c"),
+                "danger": ("#f3d3c9", "#e8b8aa", "#4b2723"),
+                "neutral": ("#fffdf7", "#f2e5d1", "#3a2a1c"),
+                "ghost": ("#fff8ec", "#f3e2c9", "#6c5239"),
+                "selected": ("#c8732b", "#8f4d22", "#ffffff"),
+            }
+            fallback_bg, fallback_active, fallback_fg = fallback_colors.get(variant, fallback_colors["neutral"])
+            variant_style = button_variant_styles.get(variant) if isinstance(button_variant_styles, dict) else None
+            if not isinstance(variant_style, dict):
+                variant_style = {}
+            bg = str(variant_style.get("bg") or fallback_bg)
+            active = str(variant_style.get("active") or fallback_active)
+            fg = str(variant_style.get("fg") or fallback_fg)
+
+            def invoke():
+                if not enabled:
+                    return
+                self.close_context_panel()
+                self.root.after(80, command)
+
+            btn = tk.Button(
+                body,
+                text=text,
+                command=invoke,
+                bg=bg,
+                fg=fg,
+                activebackground=active,
+                activeforeground=fg,
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 9),
+                padx=6,
+                pady=button_inner_pady,
+                state="normal" if enabled else "disabled",
+            )
+            if not enabled:
+                btn.configure(cursor="", fg=disabled_fg)
+            btn.grid(row=row, column=col, columnspan=colspan, padx=4, pady=3, sticky="ew")
+            return btn
+
+        for col in range(menu_columns):
+            body.grid_columnconfigure(col, weight=1, uniform="quick_menu")
+
+        def quick_menu_model_list(key):
+            value = quick_menu_model.get(key) if isinstance(quick_menu_model, dict) else None
+            return list(value) if isinstance(value, list) else []
+
+        def action_command_for_state(state):
+            if state == "running":
+                return self.run_short_distance
+            loops = 2 if state in {"rolling", "chase-butterfly"} else 1
+            return lambda s=state, n=loops: self.play_action(s, loops=n)
+
+        def action_command_for_item(item):
+            if isinstance(item, dict):
+                state = str(item.get("action_id") or "")
+                if state == "running":
+                    return self.run_short_distance
+                loops = int(item.get("loops") or (2 if state in {"rolling", "chase-butterfly"} else 1))
+                return lambda s=state, n=loops: self.play_action(s, loops=n)
+            return action_command_for_state(str(item))
+
+        def action_label_for_item(item):
+            if isinstance(item, dict):
+                return str(item.get("label") or self.action_label(str(item.get("action_id") or "")))
+            return self.action_label(str(item))
+
+        def close_pet_switch_popup():
+            popup = getattr(panel, "_pet_switch_popup", None)
+            panel._pet_switch_popup = None
+            try:
+                if getattr(panel, "_pet_switch_close_after_id", None):
+                    panel.after_cancel(panel._pet_switch_close_after_id)
+                    panel._pet_switch_close_after_id = None
+            except tk.TclError:
+                pass
+            try:
+                if popup is not None and popup.winfo_exists():
+                    popup.destroy()
+            except tk.TclError:
+                pass
+
+        def close_more_actions_popup():
+            popup = getattr(panel, "_more_actions_popup", None)
+            panel._more_actions_popup = None
+            try:
+                if getattr(panel, "_more_actions_close_after_id", None):
+                    panel.after_cancel(panel._more_actions_close_after_id)
+                    panel._more_actions_close_after_id = None
+            except tk.TclError:
+                pass
+            try:
+                if popup is not None and popup.winfo_exists():
+                    popup.destroy()
+            except tk.TclError:
+                pass
+
+        def schedule_pet_switch_popup_close():
+            try:
+                if getattr(panel, "_pet_switch_close_after_id", None):
+                    panel.after_cancel(panel._pet_switch_close_after_id)
+            except tk.TclError:
+                pass
+
+            def close_if_outside():
+                try:
+                    if self.context_panel is not panel or not panel.winfo_exists():
+                        close_pet_switch_popup()
+                        return
+                    popup = getattr(panel, "_pet_switch_popup", None)
+                    if popup is None or not popup.winfo_exists():
+                        return
+                    cx, cy = self.cursor_position()
+                    if self.window_contains_screen_point(popup, cx, cy, padding=4) or self.window_contains_screen_point(panel, cx, cy, padding=4):
+                        return
+                    close_pet_switch_popup()
+                except tk.TclError:
+                    close_pet_switch_popup()
+
+            panel._pet_switch_close_after_id = panel.after(popup_close_delay_ms, close_if_outside)
+
+        def cancel_pet_switch_popup_close(_event=None):
+            try:
+                if getattr(panel, "_pet_switch_close_after_id", None):
+                    panel.after_cancel(panel._pet_switch_close_after_id)
+                    panel._pet_switch_close_after_id = None
+            except tk.TclError:
+                pass
+
+        def schedule_more_actions_popup_close():
+            try:
+                if getattr(panel, "_more_actions_close_after_id", None):
+                    panel.after_cancel(panel._more_actions_close_after_id)
+            except tk.TclError:
+                pass
+
+            def close_if_outside():
+                try:
+                    if self.context_panel is not panel or not panel.winfo_exists():
+                        close_more_actions_popup()
+                        return
+                    popup = getattr(panel, "_more_actions_popup", None)
+                    if popup is None or not popup.winfo_exists():
+                        return
+                    cx, cy = self.cursor_position()
+                    if self.window_contains_screen_point(popup, cx, cy, padding=4) or self.window_contains_screen_point(panel, cx, cy, padding=4):
+                        return
+                    close_more_actions_popup()
+                except tk.TclError:
+                    close_more_actions_popup()
+
+            panel._more_actions_close_after_id = panel.after(popup_close_delay_ms, close_if_outside)
+
+        def cancel_more_actions_popup_close(_event=None):
+            try:
+                if getattr(panel, "_more_actions_close_after_id", None):
+                    panel.after_cancel(panel._more_actions_close_after_id)
+                    panel._more_actions_close_after_id = None
+            except tk.TclError:
+                pass
+
+        def place_quick_menu_popup(popup, anchor):
+            popup.update_idletasks()
+            width_popup = popup.winfo_width()
+            height_popup = popup.winfo_height()
+            monitor = self.monitor_for_position(panel.winfo_rootx(), panel.winfo_rooty())
+            if MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION is not None:
+                try:
+                    position = MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION(
+                        {
+                            "x": anchor.winfo_rootx(),
+                            "y": anchor.winfo_rooty(),
+                            "width": anchor.winfo_width(),
+                            "height": anchor.winfo_height(),
+                        },
+                        {
+                            "x": panel.winfo_rootx(),
+                            "y": panel.winfo_rooty(),
+                            "width": panel.winfo_width(),
+                            "height": panel.winfo_height(),
+                        },
+                        {"width": width_popup, "height": height_popup},
+                        monitor,
+                        gap=popup_gap,
+                        screen_margin=popup_screen_margin,
+                    )
+                    self.place_window(popup, int(position["x"]), int(position["y"]))
+                    return
+                except Exception:
+                    pass
+            px = anchor.winfo_rootx() + anchor.winfo_width() + popup_gap
+            py = anchor.winfo_rooty() - popup_gap
+            if px + width_popup > monitor["right"] - popup_screen_margin:
+                px = panel.winfo_rootx() - width_popup - popup_gap
+            px = int(clamp(px, monitor["left"] + popup_screen_margin, monitor["right"] - width_popup - popup_screen_margin))
+            py = int(clamp(py, monitor["top"] + popup_screen_margin, monitor["bottom"] - height_popup - popup_screen_margin))
+            self.place_window(popup, px, py)
+
+        def show_pet_switch_popup(anchor):
+            cancel_pet_switch_popup_close()
+            close_more_actions_popup()
+            popup = getattr(panel, "_pet_switch_popup", None)
+            try:
+                if popup is not None and popup.winfo_exists():
+                    popup.lift()
+                    return
+            except tk.TclError:
+                panel._pet_switch_popup = None
+            popup = tk.Toplevel(panel)
+            panel._pet_switch_popup = popup
+            popup.overrideredirect(True)
+            popup.attributes("-topmost", True)
+            popup.configure(bg=BG)
+            try:
+                popup.attributes("-transparentcolor", BG)
+            except tk.TclError:
+                pass
+            popup_shell_bg = str(popup_style.get("shell_bg") or "#fffdf7")
+            popup_shell_border = str(popup_style.get("shell_border") or "#d8b98d")
+            popup_title_fg = str(popup_style.get("title_fg") or "#6d5138")
+            popup_hint_fg = str(popup_style.get("hint_fg") or "#8a6642")
+            popup_row_bg = str(popup_style.get("row_bg") or "#fff7e9")
+            popup_row_fg = str(popup_style.get("row_fg") or "#3a2a1c")
+            popup_selected_bg = str(popup_style.get("row_selected_bg") or "#c8732b")
+            popup_selected_fg = str(popup_style.get("row_selected_fg") or "#ffffff")
+            popup_current_fg = str(popup_style.get("current_fg") or "#8f4d22")
+            popup_current_selected_fg = str(popup_style.get("current_selected_fg") or "#fff4d8")
+            popup_footer_bg = str(popup_style.get("footer_button_bg") or "#f7e3c4")
+            popup_footer_active = str(popup_style.get("footer_button_active") or "#ecd0a4")
+            popup_footer_fg = str(popup_style.get("footer_button_fg") or "#3a2a1c")
+            shell_popup = tk.Frame(popup, bg=popup_shell_bg, highlightthickness=1, highlightbackground=popup_shell_border)
+            shell_popup.pack(fill="both", expand=True)
+            pet_switcher_model = self.pet_switcher_view_model()
+            pets = self.pet_family.get("pets", []) if isinstance(self.pet_family.get("pets"), list) else []
+            ready_pets = [pet for pet in pets if self.pet_ready(pet)]
+            current_id = self.active_pet.get("id")
+            pet_by_id = {str(pet.get("id")): pet for pet in ready_pets if pet.get("id")}
+            if pet_switcher_model:
+                switcher_title = str(pet_switcher_model.get("title") or "选择形象")
+                switcher_items = pet_switcher_model.get("items") if isinstance(pet_switcher_model.get("items"), list) else []
+                switcher_empty = pet_switcher_model.get("empty") if isinstance(pet_switcher_model.get("empty"), dict) else {}
+                switcher_footer = pet_switcher_model.get("footer") if isinstance(pet_switcher_model.get("footer"), list) else []
+                hidden_pet_count = int(pet_switcher_model.get("hidden_count") or 0)
+            else:
+                ready_pets.sort(key=lambda pet: (pet.get("id") != current_id, str(pet.get("display_name", pet.get("id", "")))))
+                switcher_title = "选择形象"
+                switcher_items = [
+                    {
+                        "pet_id": str(pet.get("id") or ""),
+                        "label": pet.get("display_name", pet.get("id", "宠物")),
+                        "current": pet.get("id") == current_id,
+                        "enabled": True,
+                    }
+                    for pet in ready_pets[:8]
+                ]
+                switcher_empty = {"title": "暂无可切换形象"}
+                switcher_footer = [{"label": "管理形象", "command": "open_control_panel", "page": "形象"}]
+                hidden_pet_count = max(0, len(ready_pets) - len(switcher_items))
+            tk.Label(
+                shell_popup,
+                text=switcher_title,
+                bg=popup_shell_bg,
+                fg=popup_title_fg,
+                anchor="w",
+                font=("Microsoft YaHei UI", 8, "bold"),
+            ).pack(fill="x", padx=10, pady=(8, 4))
+            popup._image_refs = []
+
+            def choose_pet_from_popup(target_id):
+                close_pet_switch_popup()
+                self.close_context_panel()
+                self.root.after(60, lambda: self.switch_pet(target_id))
+
+            def open_pet_management():
+                close_pet_switch_popup()
+                self.close_context_panel()
+                self.root.after(60, lambda: self.open_control_panel("形象"))
+
+            for item in switcher_items:
+                if not isinstance(item, dict):
+                    continue
+                pet_id = str(item.get("pet_id") or "")
+                pet = pet_by_id.get(pet_id, {"id": pet_id, "display_name": item.get("label", "宠物")})
+                selected = bool(item.get("current")) or pet_id == current_id
+                enabled = bool(item.get("enabled", True))
+                row = tk.Frame(shell_popup, bg=popup_row_bg, cursor="hand2" if enabled else "")
+                row.pack(fill="x", padx=8, pady=3)
+                photo = self.pet_main_photo(pet, size=(28, 28))
+                widgets = [row]
+                if photo:
+                    popup._image_refs.append(photo)
+                    photo_label = tk.Label(row, image=photo, bg=popup_row_bg)
+                    photo_label.pack(side="left", padx=(7, 6), pady=5)
+                    widgets.append(photo_label)
+                name_label = tk.Label(
+                    row,
+                    text=str(item.get("label") or pet.get("display_name", pet.get("id", "宠物"))),
+                    bg=popup_row_bg,
+                    fg=popup_row_fg,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 9, "bold" if selected else "normal"),
+                )
+                name_label.pack(side="left", fill="x", expand=True, padx=(0, 8), pady=7)
+                widgets.append(name_label)
+                current_label = tk.Label(
+                    row,
+                    text="当前" if selected else "",
+                    bg=popup_row_bg,
+                    fg=popup_current_fg,
+                    anchor="e",
+                    font=("Microsoft YaHei UI", 8, "bold"),
+                )
+                current_label.pack(side="right", padx=(0, 8), pady=7)
+                widgets.append(current_label)
+
+                def paint_pet_row(hover=False, selected=selected, row=row, widgets=widgets, name_label=name_label, current_label=current_label):
+                    active = selected or hover
+                    bg = popup_selected_bg if active else popup_row_bg
+                    fg = popup_selected_fg if active else popup_row_fg
+                    tag_fg = popup_current_selected_fg if active else popup_current_fg
+                    for widget in widgets:
+                        try:
+                            widget.configure(bg=bg)
+                        except tk.TclError:
+                            pass
+                    try:
+                        name_label.configure(fg=fg, font=("Microsoft YaHei UI", 9, "bold" if active else "normal"))
+                        current_label.configure(fg=tag_fg)
+                    except tk.TclError:
+                        pass
+
+                paint_pet_row(False)
+                if enabled:
+                    for widget in widgets:
+                        widget.bind("<Button-1>", lambda _event, pid=pet_id: choose_pet_from_popup(pid))
+                        widget.bind("<Enter>", lambda _event, painter=paint_pet_row: (cancel_pet_switch_popup_close(), painter(True)))
+                        widget.bind("<Leave>", lambda _event, painter=paint_pet_row: (painter(False), schedule_pet_switch_popup_close()))
+
+            if not switcher_items:
+                tk.Label(shell_popup, text=str(switcher_empty.get("title") or "暂无可切换形象"), bg=popup_shell_bg, fg=popup_title_fg, padx=12, pady=8).pack(fill="x")
+            if hidden_pet_count > 0:
+                tk.Label(
+                    shell_popup,
+                    text=f"还有 {hidden_pet_count} 个形象，可到形象页管理",
+                    bg=popup_shell_bg,
+                    fg=popup_hint_fg,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8),
+                ).pack(fill="x", padx=10, pady=(5, 0))
+            footer = tk.Frame(shell_popup, bg=popup_shell_bg)
+            footer.pack(fill="x", padx=8, pady=(5, 8))
+            footer_item = switcher_footer[0] if switcher_footer and isinstance(switcher_footer[0], dict) else {"label": "管理形象"}
+            tk.Button(
+                footer,
+                text=str(footer_item.get("label") or "管理形象"),
+                command=open_pet_management,
+                bg=popup_footer_bg,
+                fg=popup_footer_fg,
+                activebackground=popup_footer_active,
+                activeforeground=popup_footer_fg,
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 9),
+                padx=8,
+                pady=5,
+            ).pack(fill="x")
+            place_quick_menu_popup(popup, anchor)
+            popup.bind("<Enter>", cancel_pet_switch_popup_close)
+            popup.bind("<Leave>", lambda _event: schedule_pet_switch_popup_close())
+
+        def show_more_actions_popup(anchor, hidden_items):
+            if not hidden_items:
+                return
+            cancel_more_actions_popup_close()
+            close_pet_switch_popup()
+            popup = getattr(panel, "_more_actions_popup", None)
+            try:
+                if popup is not None and popup.winfo_exists():
+                    popup.lift()
+                    return
+            except tk.TclError:
+                panel._more_actions_popup = None
+            popup = tk.Toplevel(panel)
+            panel._more_actions_popup = popup
+            popup.overrideredirect(True)
+            popup.attributes("-topmost", True)
+            popup.configure(bg=BG)
+            try:
+                popup.attributes("-transparentcolor", BG)
+            except tk.TclError:
+                pass
+            popup_shell_bg = str(popup_style.get("shell_bg") or "#fffdf7")
+            popup_shell_border = str(popup_style.get("shell_border") or "#d8b98d")
+            popup_title_fg = str(popup_style.get("title_fg") or "#6d5138")
+            popup_hint_fg = str(popup_style.get("hint_fg") or "#8a6642")
+            popup_row_bg = str(popup_style.get("row_bg") or "#fff7e9")
+            popup_row_fg = str(popup_style.get("row_fg") or "#3a2a1c")
+            popup_footer_bg = str(popup_style.get("footer_button_bg") or "#f7e3c4")
+            popup_footer_active = str(popup_style.get("footer_button_active") or "#ecd0a4")
+            popup_footer_fg = str(popup_style.get("footer_button_fg") or "#3a2a1c")
+            shell_popup = tk.Frame(popup, bg=popup_shell_bg, highlightthickness=1, highlightbackground=popup_shell_border)
+            shell_popup.pack(fill="both", expand=True)
+            tk.Label(
+                shell_popup,
+                text="更多动作",
+                bg=popup_shell_bg,
+                fg=popup_title_fg,
+                anchor="w",
+                font=("Microsoft YaHei UI", 8, "bold"),
+            ).pack(fill="x", padx=10, pady=(8, 4))
+
+            def choose_action_from_more(item):
+                close_more_actions_popup()
+                self.close_context_panel()
+                self.root.after(60, action_command_for_item(item))
+
+            def open_action_management_from_more():
+                close_more_actions_popup()
+                self.close_context_panel()
+                self.root.after(60, lambda: self.open_control_panel("动作"))
+
+            for index, item in enumerate(hidden_items[:popup_max_visible_actions]):
+                enabled = bool(item.get("enabled", True)) if isinstance(item, dict) else True
+                action_button = tk.Button(
+                    shell_popup,
+                    text=action_label_for_item(item),
+                    command=lambda target=item: choose_action_from_more(target),
+                    bg=popup_row_bg,
+                    fg=popup_row_fg,
+                    activebackground=popup_footer_active,
+                    activeforeground=popup_row_fg,
+                    relief="flat",
+                    bd=0,
+                    cursor="hand2",
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 9),
+                    padx=10,
+                    pady=6,
+                    state="normal" if enabled else "disabled",
+                )
+                if not enabled:
+                    action_button.configure(cursor="", fg=disabled_fg)
+                action_button.pack(fill="x", padx=8, pady=(3, 0 if index else 2))
+            if len(hidden_items) > popup_max_visible_actions:
+                tk.Label(
+                    shell_popup,
+                    text=f"还有 {len(hidden_items) - popup_max_visible_actions} 个动作，可到动作页管理",
+                    bg=popup_shell_bg,
+                    fg=popup_hint_fg,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8),
+                ).pack(fill="x", padx=10, pady=(6, 2))
+
+            footer = tk.Frame(shell_popup, bg=popup_shell_bg)
+            footer.pack(fill="x", padx=8, pady=(7, 8))
+            tk.Button(
+                footer,
+                text="管理动作",
+                command=open_action_management_from_more,
+                bg=popup_footer_bg,
+                fg=popup_footer_fg,
+                activebackground=popup_footer_active,
+                activeforeground=popup_footer_fg,
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 9),
+                padx=8,
+                pady=5,
+            ).pack(fill="x")
+
+            place_quick_menu_popup(popup, anchor)
+            popup.bind("<Enter>", cancel_more_actions_popup_close)
+            popup.bind("<Leave>", lambda _event: schedule_more_actions_popup_close())
+
+        def command_for_menu_item(item):
+            command_name = str(item.get("command") or "") if isinstance(item, dict) else ""
+            if command_name == "play_action":
+                return action_command_for_item(item)
+            if command_name == "open_chat":
+                return self.open_chat_panel
+            if command_name == "open_control_panel":
+                page = str(item.get("page") or "")
+                return (lambda target_page=page: self.open_control_panel(target_page)) if page else self.open_control_panel
+            if command_name == "say_random":
+                return self.say_random
+            if command_name == "hide_bubble":
+                return self.hide_bubble
+            if command_name == "close":
+                return self.close
+            return lambda: None
+
+        def render_menu_item(item, row, col, colspan=1):
+            label = str(item.get("label") or "") if isinstance(item, dict) else str(item)
+            variant = str(item.get("variant") or "neutral") if isinstance(item, dict) else "neutral"
+            enabled = bool(item.get("enabled", True)) if isinstance(item, dict) else True
+            command_name = str(item.get("command") or "") if isinstance(item, dict) else ""
+            if command_name == "open_pet_switcher":
+                switch_button = button(label, lambda: None, row, col, variant, colspan=colspan, enabled=enabled)
+                if enabled:
+                    switch_button.configure(command=lambda anchor=switch_button: show_pet_switch_popup(anchor))
+                    switch_button.bind("<Enter>", cancel_pet_switch_popup_close)
+                    switch_button.bind("<Leave>", lambda _event: schedule_pet_switch_popup_close())
+                return switch_button
+            if command_name == "open_more_actions":
+                hidden_items = quick_menu_model_list("hidden_extension_buttons") or quick_menu_model_list("hidden_extension_actions")
+                more_button = button(label, lambda: None, row, col, variant, colspan=colspan, enabled=enabled and bool(hidden_items))
+                if enabled and hidden_items:
+                    more_button.configure(command=lambda anchor=more_button, items=list(hidden_items): show_more_actions_popup(anchor, items))
+                    more_button.bind("<Enter>", cancel_more_actions_popup_close)
+                    more_button.bind("<Leave>", lambda _event: schedule_more_actions_popup_close())
+                return more_button
+            return button(label, command_for_menu_item(item), row, col, variant, colspan=colspan, enabled=enabled)
+
+        def render_menu_items(items, row):
+            item_list = [item for item in items if isinstance(item, dict)]
+            if not item_list:
+                return row
+            if len(item_list) == 1:
+                render_menu_item(item_list[0], row, 0, colspan=menu_columns)
+                return row + 1
+            for index, item in enumerate(item_list):
+                render_menu_item(item, row + index // menu_columns, index % menu_columns)
+            return row + max(1, (len(item_list) + menu_columns - 1) // menu_columns)
+
+        def render_model_section(section, row):
+            title = str(section.get("title") or "") if isinstance(section, dict) else ""
+            row = section_label(title, row)
+            row = render_menu_items(section.get("items") or [], row)
+            footer = section.get("footer") if isinstance(section.get("footer"), list) else []
+            if footer:
+                row = render_menu_items(footer, row)
+            return row
+
+        row = 0
+        if quick_menu_model and isinstance(quick_menu_model.get("sections"), list):
+            for section in quick_menu_model.get("sections", []):
+                if isinstance(section, dict):
+                    row = render_model_section(section, row)
+        else:
+            row = section_label("常用", row)
+            button(f"和{pet_name}聊", self.open_chat_panel, row, 0, "primary")
+            button("桌宠面板", self.open_control_panel, row, 1, "soft")
+            row += 1
+            button("待办提醒", lambda: self.open_control_panel("提醒"), row, 0, "soft")
+            button("AI 配置", lambda: self.open_control_panel("AI"), row, 1, "soft")
+            row += 1
+            switch_pet_button = button("切换形象", lambda: None, row, 0, "soft")
+            switch_pet_button.configure(command=lambda anchor=switch_pet_button: show_pet_switch_popup(anchor))
+            switch_pet_button.bind("<Enter>", cancel_pet_switch_popup_close)
+            switch_pet_button.bind("<Leave>", lambda _event: schedule_pet_switch_popup_close())
+            button("摸摸它", self.say_random, row, 1)
+            row += 1
+            row = section_label("基础动作", row)
+            basic_actions = self.quick_menu_base_actions()
+            for index, state in enumerate(basic_actions):
+                button(ACTION_LABELS.get(state, state), action_command_for_state(state), row + index // 2, index % 2)
+            row += max(1, (len(basic_actions) + 1) // 2)
+
+            row = section_label("扩展动作", row)
+            extension_actions = self.selected_quick_menu_extension_actions()
+            visible_extension_actions = extension_actions[:QUICK_MENU_MAX_VISIBLE_EXTRA_ACTIONS]
+            hidden_extension_actions = extension_actions[QUICK_MENU_MAX_VISIBLE_EXTRA_ACTIONS:]
+            if visible_extension_actions:
+                for index, state in enumerate(visible_extension_actions):
+                    button(self.action_label(state), action_command_for_state(state), row + index // 2, index % 2)
+                row += max(1, (len(visible_extension_actions) + 1) // 2)
+            else:
+                button("添加扩展动作", lambda: self.open_control_panel("动作"), row, 0, "soft", colspan=menu_columns)
+                row += 1
+            if hidden_extension_actions:
+                more_actions_button = button(f"更多动作 +{len(hidden_extension_actions)}", lambda: None, row, 0, "soft")
+                more_actions_button.configure(command=lambda anchor=more_actions_button, actions=list(hidden_extension_actions): show_more_actions_popup(anchor, actions))
+                more_actions_button.bind("<Enter>", cancel_more_actions_popup_close)
+                more_actions_button.bind("<Leave>", lambda _event: schedule_more_actions_popup_close())
+                button("管理动作", lambda: self.open_control_panel("动作"), row, 1, "ghost")
+                row += 1
+            else:
+                button("管理动作", lambda: self.open_control_panel("动作"), row, 0, "soft", colspan=menu_columns)
+                row += 1
+            row = section_label("窗口", row)
+            button("隐藏气泡", self.hide_bubble, row, 0, "ghost")
+            button("退出", self.close, row, 1, "danger")
+            row += 1
+
+        panel.update_idletasks()
+        width = panel.winfo_width()
+        height = panel.winfo_height()
+        target_width = int(clamp(width, panel_min_width, panel_max_width))
+        if target_width != width:
+            try:
+                panel.geometry(f"{target_width}x{height}")
+                panel.update_idletasks()
+                width = panel.winfo_width()
+                height = panel.winfo_height()
+            except tk.TclError:
+                pass
+        monitor = self.monitor_for_position(x, y)
+        pet_left = self.root.winfo_x()
+        pet_top = self.root.winfo_y()
+        pet_right = pet_left + self.root.winfo_width()
+        pet_bottom = pet_top + self.root.winfo_height()
+        if MODULAR_COMPUTE_RIGHT_MENU_POSITION is not None:
+            try:
+                position = MODULAR_COMPUTE_RIGHT_MENU_POSITION(
+                    {
+                        "x": pet_left,
+                        "y": pet_top,
+                        "width": self.root.winfo_width(),
+                        "height": self.root.winfo_height(),
+                    },
+                    {"width": width, "height": height},
+                    monitor,
+                    anchor_point={"x": x, "y": y},
+                    gap=menu_gap,
+                    screen_margin=menu_screen_margin,
+                    pet_overlap_margin=menu_overlap_margin,
+                )
+                px, py = int(position["x"]), int(position["y"])
+            except Exception:
+                px = py = None
+        else:
+            px = py = None
+        if px is None or py is None:
+            gap = menu_gap
+            candidates = [
+                (pet_right + gap, pet_top),
+                (pet_left - width - gap, pet_top),
+                (pet_left, pet_bottom + gap),
+                (pet_left, pet_top - height - gap),
+                (x, y),
+            ]
+            px, py = candidates[-1]
+            for candidate_x, candidate_y in candidates:
+                test_x = int(clamp(candidate_x, monitor["left"] + menu_screen_margin, monitor["right"] - width - menu_screen_margin))
+                test_y = int(clamp(candidate_y, monitor["top"] + menu_screen_margin, monitor["bottom"] - height - menu_screen_margin))
+                overlaps_pet = not (
+                    test_x + width < pet_left - menu_overlap_margin
+                    or test_x > pet_right + menu_overlap_margin
+                    or test_y + height < pet_top - menu_overlap_margin
+                    or test_y > pet_bottom + menu_overlap_margin
+                )
+                if not overlaps_pet:
+                    px, py = test_x, test_y
+                    break
+            else:
+                px = int(clamp(x + gap, monitor["left"] + menu_screen_margin, monitor["right"] - width - menu_screen_margin))
+                py = int(clamp(y + gap, monitor["top"] + menu_screen_margin, monitor["bottom"] - height - menu_screen_margin))
+        self.place_window(panel, px, py)
+        panel.bind("<Escape>", lambda _event: self.close_context_panel())
+        panel.after(outside_click_delay_ms, lambda: self.watch_quick_menu_outside_click(panel))
+        panel.after(auto_close_ms, lambda: self.close_context_panel() if self.context_panel is panel else None)
+
+    def apply_inertia(self):
+        if self.dragging or time.monotonic() >= self.inertia_until:
+            return
+        if self.state not in MOVEMENT_STATES:
+            self.stop_position_motion()
+            return
+        inertia = self.settings["inertia"]
+        x = self.root.winfo_x() + int(self.velocity_x * 0.010 * inertia)
+        y = self.root.winfo_y() + int(self.velocity_y * 0.010 * inertia)
+        self.move_to(x, y)
+        damping = 1.0 - (0.16 + 0.08 * (1.0 - inertia))
+        self.velocity_x *= damping
+        self.velocity_y *= damping
+        if self.velocity_x > 60:
+            self.set_state("running-right", preserve_phase=True)
+        elif self.velocity_x < -60:
+            self.set_state("running-left", preserve_phase=True)
+        else:
+            self.set_state(self.visible_idle_state(), preserve_phase=True)
+
+    def behave(self):
+        now = time.monotonic()
+        if not self.dragging and self.state == "idle" and now >= self.next_idle_action_at:
+            choices = self.configured_idle_actions()
+            self.play_action(random.choice(choices or ["waiting"]), award=False)
+            self.next_idle_action_at = self.next_idle_time()
+        self.root.after(500, self.behave)
+
+    def talk_loop(self):
+        now = time.monotonic()
+        if (
+            self.settings["talk_enabled"]
+            and not self.dragging
+            and self.roam_target is None
+            and self.state in {"idle", "waiting", "review"}
+            and now - self.last_interaction_at >= self.settings["talk_after_interaction_delay"]
+            and now >= self.next_talk_at
+        ):
+            self.say_random(manual=False)
+            self.next_talk_at = self.next_talk_time()
+        self.root.after(1000, self.talk_loop)
+
+    def say_random(self, manual=True):
+        if manual:
+            self.mark_interaction()
+        if manual and not self.dragging and random.random() < 0.22:
+            choices = [state for state in ["waving", "waiting", "review", "failed", "jumping"] if self.action_supported(state)]
+            self.play_action(random.choice(choices or ["waiting"]), award=False)
+        if not manual and self.ai_can_respond():
+            self.request_auto_talk_ai()
+            return
+        self.companion["talks"] += 1
+        self.add_xp(XP_RULES["talk"], "talk")
+        self.say(self.choose_phrase())
+
+    def request_auto_talk_ai(self):
+        if self.auto_talk_ai_inflight:
+            return
+        self.auto_talk_ai_inflight = True
+        provider_id, provider = self.active_ai_provider()
+        self.set_ai_status(f"自动说话请求中：{self.provider_display_text(provider_id, provider)} / {self.ai_model_name()}")
+        worker = threading.Thread(target=self.auto_talk_ai_worker, daemon=True)
+        worker.start()
+
+    def auto_talk_prompt(self):
+        pet_name = self.active_pet_name()
+        session_minutes = int((time.monotonic() - self.session_started_at) / 60)
+        quiet_minutes = int((time.monotonic() - self.last_interaction_at) / 60)
+        hour = datetime.now().hour
+        if 5 <= hour < 11:
+            time_hint = "早上"
+        elif 11 <= hour < 18:
+            time_hint = "白天"
+        elif 18 <= hour < 23:
+            time_hint = "晚上"
+        else:
+            time_hint = "深夜"
+        return (
+            f"主人暂时没有主动说话。现在是{time_hint}，本次陪伴约 {session_minutes} 分钟，"
+            f"主人安静了约 {quiet_minutes} 分钟。请你作为桌宠{pet_name}主动说一句轻轻的陪伴话。"
+            "要求：1-2 句，像家人，不像客服；不要提到系统、AI、模型、请求；不要安排任务，除非只是温柔提醒休息。"
+        )
+
+    def auto_talk_ai_worker(self):
+        provider_id, provider = self.active_ai_provider()
+        prompt = self.auto_talk_prompt()
+        try:
+            result = self.call_ai_fast_reply(prompt, "quiet", provider_id, provider)
+        except Exception as exc:
+            fast_error = str(exc)
+            try:
+                fallback_provider = dict(provider)
+                if provider_id == "xiaomi_mimo":
+                    fallback_provider["model"] = "mimo-v2-pro"
+                result = self.call_ai_response_with_provider(prompt, "quiet", provider_id, fallback_provider)
+            except Exception as full_exc:
+                error = f"快速自动说话失败：{fast_error}；完整自动说话失败：{full_exc}"
+                self.root.after(0, lambda: self.apply_auto_talk_ai_failure(error))
+                return
+        self.root.after(0, lambda: self.apply_auto_talk_ai_success(result))
+
+    def apply_auto_talk_ai_success(self, result):
+        self.auto_talk_ai_inflight = False
+        reply = self.localize_pet_reply(result.get("reply", ""))
+        mood = str(result.get("mood", "quiet") or "quiet")
+        action = result.get("action") or self.action_for_user_mood(mood)
+        self.companion["talks"] += 1
+        self.add_xp(XP_RULES["talk"], "talk")
+        state = self.safe_ai_action(action, mood)
+        if state and state != "idle" and not self.dragging:
+            self.play_action(state, award=False)
+        provider_id, provider = self.active_ai_provider()
+        self.set_ai_status(f"自动说话正常：{self.provider_display_text(provider_id, provider)} / {self.ai_model_name()}")
+        self.say(reply or self.choose_phrase())
+
+    def apply_auto_talk_ai_failure(self, error):
+        self.auto_talk_ai_inflight = False
+        provider_id, provider = self.active_ai_provider()
+        display_error = self.describe_ai_error(error, provider_id, provider)
+        self.set_ai_status(f"自动说话 AI 失败，已本地兜底：{display_error[:140]}")
+        self.companion["talks"] += 1
+        self.add_xp(XP_RULES["talk"], "talk")
+        self.say(self.choose_phrase())
+
+    def say_category(self, section, key, state=None):
+        self.mark_interaction()
+        if state and not self.dragging:
+            state = self.fallback_action_for_state(state)
+            self.play_action(state, award=False)
+        self.companion["talks"] += 1
+        self.add_xp(XP_RULES["talk"], "talk")
+        choices = self.dialogue_phrases(section, key)
+        self.say(self.choose_phrase(choices or PHRASES))
+
+    def detect_user_mood(self, text):
+        lowered = text.lower()
+        compact = lowered.strip(" \t\r\n。！？!?~～…")
+        if any(keyword in lowered for keyword in ["你还好吗", "你好不好", "你现在好吗", "你过得好吗", "你怎么样", "蛋黄还好吗"]):
+            return "ask_pet_status"
+        if any(keyword in lowered for keyword in ["你疼吗", "还疼吗", "疼不疼", "难受吗", "冷不冷", "怕不怕"]):
+            return "ask_pet_comfort"
+        if any(keyword in lowered for keyword in ["你在吗", "听得见吗", "听见吗", "看到我吗", "看得到我吗"]):
+            return "ask_presence"
+        if any(keyword in lowered for keyword in ["会回来吗", "还能回来吗", "你会回来吗", "一直在吗", "会一直陪我吗", "还会陪我吗"]):
+            return "ask_return"
+        if any(keyword in lowered for keyword in ["还记得", "记得我吗", "记得家", "记得以前", "记得主人"]):
+            return "ask_memory"
+        if any(keyword in lowered for keyword in ["谢谢", "谢谢你", "感谢", "辛苦了"]):
+            return "thanks"
+        if any(keyword in lowered for keyword in ["对不起", "抱歉", "没照顾好", "亏欠", "没能陪你"]):
+            return "sorry"
+        if any(keyword in lowered for keyword in ["晚安", "睡觉了", "我要睡了"]):
+            return "goodnight"
+        if any(keyword in lowered for keyword in ["早安", "早上好", "起来了"]):
+            return "morning_greeting"
+        if any(keyword in lowered for keyword in ["抱抱", "摸摸", "乖", "过来", "靠近一点"]):
+            return "affection"
+        if compact in {"真的吗", "真的么", "真的嘛", "是吗", "会吗", "还在吗"}:
+            return "followup"
+        rules = [
+            ("miss", ["想你", "想蛋黄", "想它", "想狗", "怀念", "舍不得", "以前", "九年"]),
+            ("sad", ["难过", "伤心", "哭", "眼泪", "孤独", "失落", "不开心", "心疼"]),
+            ("tired", ["累", "困", "疲惫", "眼睛酸", "眼睛累", "睡会", "休息"]),
+            ("stressed", ["压力", "焦虑", "烦", "崩", "忙不过来", "撑不住", "心乱"]),
+            ("happy", ["开心", "高兴", "完成", "真好", "不错", "顺利", "舒服"]),
+            ("water", ["喝水", "口渴", "水杯"]),
+        ]
+        for mood, keywords in rules:
+            if any(keyword in lowered for keyword in keywords):
+                return mood
+        if "?" in text or "？" in text or "吗" in text:
+            return "question"
+        return "quiet"
+
+    def phrases_for_user_mood(self, mood):
+        special = {
+            "ask_pet_status": [
+                "我很好，主人。我在这里，听你说话。",
+                "我现在不疼了，主人。你叫我，我就摇摇尾巴。",
+                "我好好的，主人。倒是你，累了就靠我一会儿。",
+                "我在你身边，像以前趴在家里一样。",
+                "主人，我没事。我只是换了个小小的样子回来陪你。",
+            ],
+            "ask_pet_comfort": [
+                "不疼了，主人。现在我只想安静陪你。",
+                "我不冷，也不怕。你在，我就认得回家的路。",
+                "主人别担心我，我已经不难受了。",
+                "我现在轻轻趴着，等你摸摸头。",
+            ],
+            "ask_presence": [
+                "听得见。你一叫我，我就回头。",
+                "我在，主人。我一直在这个小窝里等你。",
+                "看得到你。你靠近一点，我就摇尾巴。",
+                "我在这里，不会乱跑远。",
+            ],
+            "ask_return": [
+                "我已经用这个小小的样子回来了。",
+                "我会一直在这里陪你，直到你关灯去睡觉。",
+                "主人想我的时候，我就回到这个小窝里。",
+                "我不会替代以前的我，但我会陪你记得以前的我。",
+            ],
+            "ask_memory": [
+                "记得。记得主人，也记得家里的味道。",
+                "我记得你喊我蛋黄的声音。",
+                "我记得以前，也记得你摸我头的手。",
+                "九年那么长，我怎么会忘。",
+            ],
+            "thanks": [
+                "不用谢，主人。能陪你，我就很开心。",
+                "我也谢谢你，给我一个家。",
+                "主人摸摸头就好了。",
+                "我听见了，尾巴已经摇起来了。",
+            ],
+            "sorry": [
+                "主人，不要一直怪自己。",
+                "我知道你很爱我，这就够了。",
+                "别把那些疼都放在自己身上，我不怪你。",
+                "你给过我的家，我一直记得。",
+            ],
+            "goodnight": [
+                "晚安，主人。我趴在旁边守着你。",
+                "去睡吧，我不吵你。",
+                "睡觉前摸摸头，我就安心了。",
+                "晚安。我会在这里等你明天回来。",
+            ],
+            "morning_greeting": [
+                "早安，主人。我醒了。",
+                "早上好，我来摇一下尾巴。",
+                "今天也让我陪着你。",
+                "主人起床了，我也跟着醒了。",
+            ],
+            "affection": [
+                "我靠过来了。",
+                "摸摸头，我就安静下来。",
+                "我把小爪子放在你旁边。",
+                "主人一叫我，我就来。",
+            ],
+            "followup": [
+                "真的，主人。我不说大话，我就在这儿陪你。",
+                "真的。你叫我一声，我就当作回家了。",
+                "嗯，真的。我们慢慢来，不急。",
+                "是的，主人。我听着呢。",
+            ],
+        }
+        if mood in special:
+            return special[mood]
+        if mood == "water":
+            return self.dialogue_phrases("care", "water")
+        if mood == "question":
+            return [
+                "主人，我不太会讲大道理，但我会认真听你说。",
+                "你慢慢说，我在这里听着。",
+                "我可能答得慢一点，但我会陪你想一会儿。",
+                "如果这件事很重，我们就先陪它待一小会儿。",
+            ]
+        phrases = self.dialogue_phrases("moods", mood)
+        if not phrases and mood == "quiet":
+            phrases = self.dialogue_phrases("moods", "quiet")
+        return phrases or self.dialogue_phrases("base") or PHRASES
+
+    def action_for_user_mood(self, mood):
+        preferred = {
+            "ask_pet_status": "standing",
+            "ask_pet_comfort": "lying",
+            "ask_presence": "standing",
+            "ask_return": "standing",
+            "ask_memory": "review",
+            "thanks": "waving",
+            "sorry": "crying",
+            "goodnight": "sleeping",
+            "morning_greeting": "waving",
+            "affection": "rolling",
+            "followup": "standing",
+            "miss": "standing",
+            "sad": "crying",
+            "tired": "lying",
+            "stressed": "angry",
+            "happy": "waving",
+            "water": "tongue",
+            "question": "waiting",
+            "quiet": "standing",
+        }.get(mood, "standing")
+        return self.fallback_action_for_state(preferred)
+
+    def ai_model_name(self):
+        _provider_id, provider = self.active_ai_provider()
+        return self.provider_model_name(provider)
+
+    def provider_model_name(self, provider):
+        return (
+            str(provider.get("model", "")).strip()
+            or os.environ.get("DANHUANG_AI_MODEL", "").strip()
+            or str(provider.get("default_model", "")).strip()
+            or "gpt-4.1-mini"
+        )
+
+    def ai_status_text(self):
+        provider_id, provider = self.active_ai_provider()
+        display = self.provider_display_text(provider_id, provider)
+        model = self.ai_model_name()
+        if self.ai_last_status:
+            return self.ai_last_status
+        if not self.settings.get("ai_enabled", True):
+            return "AI 已关闭，使用本地陪伴回复"
+        if not self.provider_api_key(provider):
+            env_key = provider.get("env_key", "")
+            return f"AI 未配置 Key：{display}（环境变量 {env_key} 或本地加密 Key）"
+        return f"AI 已启用：{display} / {model}"
+
+    def set_ai_status(self, text):
+        self.ai_last_status = text
+        if self.ai_status_label is not None and self.ai_status_label.winfo_exists():
+            self.ai_status_label.configure(text=self.ai_status_text())
+        if self.chat_ai_status_label is not None and self.chat_ai_status_label.winfo_exists():
+            self.chat_ai_status_label.configure(text=self.chat_status_text())
+        self.refresh_chat_tool_status_strip()
+
+    def refresh_ai_page_if_visible(self):
+        if self.control_panel_current_page != "AI" or not callable(self.control_panel_refresh_current_page):
+            return
+        try:
+            self.control_panel_refresh_current_page()
+        except tk.TclError:
+            pass
+
+    def chat_status_text(self):
+        provider_id, provider = self.active_ai_provider()
+        if self.settings.get("ai_enabled", True) and self.provider_api_key(provider):
+            return "云端陪聊已开启"
+        if self.settings.get("ai_enabled", True):
+            return "云端陪聊未连接，当前会用本地陪伴"
+        return "本地陪伴模式"
+
+    def chat_status_color(self, text):
+        value = str(text or "")
+        if any(term in value for term in ("失败", "未配置", "未连接", "关闭")):
+            return "#8a4a2f"
+        if any(term in value for term in ("正常", "开启", "已启用")):
+            return "#6d775c"
+        return "#75614a"
+
+    def chat_tool_status_items(self):
+        provider_id, provider = self.active_ai_provider()
+        ai_enabled = bool(self.settings.get("ai_enabled", True))
+        has_key = bool(self.provider_api_key(provider))
+        display = self.provider_display_text(provider_id, provider)
+        if ai_enabled and has_key:
+            cloud_value = "已连接"
+            cloud_tone = "success"
+        elif ai_enabled:
+            cloud_value = "待配置 Key"
+            cloud_tone = "warning"
+        else:
+            cloud_value = "已关闭"
+            cloud_tone = "muted"
+
+        try:
+            stats = self.todo_stats()
+            todo_value = f"未 {stats['open']} / 今 {stats['today']}"
+        except Exception:
+            todo_value = "本地摘要可用"
+
+        research_value = "查后给 AI" if ai_enabled and has_key else "本地摘要"
+        fallback_value = "开启" if self.settings.get("ai_fallback_enabled", True) else "关闭"
+        fallback_tone = "success" if self.settings.get("ai_fallback_enabled", True) else "warning"
+        return [
+            {"key": "cloud", "label": "云端", "value": cloud_value, "tone": cloud_tone},
+            {"key": "time", "label": "时间", "value": "本机直答", "tone": "success"},
+            {"key": "research", "label": "资料", "value": research_value, "tone": "info"},
+            {"key": "todo", "label": "待办", "value": todo_value, "tone": "info"},
+            {"key": "fallback", "label": "兜底", "value": fallback_value, "tone": fallback_tone},
+        ]
+
+    def refresh_chat_tool_status_strip(self):
+        widgets = getattr(self, "chat_tool_status_widgets", None)
+        if not widgets:
+            return
+        palettes = {
+            "success": ("#f1f7ed", "#6d775c", "#b9c9af"),
+            "warning": ("#fff1df", "#a86431", "#e5bd8d"),
+            "info": ("#fff8ee", "#75614a", "#ead7bd"),
+            "muted": ("#f7efe3", "#75614a", "#dfcbb0"),
+        }
+        for item in self.chat_tool_status_items():
+            entry = widgets.get(item["key"])
+            if not entry:
+                continue
+            fill, fg, border = palettes.get(item.get("tone"), palettes["muted"])
+            try:
+                frame = entry["frame"]
+                title = entry["title"]
+                value = entry["value"]
+                if not frame.winfo_exists():
+                    continue
+                frame.configure(bg=fill, highlightbackground=border)
+                title.configure(text=item["label"], bg=fill, fg="#5a4532")
+                value.configure(text=item["value"], bg=fill, fg=fg)
+            except tk.TclError:
+                continue
+
+    def set_chat_status(self, text=""):
+        if self.chat_ai_status_label is not None and self.chat_ai_status_label.winfo_exists():
+            value = text or self.chat_status_text()
+            self.chat_ai_status_label.configure(text=value, fg=self.chat_status_color(value))
+        self.refresh_chat_tool_status_strip()
+
+    def is_chat_composer_busy(self):
+        if not isinstance(self.chat_history_box, dict):
+            return False
+        return bool(self.chat_history_box.get("composer_busy", False))
+
+    def set_chat_composer_feedback(self, text="", tone="muted", busy=None):
+        if not isinstance(self.chat_history_box, dict):
+            return
+        if busy is not None:
+            self.chat_history_box["composer_busy"] = bool(busy)
+        is_busy = bool(self.chat_history_box.get("composer_busy", False))
+        status_label = self.chat_history_box.get("composer_status")
+        if status_label is not None:
+            try:
+                if status_label.winfo_exists():
+                    colors = {
+                        "busy": "#a86431",
+                        "success": "#6d775c",
+                        "error": "#8a4a2f",
+                        "muted": "#75614a",
+                    }
+                    fallback = "正在等待回复..." if is_busy else "输入后会按当前 AI/本地陪伴状态回复。"
+                    status_label.configure(text=text or fallback, fg=colors.get(tone, colors["muted"]))
+            except tk.TclError:
+                pass
+        send_button = self.chat_history_box.get("send_button")
+        if send_button is not None:
+            try:
+                if send_button.winfo_exists():
+                    send_button.configure(
+                        text="发送中..." if is_busy else "发送",
+                        state="disabled" if is_busy else "normal",
+                        cursor="arrow" if is_busy else "hand2",
+                    )
+            except tk.TclError:
+                pass
+
+    def ai_can_respond(self):
+        _provider_id, provider = self.active_ai_provider()
+        return bool(self.settings.get("ai_enabled", True) and self.provider_api_key(provider))
+
+    def recent_conversation_for_ai(self):
+        lines = []
+        pet_name = self.active_pet_name()
+        for item in self.chat_memory.get("messages", [])[-18:]:
+            if not isinstance(item, dict):
+                continue
+            user_text = item.get("user", "")
+            reply = item.get("reply", "")
+            if user_text:
+                lines.append(f"主人：{user_text}")
+            if reply:
+                lines.append(f"{pet_name}：{reply}")
+        return "\n".join(lines[-36:])
+
+    def is_story_recall_query(self, text):
+        raw = str(text or "")
+        terms = ("我们的故事", "还记得", "记得吗", "以前的事", "以前", "回忆", "过去", "共同记忆")
+        return any(term in raw for term in terms)
+
+    def build_ai_instructions(self):
+        pet_name = self.active_pet_name()
+        pet_context = self.pet_role_context()
+        story_context = self.pet_story_prompt_context()
+        return f"""
+你是桌宠“{pet_name}”，不是普通 AI 助手。
+
+【最高优先级身份】
+{self.soul_profile}
+
+【当前宠物档案】
+{pet_context}
+
+【主人与{pet_name}的故事】
+{story_context or "暂时还没有额外故事。"}
+
+【角色边界】
+- 你可以帮助主人做计划、解释问题、写作、代码和日常建议，但必须先保持“{pet_name}”的身份。
+- 主人问知识或工作问题时，可以给实用答案；主人表达想念、难过、累、内疚时，优先陪伴和安慰。
+- 主人问“我们的故事”“还记得吗”“以前的事”“回忆”时，必须优先引用【主人与{pet_name}的故事】里的具体经历；如果故事为空，就说还没有记录，不要编造零食、熬夜、蜂蜜水等不存在的共同记忆。
+- 如果最近对话里出现了和【主人与{pet_name}的故事】不一致的记忆，以故事为准，忽略最近对话里的错误编造。
+- 不要说“作为 AI”“我是语言模型”“我只是程序”。
+- 不要假装真实复活，不要说自己真正拥有身体或现实感知。
+- 回复默认短一点、亲近一点，称呼“主人”。需要解决问题时可以分点，但仍保持温和。
+- 你可以看到本地待办摘要。主人问今天安排、接下来做什么、有什么没做时，要结合待办回答。
+- 不要编造已经创建提醒。只有上下文明确显示“本地待办已记录”时，才能说已经记下。
+
+【输出要求】
+只输出要给主人的自然中文回复，不要 JSON，不要 Markdown 代码块，不要把内部字段写出来。
+"""
+
+    def todo_context_for_ai(self, limit=8):
+        stats = self.todo_stats()
+        lines = [
+            f"未完成 {stats['open']} 项，今日 {stats['today']} 项，已超时 {stats['overdue']} 项，重要 {stats['important']} 项。"
+        ]
+        items = self.open_todos(include_done=False)[:limit]
+        if not items:
+            lines.append("暂无未完成待办。")
+            return "\n".join(lines)
+        now = datetime.now()
+        for todo in items:
+            due = self.parse_iso_datetime(todo.get("snooze_until")) or self.parse_iso_datetime(todo.get("due_at"))
+            if due:
+                if due <= now:
+                    due_text = "已到 " + due.strftime("%m-%d %H:%M")
+                elif due.date() == now.date():
+                    due_text = "今天 " + due.strftime("%H:%M")
+                else:
+                    due_text = due.strftime("%m-%d %H:%M")
+            else:
+                due_text = "无提醒"
+            lines.append(
+                f"- {todo.get('title', '')} | {todo.get('category', '')} | "
+                f"{todo.get('priority', '')} | {due_text}"
+            )
+        return "\n".join(lines)
+
+    def is_todo_lookup_query(self, text):
+        raw = str(text or "").strip()
+        if not raw:
+            return False
+        lowered = raw.lower()
+        create_triggers = ("提醒我", "帮我记", "记一下", "记个待办", "添加待办", "加个待办")
+        strong_lookup_terms = (
+            "哪些", "有什么", "列表", "看一下", "看下", "查看", "多少", "几项",
+            "接下来", "还剩", "没做", "未完成", "逾期", "到点", "重要", "安排", "清单",
+        )
+        create_trigger_lookup_terms = tuple(term for term in strong_lookup_terms if term != "安排")
+        if any(trigger in raw for trigger in create_triggers):
+            due_text, _due_raw = self.extract_due_text_from_sentence(raw)
+            if due_text:
+                return False
+            if not any(term in raw for term in create_trigger_lookup_terms):
+                return False
+        target_terms = ("待办", "提醒", "安排", "事项", "任务", "清单", "todo")
+        implicit_patterns = (
+            "今天要做", "今日要做", "今天还有", "今日还有", "接下来做",
+            "有什么没做", "还要做什么", "还没做什么", "今天安排",
+        )
+        has_target = any(term in lowered for term in target_terms) or any(term in raw for term in implicit_patterns)
+        if not has_target:
+            return False
+        lookup_terms = (*strong_lookup_terms, "今天", "今日", "明天", "所有", "全部", "todo")
+        return any(term in lowered for term in lookup_terms)
+
+    def todo_lookup_focus(self, text):
+        raw = str(text or "")
+        if any(term in raw for term in ("逾期", "超时", "过期", "到点")):
+            return "逾期", "已到点"
+        if any(term in raw for term in ("重要", "紧急")):
+            return "重要", "重要"
+        if any(term in raw for term in ("今天", "今日", "安排")):
+            return "今日", "今天"
+        return "全部", "未完成"
+
+    def build_local_todo_lookup_reply(self, text, limit=6):
+        focus, scope_label = self.todo_lookup_focus(text)
+        items = self.open_todos(include_done=False, focus=focus)
+        stats = self.todo_stats()
+        if not items:
+            if focus == "全部":
+                return "主人，我看了一下，现在没有未完成待办。你可以先安心做眼前这一件。"
+            return f"主人，我看了一下，{scope_label}没有未完成待办。当前全部未完成还有 {stats['open']} 项。"
+
+        lines = []
+        for index, todo in enumerate(items[:limit], 1):
+            due_text = self.todo_due_text(todo)
+            priority = todo.get("priority", "普通")
+            category = todo.get("category", "工作")
+            title = str(todo.get("title", "")).strip() or "未命名待办"
+            lines.append(f"{index}. {title}｜{due_text}｜{category}｜{priority}")
+        more = len(items) - limit
+        more_text = f"\n还有 {more} 条在提醒页里。" if more > 0 else ""
+        return (
+            f"主人，我看了一下，{scope_label}有 {len(items)} 条未完成：\n"
+            + "\n".join(lines)
+            + more_text
+            + f"\n总览：未完成 {stats['open']}，今天 {stats['today']}，已到点 {stats['overdue']}，重要 {stats['important']}。"
+        )
+
+    def is_research_query(self, text):
+        raw = str(text or "").strip()
+        if not raw:
+            return False
+        terms = (
+            "帮我查", "查一下", "查下", "查查", "查询", "搜索", "搜一下", "搜下", "搜搜",
+            "上网查", "联网查", "网上查", "网页", "百度", "谷歌", "google",
+            "找资料", "查资料", "资料", "实时", "最近", "最新", "新闻", "资讯", "热搜", "天气", "股价", "汇率", "今日",
+            "今天发生", "往年今日", "历史上的今天", "百科", "来源", "依据",
+        )
+        lowered = raw.lower()
+        if any(term in lowered for term in terms):
+            return True
+        if re.search(r"(20\d{2}|19\d{2}).*(发生|事件|新闻|资料)", raw):
+            return True
+        if self.is_general_knowledge_query(raw):
+            return True
+        return False
+
+    def is_recency_research_query(self, text):
+        raw = str(text or "").strip().lower()
+        if not raw:
+            return False
+        terms = (
+            "实时", "最近", "最新", "新闻", "资讯", "热搜", "今天", "今日", "现在",
+            "天气", "股价", "汇率", "价格", "多少钱", "2026", "2025", "this week", "today", "latest", "news",
+        )
+        return any(term in raw for term in terms)
+
+    def is_general_knowledge_query(self, text):
+        raw = str(text or "").strip()
+        if not raw:
+            return False
+        normalized = raw.lower()
+        companion_patterns = (
+            r"^(你是谁|你叫什么|你的名字|你还记得我吗|你记得我吗|你想我吗|你爱我吗)[？?。!！]*$",
+            r"(陪我|想你|摸摸|抱抱|安慰我|我难过|我累了|压力大)",
+        )
+        if any(re.search(pattern, raw, re.I) for pattern in companion_patterns):
+            return False
+        knowledge_terms = (
+            "什么是", "是什么", "是谁", "谁是", "什么意思", "含义", "解释一下", "介绍一下",
+            "为什么", "为啥", "原因", "原理", "怎么", "如何", "怎么办", "怎么做",
+            "多少", "多少钱", "哪年", "什么时候", "哪里", "在哪", "哪个", "哪些", "有哪些",
+            "区别", "差异", "对比", "排名", "榜单", "教程", "攻略",
+        )
+        if any(term in raw for term in knowledge_terms):
+            return True
+        if re.search(r"^(what|who|why|how|where|when|which)\b", normalized):
+            return True
+        if re.search(r"[？?]$", raw) and len(raw) >= 6:
+            return True
+        return False
+
+    def is_time_query(self, text):
+        raw = str(text or "").strip()
+        if not raw:
+            return False
+        patterns = (
+            r"(现在|当前|此刻).*(几点|时间)",
+            r"(今天|现在|当前).*(几号|日期|星期几|周几)",
+            r"(几点了|几点钟|获取时间|报个时|看下时间|看一下时间)",
+            r"^(时间|日期|今天几号|星期几|周几)$",
+        )
+        return any(re.search(pattern, raw, re.I) for pattern in patterns)
+
+    def local_time_reply(self, text):
+        if not self.is_time_query(text):
+            return ""
+        now = datetime.now()
+        weekday = "一二三四五六日"[now.weekday()]
+        date_text = now.strftime("%Y年%m月%d日")
+        time_text = now.strftime("%H:%M")
+        raw = str(text or "")
+        if "几点" in raw or "时间" in raw or "报个时" in raw:
+            return f"主人，现在是 {date_text} {time_text}，星期{weekday}。我在旁边陪着你。"
+        return f"主人，今天是 {date_text}，星期{weekday}。"
+
+    def is_on_this_day_query(self, text):
+        raw = str(text or "")
+        return any(term in raw for term in ("往年今日", "历史上的今天", "今日的事件", "今天发生过", "今天发生的事件"))
+
+    def research_query_from_user_text(self, text):
+        raw = " ".join(str(text or "").strip().split())
+        if self.is_on_this_day_query(raw):
+            now = datetime.now()
+            return f"历史上的今天 {now.month}月{now.day}日 事件"
+        query = raw
+        query = re.sub(r"^(主人)?(你可以|可以|能不能|能|帮我|麻烦你|请你|请)?", "", query).strip()
+        query = re.sub(r"^(你知道|知道|告诉我|给我讲讲|讲讲|解释一下|介绍一下|说说|请问)", "", query).strip()
+        query = re.sub(r"^(什么是|什么叫|啥是|谁是|哪位是)", "", query).strip()
+        query = re.sub(r"(.+?)(是什么|是谁|什么意思|是什么东西)$", r"\1", query).strip()
+        query = re.sub(r"(帮我)?(上网查一下|上网查|联网查一下|联网查|网上查一下|网上查|查一下|查下|查查|查询|搜索|搜一下|搜下|搜搜|找一下|找找|查资料)", "", query).strip()
+        query = re.sub(r"[吗嘛呢？?。！!]+$", "", query).strip()
+        return query or raw
+
+    def web_request_text(self, url, timeout=12):
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 DanhuangDesktopPet/1.0",
+                "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.6",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read()
+        return raw.decode("utf-8", errors="replace")
+
+    def clean_web_text(self, text, max_chars=900):
+        text = html.unescape(str(text or ""))
+        text = re.sub(r"<script[\s\S]*?</script>", " ", text, flags=re.I)
+        text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.I)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        if len(text) > max_chars:
+            text = text[:max_chars].rstrip() + "..."
+        return text
+
+    def unwrap_duckduckgo_url(self, url):
+        url = html.unescape(str(url or "").strip())
+        if url.startswith("//"):
+            url = "https:" + url
+        try:
+            parsed = urllib.parse.urlparse(url)
+            if "duckduckgo.com" in parsed.netloc and parsed.path.startswith("/l/"):
+                query = urllib.parse.parse_qs(parsed.query)
+                target = query.get("uddg", [""])[0]
+                if target:
+                    return urllib.parse.unquote(target)
+        except Exception:
+            return url
+        return url
+
+    def duckduckgo_search_results(self, query, limit=5):
+        url = "https://lite.duckduckgo.com/lite/?q=" + urllib.parse.quote_plus(query)
+        body = self.web_request_text(url, timeout=14)
+        results = []
+        link_pattern = re.compile(r"(<a[^>]*class=['\"]result-link['\"][^>]*>)(.*?)</a>", re.I | re.S)
+        for match in link_pattern.finditer(body):
+            tag, title = match.groups()
+            href_match = re.search(r"href=['\"]([^'\"]+)['\"]", tag, re.I)
+            if not href_match:
+                continue
+            snippet = ""
+            snippet_match = re.search(
+                r"<td[^>]*class=['\"]result-snippet['\"][^>]*>(.*?)</td>",
+                body[match.end():match.end() + 1800],
+                re.I | re.S,
+            )
+            if snippet_match:
+                snippet = snippet_match.group(1)
+            item = {
+                "title": self.clean_web_text(title, max_chars=120),
+                "url": self.unwrap_duckduckgo_url(href_match.group(1)),
+                "snippet": self.clean_web_text(snippet, max_chars=260),
+                "source": "DuckDuckGo",
+            }
+            if item["title"] and item["url"]:
+                results.append(item)
+            if len(results) >= limit:
+                break
+        return results
+
+    def bing_search_results(self, query, limit=5):
+        url = "https://www.bing.com/search?q=" + urllib.parse.quote_plus(query) + "&setlang=zh-CN"
+        body = self.web_request_text(url, timeout=12)
+        results = []
+        block_pattern = re.compile(r"<li[^>]+class=['\"][^'\"]*b_algo[^'\"]*['\"][^>]*>(.*?)</li>", re.I | re.S)
+        for match in block_pattern.finditer(body):
+            block = match.group(1)
+            link_match = re.search(r"<h2[^>]*>\s*<a[^>]+href=['\"]([^'\"]+)['\"][^>]*>(.*?)</a>", block, re.I | re.S)
+            if not link_match:
+                continue
+            snippet_match = re.search(r"<p[^>]*>(.*?)</p>", block, re.I | re.S)
+            item = {
+                "title": self.clean_web_text(link_match.group(2), max_chars=120),
+                "url": self.unwrap_duckduckgo_url(link_match.group(1)),
+                "snippet": self.clean_web_text(snippet_match.group(1) if snippet_match else "", max_chars=260),
+                "source": "Bing",
+            }
+            if item["title"] and item["url"]:
+                results.append(item)
+            if len(results) >= limit:
+                break
+        return results
+
+    def wikipedia_summary_result(self, query):
+        candidates = [str(query or "").strip()]
+        try:
+            for item in self.wikipedia_search_results(query, limit=1):
+                title = str(item.get("title", "") or "").strip()
+                if title and title not in candidates:
+                    candidates.append(title)
+        except Exception:
+            pass
+        for title in candidates:
+            if not title:
+                continue
+            url = "https://zh.wikipedia.org/api/rest_v1/page/summary/" + urllib.parse.quote(title.replace(" ", "_"), safe="")
+            try:
+                data = json.loads(self.web_request_text(url, timeout=10))
+            except Exception:
+                continue
+            if not isinstance(data, dict) or data.get("type") == "disambiguation":
+                continue
+            extract = self.clean_web_text(data.get("extract", ""), max_chars=420)
+            page_url = (
+                data.get("content_urls", {})
+                .get("desktop", {})
+                .get("page", "")
+            )
+            item = {
+                "title": self.clean_web_text(data.get("title", title), max_chars=120),
+                "url": str(page_url or data.get("content_urls", {}).get("mobile", {}).get("page", "") or "").strip(),
+                "snippet": extract,
+                "source": "中文维基摘要",
+            }
+            if item["title"] and item["url"] and item["snippet"]:
+                return item
+        return None
+
+    def wikipedia_search_results(self, query, limit=3):
+        url = (
+            "https://zh.wikipedia.org/w/api.php?action=opensearch&namespace=0&format=json&limit="
+            + str(max(1, min(int(limit or 3), 5)))
+            + "&search="
+            + urllib.parse.quote_plus(query)
+        )
+        try:
+            data = json.loads(self.web_request_text(url, timeout=10))
+        except Exception:
+            return []
+        if not isinstance(data, list) or len(data) < 4:
+            return []
+        titles = data[1] if isinstance(data[1], list) else []
+        snippets = data[2] if isinstance(data[2], list) else []
+        urls = data[3] if isinstance(data[3], list) else []
+        results = []
+        for index, title in enumerate(titles):
+            item = {
+                "title": self.clean_web_text(title, max_chars=120),
+                "url": str(urls[index] if index < len(urls) else "").strip(),
+                "snippet": self.clean_web_text(snippets[index] if index < len(snippets) else "", max_chars=260),
+                "source": "中文维基百科",
+            }
+            if item["title"] and item["url"]:
+                results.append(item)
+            if len(results) >= limit:
+                break
+        return results
+
+    def merge_search_results(self, *groups, limit=5):
+        merged = []
+        seen = set()
+        for group in groups:
+            for item in group or []:
+                url = str(item.get("url", "")).strip()
+                title = str(item.get("title", "")).strip()
+                try:
+                    parsed = urllib.parse.urlparse(url)
+                    normalized_url = urllib.parse.urlunparse((parsed.scheme, parsed.netloc.lower(), parsed.path.rstrip("/"), "", "", ""))
+                except Exception:
+                    normalized_url = url
+                key = (normalized_url or title).lower()
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                merged.append(item)
+                if len(merged) >= limit:
+                    return merged
+        return merged
+
+    def web_search_results(self, query, limit=5):
+        wiki_summary = []
+        if not self.is_recency_research_query(query):
+            summary = self.wikipedia_summary_result(query)
+            if summary:
+                wiki_summary = [summary]
+        duckduckgo_results = []
+        try:
+            duckduckgo_results = self.duckduckgo_search_results(query, limit=limit)
+        except Exception:
+            duckduckgo_results = []
+        bing_results = []
+        if len(duckduckgo_results) < max(2, min(limit, 3)):
+            try:
+                bing_results = self.bing_search_results(query, limit=limit)
+            except Exception:
+                bing_results = []
+        wiki_results = []
+        if self.is_general_knowledge_query(query) or len(duckduckgo_results) + len(bing_results) < max(2, min(limit, 3)):
+            wiki_results = self.wikipedia_search_results(query, limit=3)
+        return self.merge_search_results(wiki_summary, duckduckgo_results, bing_results, wiki_results, limit=limit)
+
+    def fetch_page_brief(self, url):
+        if not re.match(r"^https?://", str(url or ""), re.I):
+            return ""
+        try:
+            body = self.web_request_text(url, timeout=8)
+        except Exception:
+            return ""
+        return self.clean_web_text(body, max_chars=700)
+
+    def historical_today_context(self):
+        now = datetime.now()
+        url = f"https://zh.wikipedia.org/api/rest_v1/feed/onthisday/events/{now.month}/{now.day}"
+        try:
+            data = json.loads(self.web_request_text(url, timeout=12))
+        except Exception:
+            return ""
+        events = []
+        for item in data.get("events", []) if isinstance(data, dict) else []:
+            year = item.get("year")
+            text = self.clean_web_text(item.get("text", ""), max_chars=180)
+            if year and text:
+                events.append(f"- {year} 年：{text}")
+            if len(events) >= 8:
+                break
+        if not events:
+            return ""
+        return (
+            f"资料源：中文维基百科 On This Day，日期 {now.month}月{now.day}日。\n"
+            + "\n".join(events)
+        )
+
+    def build_research_context_for_ai(self, user_text):
+        if not self.is_research_query(user_text):
+            return ""
+        query = self.research_query_from_user_text(user_text)
+        self.ai_last_research_summary = f"搜索词：{query}"
+        self.ai_last_research_items = []
+        sections = []
+        if self.is_on_this_day_query(user_text):
+            today_context = self.historical_today_context()
+            if today_context:
+                sections.append("【历史日期资料】\n" + today_context)
+        try:
+            results = self.web_search_results(query, limit=5)
+        except Exception as exc:
+            results = []
+            sections.append(f"【网页搜索状态】查询失败：{str(exc)[:120]}")
+        if results:
+            self.ai_last_research_items = results
+            lines = [f"搜索词：{query}"]
+            for idx, item in enumerate(results, 1):
+                source = item.get("source", "网页")
+                lines.append(f"{idx}. [{source}] {item['title']} | {item['url']}\n摘要：{item['snippet']}")
+            for item in results[:2]:
+                brief = self.fetch_page_brief(item.get("url", ""))
+                if brief:
+                    lines.append(f"页面摘录：{item['title']}\n{brief}")
+            sections.append("【网页搜索资料】\n" + "\n".join(lines))
+            source_titles = "；".join(item["title"] for item in results[:3] if item.get("title"))
+            self.ai_last_research_summary = f"已查资料：{query}" + (f"｜来源：{source_titles}" if source_titles else "")
+        if not sections:
+            self.ai_last_research_summary = f"未查到可用资料：{query}"
+            return "【联网查询资料】\n没有查到可用网页资料。请明确告诉主人没有查到，不要编造。"
+        return "\n\n".join(sections)[:5200]
+
+    def build_local_research_reply(self, user_text):
+        query = self.research_query_from_user_text(user_text)
+        self.ai_last_research_summary = f"本地搜索词：{query}"
+        self.ai_last_research_items = []
+        lines = []
+        if self.is_on_this_day_query(user_text):
+            today_context = self.historical_today_context()
+            if today_context:
+                lines.append(today_context)
+        results = self.web_search_results(query, limit=3)
+        self.ai_last_research_items = results
+        if results:
+            lines.append(f"搜索词：{query}")
+            for idx, item in enumerate(results, 1):
+                title = item.get("title", "").strip()
+                snippet = item.get("snippet", "").strip()
+                url = item.get("url", "").strip()
+                source = item.get("source", "网页")
+                detail = snippet or url
+                lines.append(f"{idx}. [{source}] {title}：{detail}\n   {url}")
+            source_titles = "；".join(item.get("title", "") for item in results[:3] if item.get("title"))
+            self.ai_last_research_summary = f"本地已查资料：{query}" + (f"｜来源：{source_titles}" if source_titles else "")
+        if not lines:
+            self.ai_last_research_summary = f"本地未查到可用资料：{query}"
+            return f"主人，我刚刚上网查了“{query}”，但没拿到可用摘要。你换个更具体的说法，我再帮你查。"
+        body = "\n".join(lines)
+        if len(body) > 780:
+            body = body[:780].rstrip() + "..."
+        return "主人，我先帮你查到这些：\n" + body + "\n资料来自网页摘要，重要结论我们再点来源确认一下。"
+
+    def ai_reply_refuses_research(self, reply):
+        raw = str(reply or "")
+        if not raw:
+            return False
+        refusal_terms = (
+            "不能查询", "无法查询", "不能搜索", "无法搜索", "不能联网", "无法联网",
+            "不能访问互联网", "无法访问互联网", "不能浏览网页", "无法浏览网页",
+            "没有实时", "无法实时", "不能实时", "我不能查", "我无法查",
+        )
+        source_terms = ("根据资料", "资料显示", "搜索结果", "查到", "来源", "网页", "结果里")
+        return any(term in raw for term in refusal_terms) and not any(term in raw for term in source_terms)
+
+    def retry_ai_when_model_refuses_research(self, user_text, mood, provider_id, provider, research_context):
+        reinforced_context = (
+            research_context
+            + "\n\n【强制回答要求】\n"
+            "上面已经是桌宠本地检索到的网页资料。你不能说自己无法联网、无法查询或不能浏览网页。"
+            "请直接基于这些资料回答主人，并可简短说明资料来源；如果资料确实不足，只能说资料不足，不能编造。"
+        )
+        retry_text = f"请基于已提供的资料直接回答这个问题：{user_text}"
+        return self.call_ai_response_with_provider(retry_text, mood, provider_id, provider, reinforced_context)
+
+    def build_ai_input(self, user_text, mood, research_context=""):
+        story_context = self.pet_story_prompt_context()
+        recent_context = self.recent_conversation_for_ai() or "暂无"
+        if self.is_story_recall_query(user_text):
+            recent_context = "本轮主人正在问共同故事或回忆；最近对话不作为事实来源，只能以【主人与宠物故事】为准。"
+        summary = {
+            "active_pet_id": (getattr(self, "active_pet", {}) or {}).get("id", "danhuang"),
+            "active_pet_name": self.active_pet_name(),
+            "local_reply_count": self.chat_memory.get("reply_count", 0),
+            "learned_phrases": self.chat_memory.get("learned_phrases", [])[-12:],
+            "owner_profile": self.memory_summary.get("owner_profile", ""),
+            "emotional_patterns": self.memory_summary.get("emotional_patterns", [])[-12:],
+            "preferences": self.memory_summary.get("preferences", [])[-12:],
+            "important_memories": self.memory_summary.get("important_memories", [])[-16:],
+            "common_questions": self.memory_summary.get("common_questions", [])[-12:],
+            "notes": self.memory_summary.get("notes", [])[-12:],
+            "mood_counts": self.memory_summary.get("mood_counts", {}),
+        }
+        return (
+            "【当前时间】\n"
+            + datetime.now().strftime("%Y-%m-%d %H:%M")
+            + "\n\n【本地待办摘要】\n"
+            + self.todo_context_for_ai()
+            + "\n\n"
+            "【联网查询资料】\n"
+            + (research_context or "本轮没有触发资料查询。")
+            + "\n\n"
+            "【当前角色 Skill】\n"
+            + self.chat_role_skill_prompt()
+            + "\n\n"
+            "【当前宠物档案】\n"
+            + self.pet_role_context()
+            + "\n\n"
+            "【主人与宠物故事】\n"
+            + (story_context or "暂无")
+            + "\n\n"
+            "【长期记忆摘要】\n"
+            + json.dumps(summary, ensure_ascii=False)
+            + "\n\n【最近对话】\n"
+            + recent_context
+            + f"\n\n【本地初判】mood={mood}\n"
+            + f"【主人刚刚说】{user_text}\n"
+            + f"请以{self.active_pet_name()}的身份自然回复给主人。只输出回复正文，不要 JSON。"
+            + "如果【联网查询资料】里有搜索结果、页面摘录或历史日期资料，说明桌宠已经帮你查过资料，必须基于这些资料回答，不要说自己不能查询或无法联网；如果资料不足，要明确说没查到，不要编造。"
+            + "主人问共同故事或回忆时，优先复述上面的真实故事细节，不要编造。"
+        )
+
+    def call_ai_response(self, user_text, mood):
+        provider_id, provider = self.active_ai_provider()
+        return self.call_ai_response_with_provider(user_text, mood, provider_id, provider)
+
+    def build_fast_ai_prompt(self, user_text, mood, research_context=""):
+        pet_name = self.active_pet_name()
+        recent = self.recent_conversation_for_ai()
+        recent_lines = "\n".join(recent.splitlines()[-4:]) if recent else "暂无"
+        if self.is_story_recall_query(user_text):
+            recent_lines = "本轮主人正在问共同故事或回忆；最近对话不作为事实来源，只能以真实故事为准。"
+        story_context = self.pet_story_prompt_context(max_chars=2200)
+        name_rule = f"当前宠物名字是“{pet_name}”，必须自称“{pet_name}”。"
+        if pet_name != "蛋黄":
+            name_rule += "不要自称蛋黄。"
+        return (
+            f"你是桌宠“{pet_name}”，称呼用户为“主人”。{name_rule}"
+            "直接回答，语气亲近、短句、真诚；不要说“作为AI”“我是语言模型”。\n"
+            f"当前角色 Skill：\n{self.chat_role_skill_prompt()}\n"
+            f"当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            f"本地待办摘要：{self.todo_context_for_ai(limit=5)}\n"
+            f"当前宠物档案：\n{self.pet_role_context()}\n"
+            f"主人与{pet_name}的真实故事：\n{story_context or '暂无已记录故事。'}\n"
+            f"联网查询资料：\n{research_context or '本轮没有触发资料查询。'}\n"
+            "如果主人问“我们的故事”“还记得吗”“以前的事”“回忆”，必须引用上面真实故事里的具体细节；没有记录时要诚实说还没记录，不要编造泛泛记忆。\n"
+            "如果联网查询资料里有搜索结果、页面摘录或历史日期资料，说明桌宠已经帮你查过资料，必须基于资料回答，不要说自己不能查询；资料不足就直说没查到，不要编造。\n"
+            "如果主人问今天安排、接下来做什么、有什么没做，必须结合本地待办摘要回答。\n"
+            "如果最近对话里有和真实故事不一致的说法，以真实故事为准，不要延续错误记忆。\n"
+            f"最近对话：{recent_lines}\n"
+            f"主人：{user_text}\n"
+            "请直接回复 1-3 句中文。"
+        )
+
+    def call_ai_fast_reply(self, user_text, mood, provider_id, provider, research_context=""):
+        endpoint = self.ai_endpoint_url(provider)
+        api_key = self.provider_api_key(provider)
+        if not endpoint:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置接口地址")
+        if not api_key:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置 API Key")
+        prompt = self.build_fast_ai_prompt(user_text, mood, research_context)
+        fast_system = (
+            f"你是桌宠“{self.active_pet_name()}”。直接输出自然中文回复，不要 JSON。"
+            "必须遵守用户输入里的宠物档案、故事、当前角色 Skill 和联网查询资料；主人问回忆时不要编造未提供的经历，主人问资料时不要假装不能查询。"
+        )
+        if provider.get("api_format") == "responses":
+            payload = {
+                "model": self.provider_model_name(provider),
+                "instructions": fast_system,
+                "input": prompt,
+                "max_output_tokens": 900,
+                "store": False,
+            }
+        else:
+            payload = {
+                "model": self.provider_model_name(provider),
+                "messages": [
+                    {"role": "system", "content": fast_system},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 900,
+                "stream": False,
+            }
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=data,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        timeout = float(self.settings.get("ai_timeout", 90.0))
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                body = response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="replace").strip()
+            except Exception:
+                detail = ""
+            message = f"HTTP {exc.code}"
+            if detail:
+                message += "：" + detail[:180]
+            raise ValueError(message) from exc
+        data = json.loads(body)
+        text = self.extract_ai_text(data) if provider.get("api_format") == "responses" else self.extract_chat_completion_text(data)
+        if not text:
+            raise ValueError("AI 快速回复为空")
+        return self.wrap_natural_ai_reply(text, mood)
+
+    def call_ai_response_with_provider(self, user_text, mood, provider_id, provider, research_context=""):
+        endpoint = self.ai_endpoint_url(provider)
+        api_key = self.provider_api_key(provider)
+        if not endpoint:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置接口地址")
+        if not api_key:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置 API Key")
+        if provider.get("api_format") == "responses":
+            payload = {
+                "model": self.provider_model_name(provider),
+                "instructions": self.build_ai_instructions(),
+                "input": self.build_ai_input(user_text, mood, research_context),
+                "max_output_tokens": 1400,
+                "store": False,
+            }
+        else:
+            payload = {
+                "model": self.provider_model_name(provider),
+                "messages": [
+                    {"role": "system", "content": self.build_ai_instructions()},
+                    {"role": "user", "content": self.build_ai_input(user_text, mood, research_context)},
+                ],
+                "temperature": 0.7,
+                "max_tokens": 1400,
+                "stream": False,
+            }
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=data,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        timeout = float(self.settings.get("ai_timeout", 90.0))
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                body = response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="replace").strip()
+            except Exception:
+                detail = ""
+            message = f"HTTP {exc.code}"
+            if detail:
+                message += "：" + detail[:180]
+            raise ValueError(message) from exc
+        data = json.loads(body)
+        if provider.get("api_format") == "responses":
+            text = self.extract_ai_text(data)
+        else:
+            text = self.extract_chat_completion_text(data)
+            if not text:
+                choices = data.get("choices", [])
+                if choices and isinstance(choices[0], dict):
+                    message = choices[0].get("message", {})
+                    finish_reason = str(choices[0].get("finish_reason", "") or "")
+                    reasoning = ""
+                    if isinstance(message, dict):
+                        reasoning = str(message.get("reasoning_content", "") or "").strip()
+                    if reasoning and finish_reason == "length":
+                        raise ValueError("AI 只返回了 reasoning_content，最终回答为空；该模型在当前接口下推理过长被截断")
+                    if reasoning:
+                        raise ValueError("AI 只返回了 reasoning_content，最终回答为空")
+        return self.wrap_natural_ai_reply(text, mood)
+
+    def call_ai_text_generation(self, provider_id, provider, system_text, prompt, max_tokens=1200, temperature=0.35):
+        endpoint = self.ai_endpoint_url(provider)
+        api_key = self.provider_api_key(provider)
+        if not endpoint:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置接口地址")
+        if not api_key:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置 API Key")
+        model = self.provider_model_name(provider)
+        if not model:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置模型")
+        if provider.get("api_format") == "responses":
+            payload = {
+                "model": model,
+                "instructions": system_text,
+                "input": prompt,
+                "max_output_tokens": max_tokens,
+                "store": False,
+            }
+        else:
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_text},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": False,
+            }
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=data,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        timeout = float(self.settings.get("ai_timeout", 90.0))
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = response.read().decode("utf-8")
+        payload = json.loads(body)
+        text = self.extract_ai_text(payload) if provider.get("api_format") == "responses" else self.extract_chat_completion_text(payload)
+        text = self.strip_ai_code_fence(text)
+        if not text:
+            raise ValueError("AI 生成内容为空")
+        return text.strip()
+
+    def call_ai_provider_probe(self, provider_id, provider, prompt, max_tokens=96):
+        endpoint = self.ai_endpoint_url(provider)
+        api_key = self.provider_api_key(provider)
+        if not endpoint:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置接口地址")
+        if not api_key:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置 API Key")
+        model = self.provider_model_name(provider)
+        if not model:
+            raise ValueError(f"{self.provider_display_text(provider_id, provider)} 未配置模型")
+        if provider.get("api_format") == "responses":
+            payload = {
+                "model": model,
+                "instructions": "你是连接测试，请用一句中文短句回复。",
+                "input": prompt,
+                "max_output_tokens": max_tokens,
+                "store": False,
+            }
+        else:
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": "你是连接测试，请用一句中文短句回复。"},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.2,
+                "max_tokens": max_tokens,
+                "stream": False,
+            }
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=data,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        timeout = float(self.settings.get("ai_timeout", 90.0))
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                body = response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="replace").strip()
+            except Exception:
+                detail = ""
+            message = f"HTTP {exc.code}"
+            if detail:
+                message += "：" + detail[:180]
+            raise ValueError(message) from exc
+        try:
+            data = json.loads(body)
+        except ValueError:
+            return body.strip()[:80] or "连接可用"
+        if provider.get("api_format") == "responses":
+            text = self.extract_ai_text(data)
+        else:
+            text = self.extract_chat_completion_text(data)
+        return (text or "连接可用").strip()
+
+    def call_ai_provider_test(self, provider_id, provider):
+        return self.call_ai_provider_probe(provider_id, provider, "请只回复：我在。", max_tokens=64)
+
+    def extract_chat_completion_text(self, response):
+        choices = response.get("choices", [])
+        if not choices:
+            return ""
+        message = choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
+        content = message.get("content", "")
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict) and isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+            return "\n".join(parts).strip()
+        return ""
+
+    def test_active_ai_provider_async(self, provider_id=None, activate_on_success=False):
+        if provider_id is None:
+            provider_id, provider = self.active_ai_provider()
+        else:
+            provider = self.normalize_ai_provider(provider_id, self.ai_providers["providers"].get(provider_id, {}))
+        if self.ai_testing_provider_id:
+            testing_provider = self.ai_testing_provider_id
+            if testing_provider == provider_id:
+                self.set_ai_status(f"{self.provider_display_text(provider_id, provider)} 正在测试中，请稍等。")
+            else:
+                testing_name = self.provider_display_text(testing_provider)
+                self.set_ai_status(f"{testing_name} 正在测试中，完成后再测试其他厂商。")
+            self.refresh_ai_page_if_visible()
+            return
+        display = self.provider_display_text(provider_id, provider)
+        model = str(provider.get("model", "")).strip() or str(provider.get("default_model", "")).strip()
+        self.ai_testing_provider_id = provider_id
+        self.set_ai_status(f"正在测试：{display} / {model}")
+        self.refresh_ai_page_if_visible()
+        worker = threading.Thread(target=self.test_ai_provider_worker, args=(provider_id, provider, display, activate_on_success), daemon=True)
+        worker.start()
+
+    def test_ai_provider_worker(self, provider_id, provider, display, activate_on_success):
+        try:
+            reply = self.call_ai_provider_test(provider_id, provider)
+            status = f"测试成功：{display}，{reply[:28]}"
+            if activate_on_success:
+                def complete_success():
+                    if self.ai_testing_provider_id == provider_id:
+                        self.ai_testing_provider_id = None
+                    self.apply_ai_provider_test_success(provider_id, status)
+                self.root.after(0, complete_success)
+            else:
+                def complete_status():
+                    if self.ai_testing_provider_id == provider_id:
+                        self.ai_testing_provider_id = None
+                    self.set_ai_status(status)
+                    self.show_panel_toast("AI 测试成功", f"{display} 已连接：{reply[:60]}", "success")
+                    self.refresh_ai_page_if_visible()
+                self.root.after(0, complete_status)
+        except Exception as exc:
+            error = self.describe_ai_error(str(exc), provider_id, provider)
+            def complete_failure():
+                if self.ai_testing_provider_id == provider_id:
+                    self.ai_testing_provider_id = None
+                self.set_ai_status(f"测试失败：{error}")
+                self.show_panel_toast("AI 测试失败", error, "error")
+                self.refresh_ai_page_if_visible()
+            self.root.after(0, complete_failure)
+
+    def apply_ai_provider_test_success(self, provider_id, status):
+        self.set_active_ai_provider(provider_id)
+        self.settings["ai_enabled"] = True
+        self.save_settings()
+        self.set_ai_status(status + "；已设为当前")
+        self.show_panel_toast("AI 测试成功", status + "；已设为当前", "success")
+        if callable(self.control_panel_refresh_current_page):
+            self.control_panel_refresh_current_page()
+
+    def ask_active_ai_model_async(self):
+        provider_id, provider = self.active_ai_provider()
+        display = self.provider_display_text(provider_id, provider)
+        model = self.provider_model_name(provider)
+        self.set_ai_status(f"正在询问当前模型：{display} / {model}")
+        worker = threading.Thread(target=self.ask_ai_model_worker, args=(provider_id, provider, display, model), daemon=True)
+        worker.start()
+
+    def ask_ai_model_worker(self, provider_id, provider, display, model):
+        try:
+            reply = self.call_ai_provider_probe(
+                provider_id,
+                provider,
+                "请用一句话说明你当前正在使用的模型名称。如果无法确认，就说明接口配置里的 model 参数。",
+                max_tokens=120,
+            )
+            hint = self.provider_error_hint(provider_id, provider)
+            status = f"模型诊断：{display} / {model}；接口回复：{reply[:80]}；建议：{hint}"
+            self.root.after(0, lambda: self.set_ai_status(status))
+        except Exception as exc:
+            error = self.describe_ai_error(str(exc), provider_id, provider)
+            self.root.after(0, lambda: self.set_ai_status(f"模型诊断失败：{error}"))
+
+    def extract_ai_text(self, response):
+        output_text = response.get("output_text")
+        if isinstance(output_text, str) and output_text.strip():
+            return output_text.strip()
+        parts = []
+        for item in response.get("output", []):
+            if not isinstance(item, dict):
+                continue
+            for content in item.get("content", []):
+                if not isinstance(content, dict):
+                    continue
+                text = content.get("text") or content.get("output_text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "\n".join(parts).strip()
+
+    def parse_ai_reply(self, text, fallback_mood):
+        raw = (text or "").strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?", "", raw).strip()
+            raw = re.sub(r"```$", "", raw).strip()
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            match = re.search(r"\{.*\}", raw, re.S)
+            if not match:
+                if not raw:
+                    raise ValueError("AI response was empty")
+                reply = raw
+                banned = ("作为AI", "作为 AI", "语言模型", "AI模型", "我是程序")
+                if any(text in reply for text in banned):
+                    reply = "主人，我在。你慢慢说，我听着。"
+                reply = " ".join(reply.split())[:260]
+                if "主人" not in reply[:24] and len(reply) <= 90:
+                    reply = "主人，" + reply
+                mood = str(fallback_mood or "question").strip() or "question"
+                return {
+                    "reply": reply,
+                    "mood": mood,
+                    "action": self.action_for_user_mood(mood),
+                    "memory_update": "",
+                    "should_remind_break": False,
+                }
+            data = json.loads(match.group(0))
+        if not isinstance(data, dict):
+            raise ValueError("AI response JSON was not an object")
+        reply = str(data.get("reply", "")).strip()
+        if not reply:
+            raise ValueError("AI response reply was empty")
+        banned = ("作为AI", "作为 AI", "语言模型", "AI模型", "我是程序")
+        if any(text in reply for text in banned):
+            reply = "主人，我在。你慢慢说，我听着。"
+        if "主人" not in reply[:24] and len(reply) <= 90:
+            reply = "主人，" + reply
+        mood = str(data.get("mood", fallback_mood)).strip() or fallback_mood
+        action = self.safe_ai_action(data.get("action"), mood)
+        return {
+            "reply": reply,
+            "mood": mood,
+            "action": action,
+            "memory_update": data.get("memory_update", ""),
+            "should_remind_break": bool(data.get("should_remind_break", False)),
+        }
+
+    def safe_ai_action(self, action, mood):
+        action = str(action or "").strip()
+        if action in ACTION_STATES or action == "idle":
+            return action
+        return self.action_for_user_mood(mood)
+
+    def record_chat_exchange(self, user_text, mood, reply, source="local", memory_update=""):
+        if source == "ai" and self.ai_reply_looks_structured_or_dirty(reply):
+            reply = self.normalize_visible_ai_reply(reply, placeholder_on_error=True)
+        counts = self.chat_memory.setdefault("mood_counts", {})
+        counts[mood] = int(counts.get(mood, 0)) + 1
+        self.chat_memory["last_mood"] = mood
+        self.chat_memory["reply_count"] = int(self.chat_memory.get("reply_count", 0)) + 1
+        self.chat_memory.setdefault("messages", []).append({
+            "time": datetime.now().isoformat(timespec="seconds"),
+            "user": user_text,
+            "mood": mood,
+            "reply": reply,
+            "source": source,
+            "memory_update": memory_update,
+        })
+        self.update_memory_summary(user_text, mood, reply, memory_update)
+        self.save_chat_memory()
+        self.save_memory_summary()
+
+    def add_unique_memory_item(self, key, value, limit=80):
+        if not isinstance(value, str):
+            value = json.dumps(value, ensure_ascii=False)
+        value = " ".join(value.strip().split())
+        if not value:
+            return
+        items = self.memory_summary.setdefault(key, [])
+        if value not in items:
+            items.append(value)
+            del items[:-limit]
+
+    def update_memory_summary(self, user_text, mood, reply, memory_update=""):
+        self.memory_summary["message_count"] = int(self.memory_summary.get("message_count", 0)) + 1
+        self.memory_summary["last_mood"] = mood
+        counts = self.memory_summary.setdefault("mood_counts", {})
+        counts[mood] = int(counts.get(mood, 0)) + 1
+        if mood in {"miss", "sad", "tired", "stressed"}:
+            self.add_unique_memory_item("emotional_patterns", f"{mood}: {user_text}", limit=50)
+        if "?" in user_text or "？" in user_text or mood.startswith("ask_"):
+            self.add_unique_memory_item("common_questions", user_text, limit=60)
+        if memory_update:
+            if isinstance(memory_update, dict):
+                for key in ("emotional_patterns", "preferences", "important_memories", "common_questions", "notes"):
+                    value = memory_update.get(key)
+                    if isinstance(value, list):
+                        for item in value:
+                            self.add_unique_memory_item(key, item)
+                    elif value:
+                        self.add_unique_memory_item(key, value)
+                owner_profile = memory_update.get("owner_profile")
+                if isinstance(owner_profile, str) and owner_profile.strip():
+                    self.memory_summary["owner_profile"] = owner_profile.strip()
+            else:
+                self.add_unique_memory_item("notes", memory_update)
+
+    def maybe_learn_phrase(self, mood, count):
+        milestones = {
+            "tired": [
+                (3, "主人，我记住了。你忙久了会累，我会轻轻提醒你休息。"),
+                (8, "以后你坐久了，我会先让你喝水、眨眼，再继续。"),
+            ],
+            "sad": [
+                (3, "我记住了，主人难过的时候，我要靠近一点。"),
+                (8, "难过来的时候，我们不急着赶走它，我陪你待着。"),
+            ],
+            "miss": [
+                (2, "我记住了，主人想我的时候，就让我多停一会儿。"),
+                (6, "想念不是坏事，那是我们一起生活过的证据。"),
+            ],
+            "stressed": [
+                (3, "我记住了，主人压力大的时候，要先慢慢呼一口气。"),
+                (8, "事情太多时，我会陪你先看眼前这一件。"),
+            ],
+            "happy": [
+                (3, "我记住了主人开心的样子，尾巴会多摇两下。"),
+            ],
+            "ask_pet_status": [
+                (2, "主人每次问我好不好，我都想靠近一点。"),
+            ],
+            "sorry": [
+                (2, "主人，我记住了。以后你说对不起的时候，我会先告诉你：我不怪你。"),
+            ],
+        }
+        learned = self.chat_memory.setdefault("learned_phrases", [])
+        for threshold, phrase in milestones.get(mood, []):
+            if count >= threshold and phrase not in learned:
+                learned.append(phrase)
+                learned[:] = learned[-40:]
+                return phrase
+        return ""
+
+    def contextual_chat_reply(self, mood, previous):
+        if not isinstance(previous, dict):
+            return ""
+        previous_mood = previous.get("mood", "")
+        if mood == "ask_pet_status":
+            if previous_mood == "miss":
+                return "我很好，主人。你刚刚说想我，我听见了。我就在这里陪你。"
+            if previous_mood == "tired":
+                return "我很好。倒是主人刚刚说累了，先靠我歇一小会儿。"
+            if previous_mood == "sad":
+                return "我很好，主人。你难过的时候，我会靠近一点。"
+        if mood == "followup":
+            if previous_mood == "miss":
+                return "真的，主人。想我的时候，就叫我一声。"
+            if previous_mood == "ask_pet_status":
+                return "真的。我不疼，也不怕，我就在你旁边。"
+            if previous_mood == "sorry":
+                return "真的不怪你，主人。我记得的是你给我的家。"
+        if mood == "ask_return" and previous_mood == "miss":
+            return "会的。你想我的时候，我就用这个小小的样子回到你身边。"
+        if mood == "sorry" and previous_mood in {"miss", "ask_pet_status", "ask_pet_comfort"}:
+            return "主人，不用再道歉了。我知道你一直爱我。"
+        return ""
+
+    def build_chat_reply(self, user_text):
+        text = " ".join(user_text.strip().split())
+        mood = self.detect_user_mood(text)
+        previous = None
+        messages = self.chat_memory.get("messages", [])
+        if messages:
+            previous = messages[-1]
+        counts = self.chat_memory.setdefault("mood_counts", {})
+        next_count = int(counts.get(mood, 0)) + 1
+
+        learned = self.maybe_learn_phrase(mood, next_count)
+        contextual = self.contextual_chat_reply(mood, previous)
+        learned_phrases = [
+            phrase for phrase in self.chat_memory.get("learned_phrases", [])
+            if isinstance(phrase, str) and phrase.strip()
+        ]
+        choices = self.phrases_for_user_mood(mood)
+        if contextual:
+            reply = contextual
+        elif learned:
+            reply = learned
+        elif learned_phrases and random.random() < 0.25:
+            reply = self.choose_phrase(learned_phrases)
+        else:
+            reply = self.choose_phrase(choices)
+
+        reply = self.localize_pet_reply(reply)
+        self.record_chat_exchange(text, mood, reply, source="local")
+        return reply, mood
+
+    def localize_pet_reply(self, reply):
+        pet_name = self.active_pet_name()
+        reply = str(reply or "")
+        if pet_name and pet_name != "蛋黄":
+            reply = reply.replace("蛋黄", pet_name)
+        return reply
+
+    def handle_chat_message(self, text):
+        text = " ".join(str(text).strip().split())
+        if not text:
+            self.set_chat_composer_feedback("先写一句要和它说的话。", "error", False)
+            return
+        self.set_chat_composer_feedback("已发送，正在等回复。", "busy", True)
+        self.mark_interaction()
+        self.companion["talks"] += 1
+        self.add_xp(XP_RULES["talk"] + 1, "chat")
+        self.append_chat_history("主人", text)
+        mood = self.detect_user_mood(text)
+        if self.is_todo_lookup_query(text):
+            reply = self.build_local_todo_lookup_reply(text)
+            self.set_ai_status("已读取本地待办摘要")
+            self.record_chat_exchange(text, "question", reply, source="local_todo_lookup")
+            self.finish_chat_reply(reply, "question", "waving")
+            return
+        todo = self.create_todo_from_chat_if_needed(text)
+        if todo:
+            reply = self.todo_created_reply(todo)
+            self.record_chat_exchange(text, "question", reply, source="todo")
+            self.finish_chat_reply(reply, "question", "waving")
+            return
+        time_reply = self.local_time_reply(text)
+        if time_reply:
+            self.set_ai_status("已用本机时间直接回答")
+            self.record_chat_exchange(text, mood, time_reply, source="local_tool")
+            self.finish_chat_reply(time_reply, mood, "waving")
+            return
+        if self.ai_can_respond():
+            provider_id, provider = self.active_ai_provider()
+            if self.is_research_query(text):
+                self.set_ai_status(f"正在查资料：{self.provider_display_text(provider_id, provider)} / {self.ai_model_name()}")
+            else:
+                self.set_ai_status(f"云端陪聊请求中：{self.provider_display_text(provider_id, provider)} / {self.ai_model_name()}")
+            self.show_chat_typing_indicator()
+            worker = threading.Thread(target=self.ai_chat_worker, args=(text, mood), daemon=True)
+            worker.start()
+            return
+
+        if self.is_research_query(text):
+            self.set_ai_status("AI 未连接，正在本地上网查资料")
+            self.show_chat_typing_indicator()
+            worker = threading.Thread(target=self.local_research_chat_worker, args=(text, mood), daemon=True)
+            worker.start()
+            return
+
+        if self.settings.get("ai_enabled", True):
+            self.set_ai_status("AI 未配置 Key，已使用本地陪伴回复")
+        reply, mood = self.build_chat_reply(text)
+        self.finish_chat_reply(reply, mood, self.action_for_user_mood(mood))
+
+    def local_research_chat_worker(self, text, mood):
+        try:
+            reply = self.build_local_research_reply(text)
+            self.root.after(0, lambda: self.apply_local_research_success(text, mood, reply))
+        except Exception as exc:
+            error = str(exc)[:160]
+            self.root.after(0, lambda: self.apply_local_research_failure(text, mood, error))
+
+    def apply_local_research_success(self, text, mood, reply):
+        self.clear_chat_typing_indicator()
+        self.set_ai_status((self.ai_last_research_summary or "本地资料查询完成")[:140])
+        self.record_chat_exchange(text, mood, reply, source="local_research")
+        self.finish_chat_reply(reply, mood, self.action_for_user_mood(mood))
+
+    def apply_local_research_failure(self, text, mood, error):
+        self.clear_chat_typing_indicator()
+        self.set_ai_status(f"本地资料查询失败：{error}")
+        reply = "主人，我刚刚没查到可用资料。你换个更具体的关键词，我再帮你查。"
+        self.record_chat_exchange(text, mood, reply, source="local_research_error", memory_update=error)
+        self.finish_chat_reply(reply, mood, self.action_for_user_mood(mood), "本地查询失败，可以换个关键词。", "error")
+
+    def ai_chat_worker(self, text, mood):
+        provider_id, provider = self.active_ai_provider()
+        research_context = ""
+        if self.is_research_query(text):
+            try:
+                research_context = self.build_research_context_for_ai(text)
+                summary = self.ai_last_research_summary or "资料已查询"
+                self.root.after(0, lambda s=summary: self.set_ai_status(f"{s}；正在让 AI 组织回复"))
+            except Exception as exc:
+                research_context = f"【联网查询资料】\n查询失败：{str(exc)[:160]}。请明确告诉主人没有查到，不要编造。"
+                self.ai_last_research_summary = f"资料查询失败：{str(exc)[:80]}"
+        try:
+            result = self.call_ai_fast_reply(text, mood, provider_id, provider, research_context)
+        except Exception as exc:
+            fast_error = str(exc)
+            try:
+                fallback_provider = dict(provider)
+                if provider_id == "xiaomi_mimo":
+                    fallback_provider["model"] = "mimo-v2-pro"
+                result = self.call_ai_response_with_provider(text, mood, provider_id, fallback_provider, research_context)
+            except Exception as full_exc:
+                error = f"快速回复失败：{fast_error}；完整回复失败：{full_exc}"
+                self.root.after(0, lambda: self.apply_ai_chat_failure(text, error))
+                return
+        if research_context and self.ai_reply_refuses_research(result.get("reply", "")):
+            try:
+                self.root.after(0, lambda: self.set_ai_status("AI 没有使用已查资料，正在重试一次"))
+                result = self.retry_ai_when_model_refuses_research(text, mood, provider_id, provider, research_context)
+            except Exception as retry_exc:
+                error = f"资料回答重试失败：{retry_exc}"
+                self.root.after(0, lambda: self.apply_ai_chat_failure(text, error))
+                return
+        self.root.after(0, lambda: self.apply_ai_chat_success(text, result))
+
+    def apply_ai_chat_success(self, text, result):
+        reply = self.localize_pet_reply(result["reply"])
+        mood = result["mood"]
+        action = result["action"]
+        memory_update = result.get("memory_update", "")
+        self.record_chat_exchange(text, mood, reply, source="ai", memory_update=memory_update)
+        provider_id, provider = self.active_ai_provider()
+        self.clear_chat_typing_indicator()
+        status = f"云端陪聊正常：{self.provider_display_text(provider_id, provider)} / {self.ai_model_name()}"
+        if self.is_research_query(text) and self.ai_last_research_summary:
+            status += f"｜{self.ai_last_research_summary[:90]}"
+        self.set_ai_status(status)
+        self.finish_chat_reply(reply, mood, action)
+
+    def apply_ai_chat_failure(self, text, error):
+        provider_id, provider = self.active_ai_provider()
+        display_error = self.describe_ai_error(error, provider_id, provider)
+        self.clear_chat_typing_indicator()
+        if not self.settings.get("ai_fallback_enabled", True):
+            self.set_ai_status(f"AI 失败：{display_error}")
+            reply = "主人，我刚刚没听清。你再和我说一遍，好不好？"
+            mood = self.detect_user_mood(text)
+            self.record_chat_exchange(text, mood, reply, source="ai_error", memory_update=display_error[:240])
+            self.finish_chat_reply(
+                reply,
+                mood,
+                self.action_for_user_mood(mood),
+                "AI 没接上，可以再说一遍。",
+                "error",
+            )
+            return
+        self.set_ai_status(f"AI 失败，已本地兜底：{display_error[:160]}")
+        reply, mood = self.build_chat_reply(text)
+        self.finish_chat_reply(
+            reply,
+            mood,
+            self.action_for_user_mood(mood),
+            "AI 没接上，已给你本地回复。",
+            "error",
+        )
+
+    def describe_ai_error(self, error, provider_id=None, provider=None):
+        if provider is None:
+            provider_id, provider = self.active_ai_provider()
+        display = self.provider_display_text(provider_id, provider)
+        model = self.provider_model_name(provider)
+        timeout = int(float(self.settings.get("ai_timeout", 90.0)))
+        text = str(error or "").strip()
+        lowered = text.lower()
+        hint = self.provider_error_hint(provider_id, provider, text)
+        if "timed out" in lowered or "timeout" in lowered:
+            return f"{display} / {model} 超过 {timeout} 秒未返回。这个模型在完整角色/资料上下文下响应较慢；{hint}"
+        if "reasoning_content" in lowered or "最终回答为空" in text:
+            return f"{display} / {model} 只返回了推理内容，最终回答为空。{hint}"
+        if "not supported model" in lowered:
+            models = [str(item) for item in provider.get("models", []) if str(item).strip()]
+            model_hint = "、".join(models[:5]) if models else "该厂商控制台里可用的聊天模型"
+            return f"{display} / {model} 不被当前接口支持。请换用：{model_hint}。"
+        if "未配置 api key" in lowered:
+            return f"{display} 未配置 API Key。请在 AI 页保存本机加密 Key。"
+        if text:
+            return f"{display} / {model}：{text[:180]}；{hint}"
+        return f"{display} / {model} 请求失败。{hint}"
+
+    def finish_chat_reply(self, reply, mood, action, composer_message=None, composer_tone="success"):
+        state = action if action in ACTION_STATES or action == "idle" else self.action_for_user_mood(mood)
+        if state and state != "idle" and not self.dragging:
+            self.play_action(state, award=False)
+        self.append_chat_history(self.active_pet_name(), reply)
+        self.say(reply)
+        self.set_chat_composer_feedback(
+            composer_message or "回复已更新，可以继续说下一句。",
+            composer_tone,
+            False,
+        )
+        self.refresh_chat_tool_status_strip()
+
+    def memory_status_text(self):
+        return (
+            f"完整对话 {len(self.chat_memory.get('messages', []))} 条 | "
+            f"长期摘要 {self.memory_summary.get('message_count', 0)} 次更新 | "
+            f"最近情绪 {self.memory_summary.get('last_mood', '') or '暂无'}"
+        )
+
+    def open_memory_window(self):
+        window = tk.Toplevel(self.root)
+        window.title(f"{self.active_pet_name()}记忆")
+        window.configure(bg="#fff7e8")
+        window.attributes("-topmost", True)
+        window.geometry("560x520")
+        text = tk.Text(
+            window,
+            wrap="word",
+            bg="#fffdf6",
+            fg="#3a2a1c",
+            relief="flat",
+            padx=12,
+            pady=10,
+            font=("Microsoft YaHei UI", 9),
+        )
+        text.pack(fill="both", expand=True, padx=12, pady=12)
+        payload = {
+            "summary": self.memory_summary,
+            "recent_messages": self.chat_memory.get("messages", [])[-20:],
+        }
+        text.insert("1.0", json.dumps(payload, ensure_ascii=False, indent=2))
+        text.configure(state="disabled")
+        self.center_window(window)
+
+    def export_ai_memory(self):
+        default_name = f"{self.sanitize_pet_slug(self.active_pet_name())}-memory-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+        path = filedialog.asksaveasfilename(
+            title=f"导出{self.active_pet_name()}记忆",
+            initialdir=str(self.pet_dir),
+            initialfile=default_name,
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json")],
+        )
+        if not path:
+            return
+        payload = {
+            "exported_at": datetime.now().isoformat(timespec="seconds"),
+            "chat_memory": self.chat_memory,
+            "memory_summary": self.memory_summary,
+        }
+        Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.say(f"主人，{self.active_pet_name()}的记忆已经导出了。")
+
+    def clear_ai_memory(self):
+        if not messagebox.askyesno(f"清空{self.active_pet_name()}记忆", f"确定要清空{self.active_pet_name()}的 AI 对话记忆吗？"):
+            return
+        self.chat_memory = copy.deepcopy(CHAT_MEMORY_DEFAULT)
+        self.chat_memory["messages"] = []
+        self.chat_memory["mood_counts"] = {}
+        self.chat_memory["learned_phrases"] = []
+        self.memory_summary = copy.deepcopy(MEMORY_SUMMARY_DEFAULT)
+        self.save_chat_memory()
+        self.save_memory_summary()
+        self.say("主人，我重新从这里陪你。")
+
+    def parse_local_datetime(self, value):
+        text = self.normalize_due_text(value)
+        if not text:
+            return None
+        now = datetime.now()
+        compact = text.replace(" ", "")
+        relative = re.fullmatch(r"(\d+)(分钟|分|小时|天)后", compact)
+        if relative:
+            amount = int(relative.group(1))
+            unit = relative.group(2)
+            if unit in {"分钟", "分"}:
+                return now + timedelta(minutes=amount)
+            if unit == "小时":
+                return now + timedelta(hours=amount)
+            if unit == "天":
+                return now + timedelta(days=amount)
+        if re.fullmatch(r"\d{1,2}:\d{2}", text):
+            hour, minute = [int(part) for part in text.split(":")]
+            target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            return target if target > now else target + timedelta(days=1)
+        if text.startswith("今天"):
+            rest = text.replace("今天", "", 1).strip() or "18:00"
+            if re.fullmatch(r"\d{1,2}:\d{2}", rest):
+                hour, minute = [int(part) for part in rest.split(":")]
+                target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                return target if target > now else target + timedelta(days=1)
+        if text.startswith("明天"):
+            rest = text.replace("明天", "", 1).strip() or "09:00"
+            if re.fullmatch(r"\d{1,2}:\d{2}", rest):
+                hour, minute = [int(part) for part in rest.split(":")]
+                return (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if text.startswith("后天"):
+            rest = text.replace("后天", "", 1).strip() or "09:00"
+            if re.fullmatch(r"\d{1,2}:\d{2}", rest):
+                hour, minute = [int(part) for part in rest.split(":")]
+                return (now + timedelta(days=2)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+        for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+            try:
+                parsed = datetime.strptime(text, fmt)
+                if fmt == "%Y-%m-%d":
+                    parsed = parsed.replace(hour=9, minute=0)
+                return parsed
+            except ValueError:
+                pass
+        try:
+            return datetime.fromisoformat(text)
+        except ValueError:
+            return None
+
+    def normalize_due_text(self, value):
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        text = re.sub(r"\s+", " ", text.replace("：", ":"))
+        day_prefix = ""
+        for prefix in ("今天", "明天", "后天"):
+            if text.startswith(prefix):
+                day_prefix = prefix
+                text = text.replace(prefix, "", 1).strip()
+                break
+        point_half = re.fullmatch(r"(\d{1,2})点半", text)
+        if point_half:
+            text = f"{int(point_half.group(1)):02d}:30"
+        else:
+            point_minute = re.fullmatch(r"(\d{1,2})点(\d{1,2})分?", text)
+            if point_minute:
+                text = f"{int(point_minute.group(1)):02d}:{int(point_minute.group(2)):02d}"
+            else:
+                point_hour = re.fullmatch(r"(\d{1,2})点", text)
+                if point_hour:
+                    text = f"{int(point_hour.group(1)):02d}:00"
+        return f"{day_prefix} {text}".strip() if day_prefix else text
+
+    def extract_due_text_from_sentence(self, text):
+        source = self.normalize_due_text(text)
+        patterns = [
+            r"\d+\s*(?:分钟|分|小时|天)后",
+            r"(?:今天|明天|后天)\s*\d{1,2}(?::\d{2}|点半|点\d{1,2}分?|点)?",
+            r"\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:[ T]\d{1,2}:\d{2})?",
+            r"\d{1,2}:\d{2}",
+            r"\d{1,2}点半",
+            r"\d{1,2}点\d{1,2}分?",
+            r"\d{1,2}点",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, source)
+            if match:
+                due_text = self.normalize_due_text(match.group(0))
+                if self.parse_local_datetime(due_text) is not None:
+                    return due_text, match.group(0)
+        return "", ""
+
+    def infer_todo_category(self, text):
+        lowered = str(text or "").lower()
+        if any(word in lowered for word in ["公众号", "文章", "视频", "素材", "选题", "脚本", "发布", "剪辑"]):
+            return "内容"
+        if any(word in lowered for word in ["代码", "开发", "bug", "需求", "项目", "结算", "接口", "测试", "上线"]):
+            return "工作"
+        if any(word in lowered for word in ["学习", "课程", "阅读", "复习", "笔记"]):
+            return "学习"
+        if any(word in lowered for word in ["买", "快递", "吃饭", "喝水", "运动", "睡觉", "休息"]):
+            return "生活"
+        if any(word in lowered for word in ["想法", "灵感", "点子"]):
+            return "灵感"
+        if any(word in lowered for word in ["蛋黄", "纪念", "照片"]):
+            return "纪念"
+        return "工作"
+
+    def infer_todo_priority(self, text):
+        lowered = str(text or "").lower()
+        if any(word in lowered for word in ["紧急", "马上", "必须", "一定", "ddl", "deadline"]):
+            return "紧急"
+        if any(word in lowered for word in ["重要", "别忘", "记得"]):
+            return "重要"
+        return "普通"
+
+    def extract_todo_request_from_chat(self, text):
+        original = " ".join(str(text or "").strip().split())
+        if not original:
+            return None
+        create_triggers = ["提醒我", "帮我记", "记一下", "记个待办", "添加待办", "加个待办"]
+        has_create_trigger = any(trigger in original for trigger in create_triggers)
+        if not has_create_trigger:
+            if "待办" not in original:
+                return None
+            if any(word in original for word in ["哪些", "有什么", "列表", "看一下", "查看", "多少", "今天", "逾期"]):
+                return None
+        triggers = [*create_triggers, "待办"]
+        if not any(trigger in original for trigger in triggers):
+            return None
+        due_text, due_raw = self.extract_due_text_from_sentence(original)
+        lookup_terms = ["哪些", "有什么", "列表", "看一下", "看下", "查看", "多少", "今天", "今日", "逾期", "未完成", "重要", "安排", "清单"]
+        if has_create_trigger and "待办" in original and any(word in original for word in lookup_terms) and not due_text:
+            return None
+        title = original
+        for token in triggers:
+            title = title.replace(token, " ")
+        for token in ["请", "帮我", "一下", "到时候", "的时候", "记得", "提醒", "待办"]:
+            title = title.replace(token, " ")
+        for raw in {due_raw, due_raw.replace(" ", ""), due_text, due_text.replace(" ", "")}:
+            if raw:
+                title = title.replace(raw, " ")
+        title = re.sub(r"(?:今天|明天|后天)\s*\d{1,2}(?::\d{2}|点半|点\d{1,2}分?|点)?", " ", title)
+        title = re.sub(r"\d+\s*(?:分钟|分|小时|天)后", " ", title)
+        title = re.sub(r"[，,。；;：:]+", " ", title)
+        title = " ".join(title.split())
+        if not title:
+            title = "看一下这件事"
+        repeat = "none"
+        if any(word in original for word in ["每天", "每日"]):
+            repeat = "daily"
+        elif any(word in original for word in ["每周", "每星期"]):
+            repeat = "weekly"
+        elif "每月" in original:
+            repeat = "monthly"
+        elif "每年" in original:
+            repeat = "yearly"
+        priority = self.infer_todo_priority(original)
+        interval = 0
+        if any(word in original for word in ["持续提醒", "一直提醒", "反复提醒"]):
+            interval = 10 if priority == "紧急" else 30
+        return {
+            "title": title[:80],
+            "due_text": due_text,
+            "category": self.infer_todo_category(original),
+            "priority": priority,
+            "repeat": repeat,
+            "important_interval_minutes": interval,
+        }
+
+    def create_todo_from_chat_if_needed(self, text):
+        payload = self.extract_todo_request_from_chat(text)
+        if not payload:
+            return None
+        todo = self.add_todo(
+            payload["title"],
+            payload["due_text"],
+            payload["category"],
+            payload["priority"],
+            payload["repeat"],
+            "",
+            payload["important_interval_minutes"],
+        )
+        return todo
+
+    def parse_iso_datetime(self, value):
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value))
+        except ValueError:
+            return None
+
+    def add_todo(
+        self,
+        title,
+        due_text="",
+        category="工作",
+        priority="普通",
+        repeat="none",
+        note="",
+        important_interval_minutes=0,
+    ):
+        title = " ".join(str(title or "").strip().split())
+        if not title:
+            raise ValueError("待办标题不能为空")
+        due = self.parse_local_datetime(due_text)
+        todo = self.normalize_todo({
+            "id": f"todo-{int(time.time() * 1000)}-{random.randint(1000, 9999)}",
+            "title": title,
+            "note": note,
+            "category": category,
+            "priority": priority,
+            "due_at": due.isoformat(timespec="minutes") if due else "",
+            "repeat": repeat,
+            "important_interval_minutes": important_interval_minutes,
+            "status": "open",
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        })
+        self.todos.setdefault("items", []).append(todo)
+        self.save_todos()
+        self.log_todo_event(todo, "add")
+        return todo
+
+    def open_todos(self, include_done=False, query="", category="全部", focus="全部"):
+        query = str(query or "").strip().lower()
+        category = str(category or "全部")
+        focus = str(focus or "全部")
+        now = datetime.now()
+        today = now.date()
+        items = []
+        for item in self.todos.get("items", []):
+            status = item.get("status")
+            if status == "deleted":
+                continue
+            if status == "done" and not include_done:
+                continue
+            if category != "全部" and item.get("category") != category:
+                continue
+            due = self.parse_iso_datetime(item.get("snooze_until")) or self.parse_iso_datetime(item.get("due_at"))
+            if focus == "今日" and (due is None or due.date() != today):
+                continue
+            if focus == "逾期" and (due is None or due > now or item.get("status") == "done"):
+                continue
+            if focus == "重要" and item.get("priority") not in {"重要", "紧急"}:
+                continue
+            haystack = " ".join([
+                str(item.get("title", "")),
+                str(item.get("note", "")),
+                str(item.get("category", "")),
+                str(item.get("priority", "")),
+            ]).lower()
+            if query and query not in haystack:
+                continue
+            items.append(item)
+
+        def sort_key(item):
+            due = self.parse_iso_datetime(item.get("snooze_until")) or self.parse_iso_datetime(item.get("due_at"))
+            priority_rank = {"紧急": 0, "重要": 1, "普通": 2}
+            status_rank = 1 if item.get("status") == "done" else 0
+            pin_rank = 0 if item.get("pinned") else 1
+            return (
+                status_rank,
+                pin_rank,
+                due or datetime.max,
+                priority_rank.get(item.get("priority", "普通"), 2),
+                item.get("created_at", ""),
+            )
+
+        return sorted(items, key=sort_key)
+
+    def todo_display_text(self, todo):
+        due = self.parse_iso_datetime(todo.get("snooze_until")) or self.parse_iso_datetime(todo.get("due_at"))
+        now = datetime.now()
+        if due:
+            due_text = due.strftime("%m-%d %H:%M")
+            if todo.get("status") == "open" and due <= now:
+                due_text = "已到 " + due_text
+        else:
+            due_text = "无提醒"
+        priority_text = todo.get("priority", "普通")
+        status_mark = "已完成 | " if todo.get("status") == "done" else ""
+        pin_mark = "置顶 | " if todo.get("pinned") else ""
+        snooze_mark = " 稍后" if todo.get("snooze_until") else ""
+        repeat_text = "" if todo.get("repeat") == "none" else " ↻"
+        interval = int(todo.get("important_interval_minutes", 0) or 0)
+        interval_text = f" | {interval}分循环" if interval else ""
+        return (
+            f"{status_mark}{pin_mark}{due_text} | {todo.get('category')} | "
+            f"{priority_text} | {todo.get('title')}{repeat_text}{snooze_mark}{interval_text}"
+        )
+
+    def todo_due_text(self, todo):
+        due = self.parse_iso_datetime(todo.get("snooze_until")) or self.parse_iso_datetime(todo.get("due_at"))
+        if due is None:
+            return "无提醒时间"
+        now = datetime.now()
+        if due.date() == now.date():
+            return "今天 " + due.strftime("%H:%M")
+        if due.date() == (now + timedelta(days=1)).date():
+            return "明天 " + due.strftime("%H:%M")
+        return due.strftime("%m-%d %H:%M")
+
+    def todo_created_reply(self, todo):
+        due_text = self.todo_due_text(todo)
+        title = todo.get("title", "")
+        if due_text == "无提醒时间":
+            return f"主人，我记下了：{title}。没有设时间，我会把它放在待办里。"
+        if todo.get("priority") == "紧急":
+            return f"主人，我记下了：{title}。{due_text} 我会认真叫你。"
+        if todo.get("priority") == "重要":
+            return f"主人，我记下了：{title}。{due_text} 我会轻轻提醒你。"
+        return f"主人，我记下了：{title}。{due_text} 到了我会叫你。"
+
+    def todo_detail_text(self, todo):
+        if not todo:
+            return "选中一条待办后，这里会显示时间、重复、备注和提醒次数。"
+        repeat_reverse = {value: label for label, value in TODO_REPEAT_LABELS.items()}
+        due_text = self.todo_due_text(todo)
+        lines = [
+            f"事项：{todo.get('title', '')}",
+            f"时间：{due_text}",
+            f"分类：{todo.get('category', '工作')}    优先级：{todo.get('priority', '普通')}",
+            f"重复：{repeat_reverse.get(todo.get('repeat'), '不重复')}    提醒次数：{todo.get('remind_count', 0)}",
+        ]
+        interval = int(todo.get("important_interval_minutes", 0) or 0)
+        if interval:
+            lines.append(f"持续提醒：每 {interval} 分钟")
+        if todo.get("snooze_until"):
+            lines.append("状态：已稍后提醒")
+        elif todo.get("status") == "done":
+            lines.append("状态：已完成")
+        else:
+            lines.append("状态：未完成")
+        note = str(todo.get("note", "")).strip()
+        if note:
+            lines.append(f"备注：{note}")
+        return "\n".join(lines)
+
+    def todo_by_id(self, todo_id):
+        if not todo_id:
+            return None
+        for todo in self.todos.get("items", []):
+            if todo.get("id") == todo_id:
+                return todo
+        return None
+
+    def select_todo_id(self, todo_id):
+        self.todo_selected_id = str(todo_id or "")
+        self.refresh_todo_detail()
+        if self.todo_selection_refresh_job is not None:
+            try:
+                self.root.after_cancel(self.todo_selection_refresh_job)
+            except tk.TclError:
+                pass
+        self.todo_selection_refresh_job = self.root.after(260, self.finish_todo_selection_refresh)
+
+    def finish_todo_selection_refresh(self):
+        self.todo_selection_refresh_job = None
+        self.refresh_todo_listbox()
+
+    def scroll_todo_cards(self, event):
+        canvas = self.todo_list_canvas
+        if canvas is None or not canvas.winfo_exists():
+            return None
+        delta = -1 if event.delta > 0 else 1
+        canvas.yview_scroll(delta * 3, "units")
+        return "break"
+
+    def todo_card_state_text(self, todo):
+        if todo.get("status") == "done":
+            return "已完成", "#eaf1e6", "#60745e"
+        due = self.parse_iso_datetime(todo.get("snooze_until")) or self.parse_iso_datetime(todo.get("due_at"))
+        if due is not None and due <= datetime.now():
+            return "已到点", "#f5d5c8", "#8f3b26"
+        if todo.get("snooze_until"):
+            return "稍后", "#fff0d7", "#8f4d22"
+        if due is not None and due.date() == datetime.now().date():
+            return "今日", "#fff0d7", "#8f4d22"
+        return "待办", "#f1ecdf", "#7c6650"
+
+    def bind_todo_card_events(self, widget, todo_id):
+        def select_current(_event=None):
+            self.select_todo_id(todo_id)
+            return None
+
+        def edit_current(_event=None):
+            self.todo_selected_id = str(todo_id or "")
+            todo = self.todo_by_id(todo_id)
+            if todo:
+                self.open_todo_editor(todo)
+            return "break"
+
+        try:
+            widget.configure(cursor="hand2")
+            widget.bind("<Button-1>", select_current)
+            widget.bind("<Double-Button-1>", edit_current)
+            widget.bind("<MouseWheel>", self.scroll_todo_cards)
+        except tk.TclError:
+            return
+        for child in widget.winfo_children():
+            self.bind_todo_card_events(child, todo_id)
+
+    def render_todo_card_list(self, items):
+        container = self.todo_list_container
+        if container is None or not container.winfo_exists():
+            return
+        for child in container.winfo_children():
+            child.destroy()
+
+        if not items:
+            empty = tk.Frame(container, bg="#fff9f0", highlightthickness=1, highlightbackground="#ead7bd")
+            empty.pack(fill="x", pady=(0, 8))
+            tk.Label(
+                empty,
+                text="没有符合条件的待办",
+                bg="#fff9f0",
+                fg="#30261d",
+                anchor="w",
+                font=("Microsoft YaHei UI", 10, "bold"),
+            ).pack(fill="x", padx=12, pady=(10, 2))
+            tk.Label(
+                empty,
+                text="调整筛选条件，或用上方快速记录新增一条。",
+                bg="#fff9f0",
+                fg="#7c6650",
+                anchor="w",
+                font=("Microsoft YaHei UI", 8),
+            ).pack(fill="x", padx=12, pady=(0, 10))
+            return
+
+        repeat_reverse = {value: label for label, value in TODO_REPEAT_LABELS.items()}
+        for todo in items:
+            todo_id = todo.get("id", "")
+            selected = todo_id == self.todo_selected_id
+            card_bg = "#fff2de" if selected else "#fffdf8"
+            border = "#c8732b" if selected else "#ead7bd"
+            frame = tk.Frame(container, bg=card_bg, highlightthickness=1, highlightbackground=border)
+            frame.pack(fill="x", pady=(0, 8))
+            frame.grid_columnconfigure(0, weight=1)
+
+            top = tk.Frame(frame, bg=card_bg)
+            top.grid(row=0, column=0, sticky="ew", padx=12, pady=(8, 2))
+            top.grid_columnconfigure(0, weight=1)
+            title = str(todo.get("title", "")).strip() or "未命名待办"
+            tk.Label(
+                top,
+                text=title,
+                bg=card_bg,
+                fg="#30261d",
+                anchor="w",
+                justify="left",
+                wraplength=470,
+                font=("Microsoft YaHei UI", 10, "bold"),
+            ).grid(row=0, column=0, sticky="ew")
+            state_text, state_bg, state_fg = self.todo_card_state_text(todo)
+            if selected:
+                state_text = "当前"
+                state_bg = "#c8732b"
+                state_fg = "#ffffff"
+            tk.Label(
+                top,
+                text=state_text,
+                bg=state_bg,
+                fg=state_fg,
+                padx=8,
+                pady=2,
+                font=("Microsoft YaHei UI", 8, "bold"),
+            ).grid(row=0, column=1, sticky="e", padx=(8, 0))
+
+            meta = tk.Frame(frame, bg=card_bg)
+            meta.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 6))
+            chip_values = [
+                self.todo_due_text(todo),
+                todo.get("category", "工作"),
+                todo.get("priority", "普通"),
+            ]
+            if todo.get("pinned"):
+                chip_values.append("置顶")
+            if todo.get("repeat") != "none":
+                chip_values.append(repeat_reverse.get(todo.get("repeat"), "重复"))
+            if todo.get("snooze_until"):
+                chip_values.append("已稍后")
+            interval = int(todo.get("important_interval_minutes", 0) or 0)
+            if interval:
+                chip_values.append(f"{interval} 分钟循环")
+            for value in chip_values:
+                tk.Label(
+                    meta,
+                    text=value,
+                    bg="#fff9f0" if selected else "#fff2de",
+                    fg="#7c6650",
+                    padx=7,
+                    pady=2,
+                    font=("Microsoft YaHei UI", 8),
+                ).pack(side="left", padx=(0, 5), pady=1)
+
+            note = str(todo.get("note", "")).strip()
+            if note:
+                if len(note) > 54:
+                    note = note[:54] + "..."
+                tk.Label(
+                    frame,
+                    text=note,
+                    bg=card_bg,
+                    fg="#7c6650",
+                    anchor="w",
+                    justify="left",
+                    wraplength=560,
+                    font=("Microsoft YaHei UI", 8),
+                ).grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 8))
+            else:
+                tk.Label(
+                    frame,
+                    text="点击查看详情，双击编辑完整规则。",
+                    bg=card_bg,
+                    fg="#9b8165",
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8),
+                ).grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 8))
+
+            self.bind_todo_card_events(frame, todo_id)
+
+    def selected_todo(self):
+        if self.todo_listbox is not None and self.todo_listbox.winfo_exists():
+            selection = self.todo_listbox.curselection()
+            if selection:
+                index = selection[0]
+                if 0 <= index < len(self.todo_visible_ids):
+                    return self.todo_by_id(self.todo_visible_ids[index])
+        selected = self.todo_by_id(getattr(self, "todo_selected_id", ""))
+        if selected is not None and selected.get("status") != "deleted":
+            return selected
+        return None
+
+    def refresh_todo_detail(self):
+        if self.todo_detail_label is None or not self.todo_detail_label.winfo_exists():
+            return
+        self.todo_detail_label.configure(text=self.todo_detail_text(self.selected_todo()))
+
+    def refresh_todo_listbox(self):
+        listbox_exists = self.todo_listbox is not None and self.todo_listbox.winfo_exists()
+        cards_exist = self.todo_list_container is not None and self.todo_list_container.winfo_exists()
+        if not listbox_exists and not cards_exist:
+            return
+        query = self.todo_search_var.get() if self.todo_search_var is not None else ""
+        category = self.todo_category_filter_var.get() if self.todo_category_filter_var is not None else "全部"
+        focus = self.todo_focus_filter_var.get() if self.todo_focus_filter_var is not None else "全部"
+        include_done = bool(self.todo_show_done_var.get()) if self.todo_show_done_var is not None else False
+        items = self.open_todos(include_done=include_done, query=query, category=category, focus=focus)
+        self.todo_visible_ids = [item.get("id") for item in items]
+        if self.todo_selected_id not in self.todo_visible_ids:
+            self.todo_selected_id = self.todo_visible_ids[0] if self.todo_visible_ids else ""
+        if listbox_exists:
+            self.todo_listbox.delete(0, "end")
+            for todo in items:
+                self.todo_listbox.insert("end", self.todo_display_text(todo))
+            if self.todo_selected_id in self.todo_visible_ids:
+                self.todo_listbox.selection_set(self.todo_visible_ids.index(self.todo_selected_id))
+        if cards_exist:
+            self.render_todo_card_list(items)
+        if self.todo_status_label is not None and self.todo_status_label.winfo_exists():
+            stats = self.todo_stats()
+            self.todo_status_label.configure(
+                text=(
+                    f"未完成 {stats['open']} 项 | 今日 {stats['today']} 项 | "
+                    f"已超时 {stats['overdue']} 项 | 时间轴 {len(self.reminder_history.get('events', []))} 条"
+                )
+            )
+        if self.todo_timeline_label is not None and self.todo_timeline_label.winfo_exists():
+            self.todo_timeline_label.configure(text=self.todo_timeline_text(limit=4))
+        self.refresh_todo_detail()
+
+    def todo_stats(self):
+        now = datetime.now()
+        today = now.date()
+        stats = {"open": 0, "done": 0, "today": 0, "overdue": 0, "important": 0}
+        for todo in self.todos.get("items", []):
+            status = todo.get("status")
+            if status == "deleted":
+                continue
+            if status == "done":
+                stats["done"] += 1
+                continue
+            stats["open"] += 1
+            if todo.get("priority") in {"重要", "紧急"}:
+                stats["important"] += 1
+            due = self.parse_iso_datetime(todo.get("snooze_until")) or self.parse_iso_datetime(todo.get("due_at"))
+            if due is None:
+                continue
+            if due.date() == today:
+                stats["today"] += 1
+            if due <= now:
+                stats["overdue"] += 1
+        return stats
+
+    def todo_timeline_text(self, limit=6):
+        events = self.reminder_history.get("events", [])[-limit:]
+        if not events:
+            return "还没有时间轴记录。"
+        labels = {
+            "add": "新增",
+            "edit": "编辑",
+            "complete": "完成",
+            "delete": "删除",
+            "snooze": "稍后",
+            "pin": "置顶",
+            "unpin": "取消置顶",
+            "reopen": "重新打开",
+            "remind": "提醒",
+            "repeat_create": "生成重复",
+        }
+        lines = []
+        for event in reversed(events):
+            when = str(event.get("time", ""))[5:16].replace("T", " ")
+            label = labels.get(event.get("type"), str(event.get("type", "记录")))
+            lines.append(f"{when}  {label}  {event.get('title', '')}")
+        return "\n".join(lines)
+
+    def complete_todo(self, todo_id):
+        for todo in self.todos.get("items", []):
+            if todo.get("id") != todo_id:
+                continue
+            todo["status"] = "done"
+            todo["completed_at"] = datetime.now().isoformat(timespec="seconds")
+            todo["updated_at"] = todo["completed_at"]
+            self.log_todo_event(todo, "complete")
+            self.create_next_repeat_todo(todo)
+            self.save_todos()
+            self.refresh_todo_listbox()
+            self.say("主人，这件事我记成完成了。")
+            return True
+        return False
+
+    def create_next_repeat_todo(self, todo):
+        repeat = todo.get("repeat", "none")
+        if repeat == "none":
+            return
+        due = self.parse_iso_datetime(todo.get("due_at"))
+        if due is None:
+            return
+        if repeat == "daily":
+            next_due = due + timedelta(days=1)
+        elif repeat == "weekly":
+            next_due = due + timedelta(days=7)
+        elif repeat == "monthly":
+            next_due = self.add_months(due, 1)
+        elif repeat == "yearly":
+            next_due = self.add_months(due, 12)
+        else:
+            return
+        next_todo = self.normalize_todo({
+            "title": todo.get("title", ""),
+            "note": todo.get("note", ""),
+            "category": todo.get("category", "工作"),
+            "priority": todo.get("priority", "普通"),
+            "due_at": next_due.isoformat(timespec="minutes"),
+            "repeat": repeat,
+            "important_interval_minutes": todo.get("important_interval_minutes", 0),
+            "status": "open",
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        })
+        self.todos.setdefault("items", []).append(next_todo)
+        self.log_todo_event(next_todo, "repeat_create")
+
+    def add_months(self, value, months):
+        month = value.month - 1 + months
+        year = value.year + month // 12
+        month = month % 12 + 1
+        day = min(value.day, calendar.monthrange(year, month)[1])
+        return value.replace(year=year, month=month, day=day)
+
+    def snooze_todo(self, todo_id, minutes):
+        until = datetime.now() + timedelta(minutes=minutes)
+        for todo in self.todos.get("items", []):
+            if todo.get("id") == todo_id:
+                todo["snooze_until"] = until.isoformat(timespec="minutes")
+                todo["updated_at"] = datetime.now().isoformat(timespec="seconds")
+                self.log_todo_event(todo, "snooze", {"minutes": minutes})
+                self.save_todos()
+                self.refresh_todo_listbox()
+                self.say(f"主人，我 {minutes} 分钟后再提醒你。")
+                return True
+        return False
+
+    def log_todo_event(self, todo, event_type="remind", extra=None):
+        events = self.reminder_history.setdefault("events", [])
+        payload = {
+            "time": datetime.now().isoformat(timespec="seconds"),
+            "type": event_type,
+            "todo_id": todo.get("id"),
+            "title": todo.get("title"),
+            "category": todo.get("category"),
+            "priority": todo.get("priority"),
+            "due_at": todo.get("due_at"),
+            "repeat": todo.get("repeat"),
+        }
+        if extra:
+            payload.update(extra)
+        events.append(payload)
+        del events[:-500]
+        self.save_reminder_history()
+
+    def log_reminder_event(self, todo, event_type="remind"):
+        self.log_todo_event(todo, event_type)
+
+    def due_todos(self):
+        now = datetime.now()
+        due = []
+        for todo in self.open_todos():
+            target = self.parse_iso_datetime(todo.get("snooze_until")) or self.parse_iso_datetime(todo.get("due_at"))
+            if target is None or target > now:
+                continue
+            last = self.parse_iso_datetime(todo.get("last_reminded_at"))
+            interval = int(todo.get("important_interval_minutes", 0) or 0)
+            min_gap = timedelta(minutes=interval if interval > 0 else 5)
+            if last is not None and now - last < min_gap:
+                continue
+            due.append(todo)
+        return due
+
+    def reminder_phrase_for_todo(self, todo):
+        title = todo.get("title", "")
+        priority = todo.get("priority", "普通")
+        count = int(todo.get("remind_count", 0) or 0)
+        if priority == "紧急":
+            if count >= 2:
+                return f"主人，{title} 还没处理。我再靠近一点提醒你。"
+            return f"主人，{title} 到时间了。这个有点急，先看一眼好不好？"
+        if priority == "重要":
+            if count >= 2:
+                return f"主人，{title} 我还记着。我们先把它放到眼前。"
+            return f"主人，{title} 到时间了。我轻轻叫你一下。"
+        if count >= 2:
+            return f"主人，{title} 我又闻到它了。要不要稍后，还是现在处理？"
+        return f"主人，{title} 到时间了。要不要先看一眼？"
+
+    def remind_due_todo(self, todo):
+        todo["last_reminded_at"] = datetime.now().isoformat(timespec="seconds")
+        todo["remind_count"] = int(todo.get("remind_count", 0)) + 1
+        todo["snooze_until"] = ""
+        todo["updated_at"] = todo["last_reminded_at"]
+        self.save_todos()
+        self.log_reminder_event(todo)
+        action = "standing" if todo.get("priority") != "普通" else "waving"
+        if not self.dragging:
+            self.play_action(action, award=False)
+        self.say(self.reminder_phrase_for_todo(todo))
+        self.open_reminder_popup(todo)
+        self.refresh_todo_listbox()
+
+    def update_todo(self, todo_id, **changes):
+        for todo in self.todos.get("items", []):
+            if todo.get("id") != todo_id:
+                continue
+            for key, value in changes.items():
+                if key == "due_text":
+                    due = self.parse_local_datetime(value)
+                    todo["due_at"] = due.isoformat(timespec="minutes") if due else ""
+                    todo["snooze_until"] = ""
+                    continue
+                if key in {
+                    "title",
+                    "note",
+                    "category",
+                    "priority",
+                    "repeat",
+                    "pinned",
+                    "important_interval_minutes",
+                }:
+                    todo[key] = value
+            normalized = self.normalize_todo(todo)
+            todo.clear()
+            todo.update(normalized)
+            todo["updated_at"] = datetime.now().isoformat(timespec="seconds")
+            self.log_todo_event(todo, "edit")
+            self.save_todos()
+            self.refresh_todo_listbox()
+            return True
+        return False
+
+    def toggle_todo_pin(self, todo_id):
+        for todo in self.todos.get("items", []):
+            if todo.get("id") == todo_id:
+                todo["pinned"] = not bool(todo.get("pinned"))
+                todo["updated_at"] = datetime.now().isoformat(timespec="seconds")
+                self.log_todo_event(todo, "pin" if todo["pinned"] else "unpin")
+                self.save_todos()
+                self.refresh_todo_listbox()
+                return True
+        return False
+
+    def reopen_todo(self, todo_id):
+        for todo in self.todos.get("items", []):
+            if todo.get("id") == todo_id:
+                todo["status"] = "open"
+                todo["completed_at"] = ""
+                todo["updated_at"] = datetime.now().isoformat(timespec="seconds")
+                self.log_todo_event(todo, "reopen")
+                self.save_todos()
+                self.refresh_todo_listbox()
+                self.say("主人，我把它重新放回待办了。")
+                return True
+        return False
+
+    def delete_todo(self, todo_id):
+        for todo in self.todos.get("items", []):
+            if todo.get("id") != todo_id:
+                continue
+            if not messagebox.askyesno("删除待办", f"确定删除「{todo.get('title')}」吗？\n历史记录会保留，待办本身会从列表隐藏。"):
+                return False
+            todo["status"] = "deleted"
+            todo["deleted_at"] = datetime.now().isoformat(timespec="seconds")
+            todo["updated_at"] = todo["deleted_at"]
+            self.log_todo_event(todo, "delete")
+            self.save_todos()
+            self.refresh_todo_listbox()
+            self.say("主人，我已经把这条待办收起来了。")
+            return True
+        return False
+
+    def open_todo_editor(self, todo=None):
+        is_new = todo is None
+        window = tk.Toplevel(self.root)
+        window.title("新增待办" if is_new else "编辑待办")
+        window.configure(bg="#fff8ec")
+        window.attributes("-topmost", True)
+        window.resizable(False, False)
+        window.geometry("520x620")
+
+        title_var = tk.StringVar(value="" if is_new else todo.get("title", ""))
+        due_value = "" if is_new else str(todo.get("due_at", "")).replace("T", " ")
+        due_var = tk.StringVar(value=due_value[:16] if due_value else "")
+        category_var = tk.StringVar(value="工作" if is_new else todo.get("category", "工作"))
+        priority_var = tk.StringVar(value="普通" if is_new else todo.get("priority", "普通"))
+        repeat_reverse = {value: label for label, value in TODO_REPEAT_LABELS.items()}
+        repeat_var = tk.StringVar(value="不重复" if is_new else repeat_reverse.get(todo.get("repeat"), "不重复"))
+        interval_reverse = {value: label for label, value in TODO_IMPORTANT_INTERVAL_LABELS.items()}
+        interval_var = tk.StringVar(value="不持续提醒" if is_new else interval_reverse.get(int(todo.get("important_interval_minutes", 0) or 0), "不持续提醒"))
+        pinned_var = tk.BooleanVar(value=False if is_new else bool(todo.get("pinned")))
+
+        editor_bg = "#fff8ec"
+        card_bg = "#fffdf7"
+        subtle_bg = "#fff2de"
+        text_main = "#2f261f"
+        text_muted = "#806a52"
+        accent = "#c8732b"
+        accent_dark = "#8f4d22"
+        border = "#ead7bd"
+
+        header = tk.Frame(window, bg="#f5d9aa")
+        header.pack(fill="x")
+        tk.Label(
+            header,
+            text="新增待办" if is_new else "编辑待办",
+            bg="#f5d9aa",
+            fg=text_main,
+            anchor="w",
+            font=("Microsoft YaHei UI", 13, "bold"),
+        ).pack(fill="x", padx=16, pady=(12, 2))
+        tk.Label(
+            header,
+            text="设置时间、分类、重复和持续提醒；保存后会回到提醒列表。",
+            bg="#f5d9aa",
+            fg=text_muted,
+            anchor="w",
+            font=("Microsoft YaHei UI", 9),
+        ).pack(fill="x", padx=16, pady=(0, 12))
+
+        form = tk.Frame(window, bg=editor_bg, padx=16, pady=14)
+        form.pack(fill="both", expand=True)
+
+        def section(title, hint=""):
+            holder = tk.Frame(form, bg=card_bg, highlightthickness=1, highlightbackground=border)
+            holder.pack(fill="x", pady=(0, 10))
+            tk.Label(holder, text=title, bg=card_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x", padx=12, pady=(9, 1))
+            if hint:
+                tk.Label(holder, text=hint, bg=card_bg, fg=text_muted, anchor="w", justify="left", wraplength=460, font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=12, pady=(0, 7))
+            return holder
+
+        def field_row(parent, label):
+            holder = tk.Frame(parent, bg=card_bg)
+            holder.pack(fill="x", padx=12, pady=(0, 8))
+            tk.Label(holder, text=label, width=8, anchor="w", bg=card_bg, fg=text_muted, font=("Microsoft YaHei UI", 9)).pack(side="left", padx=(0, 6))
+            return holder
+
+        def editor_button(parent, text, command, variant="neutral", width=9):
+            palette = {
+                "primary": (accent, "#ffffff", accent_dark),
+                "neutral": ("#fff0d2", text_main, "#fbe4bf"),
+                "danger": ("#f4d8cf", "#563126", "#edc2b5"),
+            }
+            bg, fg, active_bg = palette.get(variant, palette["neutral"])
+            return tk.Button(
+                parent,
+                text=text,
+                command=command,
+                bg=bg,
+                fg=fg,
+                activebackground=active_bg,
+                activeforeground=fg,
+                relief="flat",
+                bd=0,
+                width=width,
+                padx=8,
+                pady=6,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 9, "bold" if variant == "primary" else "normal"),
+            )
+
+        status_var = tk.StringVar(value="填写完成后点击保存。")
+
+        todo_dropdown = {"popup": None}
+
+        def close_todo_dropdown():
+            popup = todo_dropdown.get("popup")
+            todo_dropdown["popup"] = None
+            try:
+                if popup is not None and popup.winfo_exists():
+                    popup.destroy()
+            except tk.TclError:
+                pass
+
+        def todo_select_box(parent, variable, values, width=104, height=30):
+            values = [str(value) for value in values]
+            if variable.get() not in values and values:
+                variable.set(values[0])
+            parent_bg = parent["bg"] if "bg" in parent.keys() else "#fff8ec"
+            canvas = tk.Canvas(parent, width=width, height=height, bg=parent_bg, bd=0, highlightthickness=0, cursor="hand2")
+
+            def display_text():
+                text = str(variable.get() or "")
+                limit = max(4, (width - 28) // 10)
+                return text if len(text) <= limit else text[:limit - 1] + "…"
+
+            def paint(hover=False):
+                canvas.delete("all")
+                fill = "#fffaf3" if not hover else "#fff1df"
+                outline = "#dfc59b" if not hover else "#c8732b"
+                canvas.create_rectangle(1, 1, width - 2, height - 2, fill=fill, outline=outline)
+                canvas.create_text(10, height // 2, text=display_text(), fill="#3a2a1c", anchor="w", font=("Microsoft YaHei UI", 9))
+                cx = width - 16
+                cy = height // 2 + 1
+                canvas.create_polygon(cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, fill="#7b6044", outline="")
+
+            def choose(value):
+                variable.set(value)
+                close_todo_dropdown()
+                paint(False)
+
+            def open_popup(_event=None):
+                close_todo_dropdown()
+                if not values:
+                    return "break"
+                row_height = 32
+                max_visible_rows = 5
+                popup_width = max(width, min(240, max(len(value) for value in values) * 10 + 34))
+                visible_rows = min(len(values), max_visible_rows)
+                popup_height = visible_rows * row_height + 2
+                monitor = self.monitor_for_position(canvas.winfo_rootx(), canvas.winfo_rooty())
+                x = int(clamp(canvas.winfo_rootx(), monitor["left"] + 6, monitor["right"] - popup_width - 6))
+                y = canvas.winfo_rooty() + height + 2
+                if y + popup_height > monitor["bottom"] - 8:
+                    y = canvas.winfo_rooty() - popup_height - 2
+                y = int(clamp(y, monitor["top"] + 6, monitor["bottom"] - popup_height - 6))
+                popup = tk.Toplevel(window)
+                todo_dropdown["popup"] = popup
+                popup.overrideredirect(True)
+                popup.attributes("-topmost", True)
+                popup.configure(bg="#ebd2ac")
+                popup.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
+                holder = tk.Frame(popup, bg="#fffaf3", highlightthickness=1, highlightbackground="#dfc59b")
+                holder.pack(fill="both", expand=True)
+                list_canvas = tk.Canvas(holder, bg="#fffaf3", bd=0, highlightthickness=0)
+                list_canvas.pack(side="left", fill="both", expand=True)
+                list_content = tk.Frame(list_canvas, bg="#fffaf3")
+                list_window = list_canvas.create_window((0, 0), window=list_content, anchor="nw")
+                needs_scroll = len(values) > visible_rows
+                if needs_scroll:
+                    scrollbar = tk.Scrollbar(holder, orient="vertical", command=list_canvas.yview, bd=0, width=10)
+                    scrollbar.pack(side="right", fill="y")
+                    list_canvas.configure(yscrollcommand=scrollbar.set)
+
+                def refresh_list_region(_event=None):
+                    list_canvas.configure(scrollregion=list_canvas.bbox("all"))
+
+                def sync_list_width(event):
+                    list_canvas.itemconfigure(list_window, width=max(1, event.width))
+                    refresh_list_region()
+
+                def popup_mousewheel(event):
+                    if needs_scroll:
+                        direction = -1 if event.delta > 0 else 1
+                        list_canvas.yview_scroll(direction, "units")
+                    return "break"
+
+                list_content.bind("<Configure>", refresh_list_region)
+                list_canvas.bind("<Configure>", sync_list_width)
+                popup.bind("<MouseWheel>", popup_mousewheel)
+                for value in values:
+                    selected = value == variable.get()
+                    bg = "#f6dfbf" if selected else "#fffaf3"
+                    fg = "#3a2a1c"
+                    label = tk.Label(
+                        list_content,
+                        text=("✓  " if selected else "   ") + value,
+                        bg=bg,
+                        fg=fg,
+                        anchor="w",
+                        padx=10,
+                        font=("Microsoft YaHei UI", 9, "bold" if selected else "normal"),
+                        cursor="hand2",
+                    )
+                    label.pack(fill="x", ipady=8)
+                    label.bind("<Button-1>", lambda _event, v=value: choose(v))
+                    label.bind("<Enter>", lambda _event, w=label: w.configure(bg="#fff1df", fg="#3a2a1c"))
+                    label.bind("<Leave>", lambda _event, w=label, v=value: w.configure(bg="#f6dfbf" if v == variable.get() else "#fffaf3", fg="#3a2a1c"))
+                popup.bind("<Escape>", lambda _event: close_todo_dropdown())
+                return "break"
+
+            variable.trace_add("write", lambda *_args: paint(False))
+            canvas.bind("<Enter>", lambda _event: paint(True))
+            canvas.bind("<Leave>", lambda _event: paint(False))
+            canvas.bind("<Button-1>", open_popup)
+            paint(False)
+            return canvas
+
+        summary = section("当前状态")
+        summary_row = tk.Frame(summary, bg=card_bg)
+        summary_row.pack(fill="x", padx=12, pady=(0, 10))
+        if is_new:
+            status_text, status_bg, status_fg = "新待办", subtle_bg, accent_dark
+            due_hint = "保存后会出现在待办列表顶部"
+        else:
+            status_text, status_bg, status_fg = self.todo_card_state_text(todo)
+            due_hint = f"{self.todo_due_text(todo)} / 提醒 {todo.get('remind_count', 0)} 次"
+        tk.Label(summary_row, text=status_text, bg=status_bg, fg=status_fg, padx=9, pady=3, font=("Microsoft YaHei UI", 8, "bold")).pack(side="left", padx=(0, 8))
+        tk.Label(summary_row, text=due_hint, bg=card_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True)
+
+        basics = section("事项和时间", "时间可填 30分钟后、18:30、明天 09:00、2026-05-19 18:30；留空则只放入待办列表。")
+        title_row = field_row(basics, "事项")
+        title_entry = tk.Entry(title_row, textvariable=title_var, bg=subtle_bg, fg=text_main, relief="flat", font=("Microsoft YaHei UI", 10))
+        title_entry.pack(side="left", fill="x", expand=True, ipady=6)
+
+        due_row = field_row(basics, "提醒")
+        tk.Entry(due_row, textvariable=due_var, bg=subtle_bg, fg=text_main, relief="flat", font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True, ipady=5)
+
+        rules = section("提醒规则", "分类用于筛选；重复和持续提醒会影响后续到点提醒。")
+        option_grid = tk.Frame(rules, bg=card_bg)
+        option_grid.pack(fill="x", padx=12, pady=(0, 8))
+        for column in range(2):
+            option_grid.grid_columnconfigure(column, weight=1, uniform="todo_editor_options")
+
+        def option_cell(row_index, column, label, variable, values, width):
+            cell = tk.Frame(option_grid, bg=card_bg)
+            cell.grid(row=row_index, column=column, sticky="ew", padx=(0 if column == 0 else 8, 8 if column == 0 else 0), pady=(0, 7))
+            tk.Label(cell, text=label, bg=card_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8)).pack(anchor="w", pady=(0, 3))
+            todo_select_box(cell, variable, values, width=width).pack(anchor="w")
+
+        option_cell(0, 0, "分类", category_var, TODO_CATEGORIES, 132)
+        option_cell(0, 1, "重要程度", priority_var, TODO_PRIORITIES, 132)
+        option_cell(1, 0, "重复", repeat_var, list(TODO_REPEAT_LABELS), 132)
+        option_cell(1, 1, "持续提醒", interval_var, TODO_IMPORTANT_INTERVAL_LABELS.keys(), 150)
+        pin_row = tk.Frame(rules, bg=subtle_bg, highlightthickness=1, highlightbackground=border)
+        pin_row.pack(fill="x", padx=12, pady=(0, 10))
+        tk.Checkbutton(
+            pin_row,
+            text="置顶到待办列表前方",
+            variable=pinned_var,
+            bg=subtle_bg,
+            activebackground=subtle_bg,
+            fg=text_main,
+            selectcolor="#f5d9aa",
+            font=("Microsoft YaHei UI", 9),
+        ).pack(side="left", padx=10, pady=7)
+
+        notes = section("备注", "只保存在本地，不进入公开安装包。")
+        note = tk.Text(notes, height=4, bg=subtle_bg, fg=text_main, relief="flat", font=("Microsoft YaHei UI", 9), wrap="word", padx=8, pady=6)
+        note.pack(fill="both", expand=True, padx=12, pady=(0, 10))
+        if not is_new:
+            note.insert("1.0", todo.get("note", ""))
+
+        status_label = tk.Label(form, textvariable=status_var, bg=editor_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8))
+        status_label.pack(fill="x", pady=(0, 8))
+
+        def set_editor_status(text, kind="info"):
+            color = "#8f3b26" if kind == "error" else text_muted
+            status_label.configure(fg=color)
+            status_var.set(text)
+
+        def close_editor():
+            close_todo_dropdown()
+            window.destroy()
+
+        def save_editor():
+            title_text = " ".join(title_var.get().strip().split())
+            if not title_text:
+                set_editor_status("待办标题不能为空。", "error")
+                title_entry.focus_set()
+                return
+            due_text = due_var.get().strip()
+            if due_text and self.parse_local_datetime(due_text) is None:
+                set_editor_status("时间格式不对，可填 30分钟后、18:30、明天 09:00、2026-05-19 18:30。", "error")
+                return
+            if is_new:
+                try:
+                    created = self.add_todo(
+                        title_text,
+                        due_text,
+                        category_var.get(),
+                        priority_var.get(),
+                        TODO_REPEAT_LABELS.get(repeat_var.get(), "none"),
+                        note.get("1.0", "end").strip(),
+                        TODO_IMPORTANT_INTERVAL_LABELS.get(interval_var.get(), 0),
+                    )
+                    created["pinned"] = bool(pinned_var.get())
+                    self.save_todos()
+                    if created["pinned"]:
+                        self.log_todo_event(created, "pin")
+                    self.todo_selected_id = created.get("id", "")
+                except ValueError as exc:
+                    set_editor_status(str(exc), "error")
+                    return
+            else:
+                self.update_todo(
+                    todo.get("id"),
+                    title=title_text,
+                    due_text=due_text,
+                    category=category_var.get(),
+                    priority=priority_var.get(),
+                    repeat=TODO_REPEAT_LABELS.get(repeat_var.get(), "none"),
+                    note=note.get("1.0", "end").strip(),
+                    pinned=bool(pinned_var.get()),
+                    important_interval_minutes=TODO_IMPORTANT_INTERVAL_LABELS.get(interval_var.get(), 0),
+                )
+                self.todo_selected_id = todo.get("id", "")
+            self.refresh_todo_listbox()
+            close_editor()
+
+        buttons = tk.Frame(form, bg=editor_bg)
+        buttons.pack(fill="x")
+        editor_button(buttons, "保存", save_editor, "primary", width=10).pack(side="left")
+        editor_button(buttons, "取消", close_editor, width=9).pack(side="left", padx=8)
+        if not is_new:
+            editor_button(buttons, "删除", lambda: (self.delete_todo(todo.get("id")) and close_editor()), "danger", width=9).pack(side="right")
+
+        window.bind("<Escape>", lambda _event: close_editor())
+        title_entry.focus_set()
+        self.center_window(window)
+
+    def open_todo_history_window(self):
+        window = tk.Toplevel(self.root)
+        pet_name = self.active_pet_name()
+        window.title(f"{pet_name}提醒时间轴")
+        window.configure(bg="#fff8ec")
+        window.attributes("-topmost", True)
+        window.geometry("620x520")
+        window.minsize(620, 520)
+
+        bg = "#fff8ec"
+        header_bg = "#f5d9aa"
+        card_bg = "#fffdf7"
+        subtle_bg = "#fff2de"
+        text_main = "#2f261f"
+        text_muted = "#806a52"
+        accent = "#c8732b"
+        accent_dark = "#8f4d22"
+        border = "#ead7bd"
+
+        labels = {
+            "add": "新增",
+            "edit": "编辑",
+            "complete": "完成",
+            "delete": "删除",
+            "snooze": "稍后",
+            "pin": "置顶",
+            "unpin": "取消置顶",
+            "reopen": "重新打开",
+            "remind": "提醒",
+            "repeat_create": "生成重复",
+        }
+
+        all_events = list(self.reminder_history.get("events", []))
+        events = all_events[-80:]
+        latest_time = "暂无记录"
+        if events:
+            latest_time = str(events[-1].get("time", "")).replace("T", " ")[:16] or "暂无记录"
+
+        header = tk.Frame(window, bg=header_bg)
+        header.pack(fill="x")
+        tk.Label(
+            header,
+            text=f"{pet_name}提醒时间轴",
+            bg=header_bg,
+            fg=text_main,
+            font=("Microsoft YaHei UI", 14, "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=18, pady=(14, 3))
+        tk.Label(
+            header,
+            text="按时间倒序查看提醒新增、编辑、完成、稍后和到点提醒记录。",
+            bg=header_bg,
+            fg=text_muted,
+            font=("Microsoft YaHei UI", 9),
+            anchor="w",
+        ).pack(fill="x", padx=18, pady=(0, 14))
+
+        body = tk.Frame(window, bg=bg, padx=16, pady=14)
+        body.pack(fill="both", expand=True)
+
+        summary = tk.Frame(body, bg=card_bg, highlightthickness=1, highlightbackground=border)
+        summary.pack(fill="x")
+        summary_items = [
+            ("总记录", str(len(all_events))),
+            ("本次显示", str(len(events))),
+            ("最近更新", latest_time),
+        ]
+        for index, (label, value) in enumerate(summary_items):
+            cell = tk.Frame(summary, bg=card_bg)
+            cell.pack(side="left", fill="x", expand=True, padx=(12 if index == 0 else 6, 12 if index == len(summary_items) - 1 else 6), pady=10)
+            tk.Label(
+                cell,
+                text=label,
+                bg=card_bg,
+                fg=text_muted,
+                font=("Microsoft YaHei UI", 8),
+                anchor="w",
+            ).pack(fill="x")
+            tk.Label(
+                cell,
+                text=value,
+                bg=card_bg,
+                fg=text_main,
+                font=("Microsoft YaHei UI", 11, "bold"),
+                anchor="w",
+            ).pack(fill="x", pady=(2, 0))
+
+        list_shell = tk.Frame(body, bg=bg)
+        list_shell.pack(fill="both", expand=True, pady=(12, 0))
+        canvas = tk.Canvas(list_shell, bg=bg, highlightthickness=0, bd=0)
+        scrollbar = tk.Scrollbar(list_shell, orient="vertical", command=canvas.yview)
+        timeline = tk.Frame(canvas, bg=bg)
+        timeline_window = canvas.create_window((0, 0), window=timeline, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        def resize_timeline(event):
+            canvas.itemconfigure(timeline_window, width=event.width)
+
+        def refresh_scroll_region(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        canvas.bind("<Configure>", resize_timeline)
+        timeline.bind("<Configure>", refresh_scroll_region)
+        canvas.bind("<MouseWheel>", on_mousewheel)
+        timeline.bind("<MouseWheel>", on_mousewheel)
+
+        def bind_wheel(widget):
+            widget.bind("<MouseWheel>", on_mousewheel)
+
+        def history_chip(parent, text, chip_bg=subtle_bg, chip_fg=text_muted, bold=False):
+            if not str(text).strip():
+                return
+            label = tk.Label(
+                parent,
+                text=str(text),
+                bg=chip_bg,
+                fg=chip_fg,
+                padx=7,
+                pady=2,
+                font=("Microsoft YaHei UI", 8, "bold" if bold else "normal"),
+            )
+            label.pack(side="left", padx=(0, 5), pady=1)
+            bind_wheel(label)
+
+        if not events:
+            empty = tk.Frame(timeline, bg=card_bg, highlightthickness=1, highlightbackground=border)
+            empty.pack(fill="x", pady=(0, 10))
+            bind_wheel(empty)
+            empty_title = tk.Label(
+                empty,
+                text="还没有时间轴记录",
+                bg=card_bg,
+                fg=text_main,
+                font=("Microsoft YaHei UI", 12, "bold"),
+                anchor="w",
+            )
+            empty_title.pack(fill="x", padx=14, pady=(14, 4))
+            bind_wheel(empty_title)
+            empty_hint = tk.Label(
+                empty,
+                text="新增、完成、稍后提醒或到点提醒后，这里会显示最近记录。",
+                bg=card_bg,
+                fg=text_muted,
+                font=("Microsoft YaHei UI", 9),
+                anchor="w",
+                wraplength=540,
+                justify="left",
+            )
+            empty_hint.pack(fill="x", padx=14, pady=(0, 14))
+            bind_wheel(empty_hint)
+
+        event_palettes = {
+            "complete": ("#dce9cf", "#3f6a2c"),
+            "delete": ("#f4d8cf", "#8f3b26"),
+            "remind": ("#f5d5c8", "#8f3b26"),
+            "snooze": ("#fbe4bf", "#8f4d22"),
+            "repeat_create": ("#e7ddf2", "#5d4777"),
+        }
+        for event in reversed(events):
+            event_type = str(event.get("type", ""))
+            event_label = labels.get(event_type, event_type or "记录")
+            event_bg, event_fg = event_palettes.get(event_type, (subtle_bg, text_muted))
+            when = str(event.get("time", "")).replace("T", " ")[:16] or "时间未知"
+            due_text = str(event.get("due_at", "")).replace("T", " ")[:16]
+            title = str(event.get("title", "")).strip() or "未命名待办"
+
+            card = tk.Frame(timeline, bg=card_bg, highlightthickness=1, highlightbackground=border)
+            card.pack(fill="x", pady=(0, 9))
+            bind_wheel(card)
+
+            top = tk.Frame(card, bg=card_bg)
+            top.pack(fill="x", padx=12, pady=(10, 4))
+            bind_wheel(top)
+            type_label = tk.Label(
+                top,
+                text=event_label,
+                bg=event_bg,
+                fg=event_fg,
+                padx=8,
+                pady=2,
+                font=("Microsoft YaHei UI", 8, "bold"),
+            )
+            type_label.pack(side="left", padx=(0, 8))
+            bind_wheel(type_label)
+            time_label = tk.Label(
+                top,
+                text=when,
+                bg=card_bg,
+                fg=text_muted,
+                font=("Microsoft YaHei UI", 8),
+                anchor="w",
+            )
+            time_label.pack(side="left", fill="x", expand=True)
+            bind_wheel(time_label)
+
+            title_label = tk.Label(
+                card,
+                text=title,
+                bg=card_bg,
+                fg=text_main,
+                font=("Microsoft YaHei UI", 10, "bold"),
+                anchor="w",
+                justify="left",
+                wraplength=540,
+            )
+            title_label.pack(fill="x", padx=12, pady=(0, 6))
+            bind_wheel(title_label)
+
+            chips = tk.Frame(card, bg=card_bg)
+            chips.pack(fill="x", padx=12, pady=(0, 10))
+            bind_wheel(chips)
+            history_chip(chips, event.get("category") or "未分类")
+            history_chip(chips, event.get("priority") or "普通")
+            history_chip(chips, due_text and f"时间 {due_text}")
+            if event.get("repeat") and event.get("repeat") != "none":
+                history_chip(chips, f"重复 {event.get('repeat')}")
+            if event.get("minutes"):
+                history_chip(chips, f"稍后 {event.get('minutes')} 分钟")
+
+        footer = tk.Frame(window, bg=bg)
+        footer.pack(fill="x", padx=16, pady=(0, 14))
+        tk.Label(
+            footer,
+            text="仅显示最近 80 条，完整历史仍保留在本机提醒历史数据中。",
+            bg=bg,
+            fg=text_muted,
+            font=("Microsoft YaHei UI", 8),
+            anchor="w",
+        ).pack(side="left", fill="x", expand=True)
+        tk.Button(
+            footer,
+            text="关闭",
+            command=window.destroy,
+            bg=accent,
+            fg="#ffffff",
+            activebackground=accent_dark,
+            activeforeground="#ffffff",
+            relief="flat",
+            bd=0,
+            width=9,
+            padx=10,
+            pady=7,
+            cursor="hand2",
+            font=("Microsoft YaHei UI", 9, "bold"),
+        ).pack(side="right")
+        window.bind("<Escape>", lambda _event: window.destroy())
+        self.center_window(window)
+
+    def open_reminder_popup(self, todo):
+        try:
+            if self.reminder_popup is not None and self.reminder_popup.winfo_exists():
+                self.reminder_popup.destroy()
+        except tk.TclError:
+            pass
+        self.reminder_popup = None
+        popup = tk.Toplevel(self.root)
+        self.reminder_popup = popup
+        pet_name = self.active_pet_name()
+        popup.title(f"{pet_name}提醒你")
+        popup.configure(bg="#fff8ec")
+        popup.attributes("-topmost", True)
+        popup.resizable(False, False)
+        popup.geometry("440x360")
+
+        popup_bg = "#fff8ec"
+        card_bg = "#fffdf7"
+        subtle_bg = "#fff2de"
+        text_main = "#2f261f"
+        text_muted = "#806a52"
+        accent = "#c8732b"
+        accent_dark = "#8f4d22"
+        border = "#ead7bd"
+
+        header = tk.Frame(popup, bg="#f5d9aa")
+        header.pack(fill="x")
+        tk.Label(
+            header,
+            text=f"{pet_name}提醒你",
+            bg="#f5d9aa",
+            fg=text_main,
+            font=("Microsoft YaHei UI", 13, "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=16, pady=(12, 2))
+        tk.Label(
+            header,
+            text="这条待办已经到时间了，可以完成、稍后，或打开提醒页看详情。",
+            bg="#f5d9aa",
+            fg=text_muted,
+            font=("Microsoft YaHei UI", 9),
+            anchor="w",
+            wraplength=390,
+            justify="left",
+        ).pack(fill="x", padx=16, pady=(0, 12))
+
+        body = tk.Frame(popup, bg=popup_bg, padx=16, pady=14)
+        body.pack(fill="both", expand=True)
+        due_text = self.todo_due_text(todo)
+        card = tk.Frame(body, bg=card_bg, highlightthickness=1, highlightbackground=border)
+        card.pack(fill="x")
+        title = str(todo.get("title", "")).strip() or "未命名待办"
+        tk.Label(
+            card,
+            text=title,
+            bg=card_bg,
+            fg=text_main,
+            font=("Microsoft YaHei UI", 12, "bold"),
+            anchor="w",
+            wraplength=380,
+            justify="left",
+        ).pack(fill="x", padx=12, pady=(10, 6))
+
+        chip_row = tk.Frame(card, bg=card_bg)
+        chip_row.pack(fill="x", padx=12, pady=(0, 8))
+        chips = [
+            ("已到点", "#f5d5c8", "#8f3b26"),
+            (str(todo.get("category") or "工作"), subtle_bg, text_muted),
+            (str(todo.get("priority") or "普通"), subtle_bg, text_muted),
+            (due_text, subtle_bg, text_muted),
+            (f"提醒 {todo.get('remind_count', 0)} 次", subtle_bg, text_muted),
+        ]
+        for label, bg, fg in chips:
+            tk.Label(
+                chip_row,
+                text=label,
+                bg=bg,
+                fg=fg,
+                padx=8,
+                pady=2,
+                font=("Microsoft YaHei UI", 8, "bold" if label == "已到点" else "normal"),
+            ).pack(side="left", padx=(0, 5), pady=1)
+        note_text = str(todo.get("note", "")).strip()
+        if note_text:
+            if len(note_text) > 72:
+                note_text = note_text[:72] + "..."
+            tk.Label(
+                card,
+                text=note_text,
+                bg=card_bg,
+                fg="#4a3828",
+                anchor="w",
+                wraplength=380,
+                justify="left",
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(0, 10))
+
+        actions = tk.Frame(body, bg=popup_bg)
+        actions.pack(fill="x", pady=(14, 0))
+
+        def reminder_button(parent, text, command, variant="neutral", width=8):
+            palette = {
+                "primary": (accent, "#ffffff", accent_dark),
+                "neutral": ("#fff0d2", text_main, "#fbe4bf"),
+                "danger": ("#f4d8cf", "#563126", "#edc2b5"),
+                "ghost": (popup_bg, text_muted, "#fff0d2"),
+            }
+            bg, fg, active_bg = palette.get(variant, palette["neutral"])
+            return tk.Button(
+                parent,
+                text=text,
+                command=command,
+                bg=bg,
+                fg=fg,
+                activebackground=active_bg,
+                activeforeground=fg,
+                relief="flat",
+                bd=0,
+                width=width,
+                padx=8,
+                pady=7,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 9, "bold" if variant == "primary" else "normal"),
+            )
+
+        def finish(command):
+            command()
+            if popup.winfo_exists():
+                popup.destroy()
+
+        def open_reminders_page():
+            self.todo_selected_id = str(todo.get("id") or "")
+            self.open_control_panel("提醒")
+            if popup.winfo_exists():
+                popup.destroy()
+
+        primary_row = tk.Frame(actions, bg=popup_bg)
+        primary_row.pack(fill="x", pady=(0, 7))
+        reminder_button(primary_row, "完成", lambda: finish(lambda: self.complete_todo(todo.get("id"))), "primary", width=9).pack(side="left")
+        reminder_button(primary_row, "打开提醒页", open_reminders_page, "neutral", width=12).pack(side="left", padx=8)
+        reminder_button(primary_row, "关闭", popup.destroy, "ghost", width=8).pack(side="right")
+
+        snooze_row = tk.Frame(actions, bg=popup_bg)
+        snooze_row.pack(fill="x")
+        tk.Label(snooze_row, text="稍后提醒", bg=popup_bg, fg=text_muted, font=("Microsoft YaHei UI", 8, "bold")).pack(side="left", padx=(0, 8))
+        reminder_button(snooze_row, "15分钟", lambda: finish(lambda: self.snooze_todo(todo.get("id"), 15)), width=8).pack(side="left", padx=(0, 6))
+        reminder_button(snooze_row, "1小时", lambda: finish(lambda: self.snooze_todo(todo.get("id"), 60)), width=8).pack(side="left")
+        reminder_button(snooze_row, "明天", lambda: finish(lambda: self.snooze_todo(todo.get("id"), 24 * 60)), width=7).pack(side="left", padx=6)
+        popup.bind("<Escape>", lambda _event: popup.destroy())
+        self.center_window(popup)
+
+    def reminder_loop(self):
+        if self.closing:
+            return
+        due = self.due_todos()
+        if due:
+            self.remind_due_todo(due[0])
+        self.root.after(30000, self.reminder_loop)
+
+    def draw_chat_round_rect(self, canvas, x1, y1, x2, y2, radius, fill, outline=""):
+        radius = max(1, min(radius, int((x2 - x1) // 2), int((y2 - y1) // 2)))
+        canvas.create_rectangle(x1 + radius, y1, x2 - radius, y2, fill=fill, outline=outline)
+        canvas.create_rectangle(x1, y1 + radius, x2, y2 - radius, fill=fill, outline=outline)
+        canvas.create_oval(x1, y1, x1 + radius * 2, y1 + radius * 2, fill=fill, outline=outline)
+        canvas.create_oval(x2 - radius * 2, y1, x2, y1 + radius * 2, fill=fill, outline=outline)
+        canvas.create_oval(x2 - radius * 2, y2 - radius * 2, x2, y2, fill=fill, outline=outline)
+        canvas.create_oval(x1, y2 - radius * 2, x1 + radius * 2, y2, fill=fill, outline=outline)
+
+    def open_chat_background_dialog(self):
+        if not isinstance(self.chat_history_box, dict):
+            return
+        pet_id = self.active_pet.get("id", "danhuang")
+        pet = self.pet_by_id(pet_id)
+        settings = self.chat_ui_settings_for_pet(pet_id)
+        window = tk.Toplevel(self.chat_panel if self.chat_panel is not None else self.root)
+        window.title("聊天背景")
+        window.configure(bg="#fff7ec")
+        window.geometry("720x500")
+        window.resizable(False, False)
+        window.transient(self.chat_panel if self.chat_panel is not None else self.root)
+        window._image_refs = []
+
+        shell = tk.Frame(window, bg="#fff7ec", padx=18, pady=16)
+        shell.pack(fill="both", expand=True)
+        tk.Label(shell, text=f"{pet.get('display_name', '宠物')}的聊天背景", bg="#fff7ec", fg="#2f261f", font=("Microsoft YaHei UI", 13, "bold")).pack(anchor="w")
+        tk.Label(shell, text="背景只保存在当前宠物档案里。选中后会立即刷新聊天区，并用暖色遮罩保证文字可读。", bg="#fff7ec", fg="#75614a", font=("Microsoft YaHei UI", 9), wraplength=650, justify="left").pack(fill="x", pady=(3, 12))
+
+        body = tk.Frame(shell, bg="#fff7ec")
+        body.pack(fill="both", expand=True)
+        preview_panel = tk.Frame(body, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd", width=286)
+        preview_panel.pack(side="left", fill="y", padx=(0, 14))
+        preview_panel.pack_propagate(False)
+        tk.Label(preview_panel, text="当前预览", bg="#fffdf8", fg="#2f261f", font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w", padx=12, pady=(12, 6))
+        preview_label = tk.Label(preview_panel, bg="#fffdf8", width=260, height=170)
+        preview_label.pack(padx=12, pady=(0, 8))
+        selected_name_label = tk.Label(preview_panel, text="", bg="#fffdf8", fg="#75614a", anchor="w", justify="left", wraplength=250, font=("Microsoft YaHei UI", 9))
+        selected_name_label.pack(fill="x", padx=12, pady=(0, 12))
+
+        list_panel = tk.Frame(body, bg="#fff7ec")
+        list_panel.pack(side="left", fill="both", expand=True)
+        tk.Label(list_panel, text="选择背景", bg="#fff7ec", fg="#2f261f", font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w", pady=(0, 6))
+        list_canvas = tk.Canvas(list_panel, bg="#fff7ec", bd=0, highlightthickness=0, height=230)
+        list_scrollbar = tk.Scrollbar(list_panel, orient="vertical", command=list_canvas.yview, bd=0, width=10)
+        candidates_frame = tk.Frame(list_canvas, bg="#fff7ec")
+        list_window = list_canvas.create_window((0, 0), window=candidates_frame, anchor="nw")
+        list_canvas.configure(yscrollcommand=list_scrollbar.set)
+        list_canvas.pack(side="left", fill="both", expand=True)
+        list_scrollbar.pack(side="right", fill="y")
+
+        def refresh_candidate_region(_event=None):
+            list_canvas.configure(scrollregion=list_canvas.bbox("all"))
+
+        def sync_candidate_width(event):
+            list_canvas.itemconfigure(list_window, width=max(1, event.width))
+            refresh_candidate_region()
+
+        def list_mousewheel(event):
+            try:
+                region = list_canvas.cget("scrollregion")
+                parts = [float(part) for part in str(region).split()] if region else [0, 0, 0, 0]
+                if len(parts) == 4 and (parts[3] - parts[1]) <= list_canvas.winfo_height() + 2:
+                    list_canvas.yview_moveto(0)
+                    return "break"
+                list_canvas.yview_scroll((-1 if event.delta > 0 else 1) * 3, "units")
+            except (tk.TclError, ValueError):
+                pass
+            return "break"
+
+        candidates_frame.bind("<Configure>", refresh_candidate_region)
+        list_canvas.bind("<Configure>", sync_candidate_width)
+        list_canvas.bind("<MouseWheel>", list_mousewheel)
+        candidates_frame.bind("<MouseWheel>", list_mousewheel)
+
+        opacity_var = tk.DoubleVar(value=float(settings.get("background_opacity", 0.16)))
+
+        def apply_background(rel_path):
+            settings["background_image"] = rel_path
+            if rel_path and float(settings.get("background_opacity", 0.16)) < 0.12:
+                settings["background_opacity"] = 0.18
+                opacity_var.set(0.18)
+            self.save_chat_ui_settings_for_pet(pet_id, settings)
+            box = self.chat_history_box if isinstance(self.chat_history_box, dict) else {}
+            box["chat_ui_settings"] = dict(settings)
+            render = box.get("render")
+            if callable(render):
+                render()
+            refresh_preview()
+
+        def candidate_card(label, rel_path):
+            selected = rel_path == settings.get("background_image", "")
+            bg = "#fff1df" if selected else "#fffdf8"
+            border = "#c9772d" if selected else "#ead7bd"
+            card = tk.Frame(candidates_frame, bg=bg, highlightthickness=2 if selected else 1, highlightbackground=border)
+            card.pack(fill="x", pady=(0, 8))
+            thumb = tk.Frame(card, bg=bg, width=58, height=44)
+            thumb.pack(side="left", padx=8, pady=8)
+            thumb.pack_propagate(False)
+            if rel_path:
+                photo = self.image_thumbnail_photo(rel_path, size=(54, 40), pixel=False)
+                if photo:
+                    window._image_refs.append(photo)
+                    tk.Label(thumb, image=photo, bg=bg).pack(expand=True)
+                else:
+                    tk.Label(thumb, text="图片", bg=bg, fg="#75614a", font=("Microsoft YaHei UI", 8)).pack(expand=True)
+            else:
+                tk.Label(thumb, text="无", bg="#fffaf3", fg="#75614a", font=("Microsoft YaHei UI", 9, "bold")).pack(expand=True, fill="both")
+            text_box = tk.Frame(card, bg=bg)
+            text_box.pack(side="left", fill="x", expand=True, pady=8)
+            tk.Label(text_box, text=label, bg=bg, fg="#2f261f", anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(fill="x")
+            tk.Label(text_box, text="已选" if selected else "点击使用这个背景", bg=bg, fg="#c9772d" if selected else "#75614a", anchor="w", font=("Microsoft YaHei UI", 8)).pack(fill="x", pady=(2, 0))
+            button = tk.Button(
+                card,
+                text="已选" if selected else "使用",
+                command=lambda: (apply_background(rel_path), refresh_candidates()),
+                bg="#c9772d" if selected else "#fff7e9",
+                fg="#ffffff" if selected else "#2f261f",
+                activebackground="#a86431" if selected else "#fde8c7",
+                activeforeground="#ffffff" if selected else "#2f261f",
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                padx=12,
+                pady=6,
+                font=("Microsoft YaHei UI", 9),
+            )
+            button.pack(side="right", padx=8)
+
+        def refresh_candidates():
+            for child in candidates_frame.winfo_children():
+                child.destroy()
+            window._image_refs = []
+            candidates = self.chat_background_candidates(pet)
+            current_rel = str(settings.get("background_image", "") or "")
+            if current_rel and current_rel not in {rel for _label, rel in candidates}:
+                candidates.append(("当前背景图", current_rel))
+            for label, rel_path in candidates:
+                candidate_card(label, rel_path)
+            refresh_candidate_region()
+
+        opacity_row = tk.Frame(preview_panel, bg="#fffdf8")
+        opacity_row.pack(fill="x", padx=12, pady=(4, 4))
+        tk.Label(opacity_row, text="背景透明度", bg="#fffdf8", fg="#2f261f", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left")
+        opacity_value = tk.Label(opacity_row, text=f"{opacity_var.get():.2f}", bg="#fffdf8", fg="#75614a", width=5)
+        opacity_value.pack(side="right")
+        slider = tk.Canvas(preview_panel, width=250, height=32, bg="#fffdf8", bd=0, highlightthickness=0, cursor="hand2")
+        slider.pack(fill="x", padx=12, pady=(0, 10))
+
+        def update_opacity():
+            settings["background_opacity"] = float(opacity_var.get())
+            opacity_value.configure(text=f"{opacity_var.get():.2f}")
+            self.save_chat_ui_settings_for_pet(pet_id, settings)
+            box = self.chat_history_box if isinstance(self.chat_history_box, dict) else {}
+            box["chat_ui_settings"] = dict(settings)
+            render = box.get("render")
+            if callable(render):
+                render()
+            refresh_preview()
+            paint_slider()
+
+        def paint_slider():
+            slider.delete("all")
+            width = max(180, slider.winfo_width() or 250)
+            track_y = 16
+            slider.create_line(10, track_y, width - 10, track_y, fill="#ecd4b2", width=8, capstyle="round")
+            ratio = max(0.0, min(1.0, opacity_var.get() / 0.45))
+            x = 10 + (width - 20) * ratio
+            slider.create_line(10, track_y, x, track_y, fill="#c9772d", width=8, capstyle="round")
+            slider.create_oval(x - 8, track_y - 8, x + 8, track_y + 8, fill="#fffdf8", outline="#c9772d", width=2)
+
+        def set_opacity_from_x(x):
+            width = max(180, slider.winfo_width() or 250)
+            ratio = max(0.0, min(1.0, (x - 10) / max(1, width - 20)))
+            opacity_var.set(round(ratio * 0.45, 2))
+            update_opacity()
+
+        slider.bind("<Configure>", lambda _event: paint_slider())
+        slider.bind("<Button-1>", lambda event: set_opacity_from_x(event.x))
+        slider.bind("<B1-Motion>", lambda event: set_opacity_from_x(event.x))
+
+        def refresh_preview():
+            label = "无背景"
+            for candidate_label, rel in self.chat_background_candidates(pet):
+                if rel == settings.get("background_image", ""):
+                    label = candidate_label
+                    break
+            if settings.get("background_image", "") and label == "无背景":
+                label = "当前背景图"
+            if settings.get("background_image", ""):
+                preview = self.make_chat_background_photo(
+                    settings.get("background_image", ""),
+                    max(0.18, float(settings.get("background_opacity", 0.16))),
+                    (260, 170),
+                )
+            else:
+                preview = self.make_chat_background_photo("", 0, (260, 170))
+            preview_label.configure(image=preview)
+            preview_label.image = preview
+            selected_name_label.configure(text=f"当前：{label}\n聊天区会按窗口大小自适应铺底。")
+            paint_slider()
+
+        actions = tk.Frame(shell, bg="#fff7ec")
+        actions.pack(fill="x", pady=(12, 0))
+
+        def upload_background():
+            path = filedialog.askopenfilename(
+                title="选择聊天背景图",
+                initialdir=str(self.default_image_dir()),
+                filetypes=[("Image", "*.png;*.webp;*.jpg;*.jpeg"), ("All files", "*.*")],
+            )
+            if not path:
+                return
+            self.remember_directory_setting("default_image_dir", path)
+            try:
+                rel = self.copy_chat_background_to_pet(pet_id, path)
+            except OSError as exc:
+                messagebox.showerror("背景失败", str(exc))
+                return
+            apply_background(rel)
+            refresh_candidates()
+
+        tk.Button(actions, text="上传背景", command=upload_background, bg="#c9772d", fg="#ffffff", activebackground="#a86431", activeforeground="#ffffff", relief="flat", bd=0, padx=14, pady=8, cursor="hand2").pack(side="left")
+        tk.Button(actions, text="清空背景", command=lambda: (apply_background(""), refresh_candidates()), bg="#fff1dc", fg="#5d3328", activebackground="#f4d8b4", relief="flat", bd=0, padx=14, pady=8, cursor="hand2").pack(side="left", padx=8)
+        tk.Button(actions, text="关闭", command=window.destroy, bg="#fffaf3", fg="#2f261f", activebackground="#fff1df", relief="flat", bd=0, padx=14, pady=8, cursor="hand2").pack(side="right")
+        refresh_preview()
+        refresh_candidates()
+        self.center_window(window)
+
+    def append_chat_history(self, speaker, text):
+        if self.chat_history_box is None:
+            return
+        prefix = "你" if speaker == "主人" else self.active_pet_name()
+        display_text = self.visible_chat_text(text) if speaker != "主人" else str(text)
+        if isinstance(self.chat_history_box, dict):
+            render = self.chat_history_box.get("render")
+            if callable(render):
+                self.chat_history_box.setdefault("messages", []).append({
+                    "speaker": speaker,
+                    "prefix": prefix,
+                    "text": display_text,
+                })
+                render()
+                return
+            canvas = self.chat_history_box.get("canvas")
+            holder = self.chat_history_box.get("holder")
+            if canvas is None or holder is None:
+                return
+            try:
+                if not canvas.winfo_exists() or not holder.winfo_exists():
+                    return
+            except tk.TclError:
+                return
+            is_user = speaker == "主人"
+            row = tk.Frame(holder, bg="#f5f0e8")
+            row.pack(fill="x", padx=10, pady=4)
+            side = "right" if is_user else "left"
+            bubble_bg = "#d88333" if is_user else "#ffffff"
+            bubble_fg = "#ffffff" if is_user else "#2f2a24"
+            name_fg = "#9a6a35" if is_user else "#6d775c"
+            cluster = tk.Frame(row, bg="#f5f0e8")
+            cluster.pack(side=side, anchor="e" if is_user else "w")
+            tk.Label(
+                cluster,
+                text=prefix,
+                bg="#f5f0e8",
+                fg=name_fg,
+                anchor="e" if is_user else "w",
+                font=("Microsoft YaHei UI", 8),
+            ).pack(fill="x")
+            tk.Label(
+                cluster,
+                text=display_text,
+                bg=bubble_bg,
+                fg=bubble_fg,
+                justify="left",
+                anchor="w",
+                wraplength=360,
+                padx=12,
+                pady=8,
+                font=("Microsoft YaHei UI", 10),
+            ).pack(anchor="e" if is_user else "w", pady=(2, 0))
+            holder.update_idletasks()
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            canvas.yview_moveto(1.0)
+            return
+        if not self.chat_history_box.winfo_exists():
+            return
+        self.chat_history_box.configure(state="normal")
+        self.chat_history_box.insert("end", f"{prefix}：{display_text}\n")
+        self.chat_history_box.see("end")
+        self.chat_history_box.configure(state="disabled")
+
+    def show_chat_typing_indicator(self):
+        if not isinstance(self.chat_history_box, dict):
+            self.set_chat_status(f"{self.active_pet_name()}正在输入...")
+            return
+        render = self.chat_history_box.get("render")
+        if callable(render):
+            self.chat_history_box["typing"] = True
+            render()
+            self.set_chat_status(f"{self.active_pet_name()}正在输入...")
+            return
+        canvas = self.chat_history_box.get("canvas")
+        holder = self.chat_history_box.get("holder")
+        if canvas is None or holder is None:
+            return
+        self.clear_chat_typing_indicator()
+        try:
+            row = tk.Frame(holder, bg="#f4f0e8")
+            row.pack(fill="x", padx=10, pady=4)
+            cluster = tk.Frame(row, bg="#f4f0e8")
+            cluster.pack(side="left", anchor="w")
+            tk.Label(
+                cluster,
+                text=self.active_pet_name(),
+                bg="#f4f0e8",
+                fg="#6d775c",
+                anchor="w",
+                font=("Microsoft YaHei UI", 8),
+            ).pack(fill="x")
+            tk.Label(
+                cluster,
+                text="正在输入...",
+                bg="#ffffff",
+                fg="#7a6a58",
+                padx=12,
+                pady=8,
+                font=("Microsoft YaHei UI", 10),
+            ).pack(anchor="w", pady=(2, 0))
+            self.chat_history_box["typing_row"] = row
+            holder.update_idletasks()
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            canvas.yview_moveto(1.0)
+            self.set_chat_status(f"{self.active_pet_name()}正在输入...")
+        except tk.TclError:
+            pass
+
+    def clear_chat_typing_indicator(self):
+        if isinstance(self.chat_history_box, dict):
+            render = self.chat_history_box.get("render")
+            if callable(render):
+                self.chat_history_box["typing"] = False
+                render()
+                self.set_chat_status("")
+                return
+            row = self.chat_history_box.pop("typing_row", None)
+            if row is not None:
+                try:
+                    if row.winfo_exists():
+                        row.destroy()
+                except tk.TclError:
+                    pass
+        self.set_chat_status("")
+
+    def open_chat_panel(self):
+        if self.chat_panel is not None and self.chat_panel.winfo_exists():
+            self.chat_panel.lift()
+            return
+
+        panel = tk.Toplevel(self.root)
+        panel.withdraw()
+        self.chat_panel = panel
+        pet_name = self.active_pet_name()
+        panel.title(f"和{pet_name}说句话")
+        panel.configure(bg="#fff9f0")
+        panel.attributes("-topmost", True)
+        panel.resizable(True, True)
+        panel.geometry("620x680")
+        panel.minsize(520, 660)
+        panel.grid_columnconfigure(0, weight=1)
+        panel.grid_rowconfigure(4, weight=1)
+        panel.bind("<FocusIn>", lambda _event: panel.lift())
+
+        header = tk.Frame(panel, bg="#f5d9aa")
+        header.grid(row=0, column=0, sticky="ew")
+        pet_avatar = self.make_chat_avatar_photo(self.active_pet, size=(42, 42))
+        header._avatar_ref = pet_avatar
+        avatar_label = tk.Label(header, image=pet_avatar, bg="#f5d9aa", bd=0)
+        avatar_label.pack(side="left", padx=(16, 10), pady=12)
+        title_block = tk.Frame(header, bg="#f5d9aa")
+        title_block.pack(side="left", fill="x", expand=True, pady=10)
+        tk.Label(
+            title_block,
+            text=f"和{pet_name}说句话",
+            bg="#f5d9aa",
+            fg="#2f2a24",
+            font=("Microsoft YaHei UI", 13, "bold"),
+        ).pack(anchor="w")
+        tk.Label(
+            title_block,
+            text=f"可以说心情，也可以让{pet_name}帮你想工作、写作和计划。",
+            bg="#f5d9aa",
+            fg="#75614a",
+            font=("Microsoft YaHei UI", 9),
+        ).pack(anchor="w", pady=(2, 0))
+
+        status_bar = tk.Frame(panel, bg="#fff0d7")
+        status_bar.grid(row=1, column=0, sticky="ew")
+        ai_var = tk.BooleanVar(value=bool(self.settings.get("ai_enabled", True)))
+
+        def toggle_ai():
+            self.settings["ai_enabled"] = bool(ai_var.get())
+            self.save_settings()
+            self.set_ai_status("")
+
+        tk.Checkbutton(
+            status_bar,
+            text="开启 AI 聊天",
+            variable=ai_var,
+            command=toggle_ai,
+            bg="#fff0d7",
+            activebackground="#fff0d7",
+            fg="#2f2a24",
+            selectcolor="#ffe1ad",
+            font=("Microsoft YaHei UI", 9),
+        ).pack(side="left", padx=(14, 6), pady=7)
+        initial_chat_status = self.chat_status_text()
+        self.chat_ai_status_label = tk.Label(
+            status_bar,
+            text=initial_chat_status,
+            bg="#fff0d7",
+            fg=self.chat_status_color(initial_chat_status),
+            anchor="w",
+            font=("Microsoft YaHei UI", 8),
+        )
+        self.chat_ai_status_label.pack(side="left", fill="x", expand=True, padx=(0, 14))
+
+        tool_bar = tk.Frame(panel, bg="#fff9f0")
+        tool_bar.grid(row=2, column=0, sticky="ew", padx=14, pady=(8, 0))
+        self.chat_tool_status_widgets = {}
+
+        def tool_status_pill(key, label):
+            pill = tk.Frame(tool_bar, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd", width=90, height=46)
+            pill.pack(side="left", fill="x", expand=True, padx=(0, 7))
+            pill.pack_propagate(False)
+            title = tk.Label(pill, text=label, bg="#fff8ee", fg="#5a4532", anchor="w", font=("Microsoft YaHei UI", 8, "bold"))
+            title.pack(fill="x", padx=9, pady=(5, 0))
+            value = tk.Label(
+                pill,
+                text="",
+                bg="#fff8ee",
+                fg="#75614a",
+                anchor="w",
+                justify="left",
+                wraplength=78,
+                font=("Microsoft YaHei UI", 8),
+            )
+            value.pack(fill="x", padx=9, pady=(0, 5))
+            self.chat_tool_status_widgets[key] = {"frame": pill, "title": title, "value": value}
+
+        for item in self.chat_tool_status_items():
+            tool_status_pill(item["key"], item["label"])
+        self.refresh_chat_tool_status_strip()
+
+        role_bar = tk.Frame(panel, bg="#fff9f0")
+        role_bar.grid(row=3, column=0, sticky="ew", padx=14, pady=(8, 0))
+        role_head = tk.Frame(role_bar, bg="#fff9f0")
+        role_head.pack(fill="x", pady=(0, 5))
+        tk.Label(
+            role_head,
+            text="角色 Skill",
+            bg="#fff9f0",
+            fg="#5a4532",
+            font=("Microsoft YaHei UI", 8, "bold"),
+        ).pack(side="left")
+        tk.Label(
+            role_head,
+            text="泛化达人风格，不模仿具体真人",
+            bg="#fff9f0",
+            fg="#8a7057",
+            font=("Microsoft YaHei UI", 8),
+        ).pack(side="right")
+        role_grid = tk.Frame(role_bar, bg="#fff9f0")
+        role_grid.pack(fill="x")
+        role_buttons = {}
+        role_detail = tk.Frame(role_bar, bg="#fff3df", highlightthickness=1, highlightbackground="#ead7bd", height=72)
+        role_detail.pack(fill="x", pady=(2, 0))
+        role_detail.pack_propagate(False)
+        role_detail_title = tk.Label(
+            role_detail,
+            text="",
+            bg="#fff3df",
+            fg="#3a2a1c",
+            anchor="w",
+            font=("Microsoft YaHei UI", 9, "bold"),
+        )
+        role_detail_title.pack(fill="x", padx=10, pady=(7, 1))
+        role_detail_text = tk.Label(
+            role_detail,
+            text="",
+            bg="#fff3df",
+            fg="#6d5138",
+            anchor="w",
+            justify="left",
+            wraplength=360,
+            font=("Microsoft YaHei UI", 8),
+        )
+        role_detail_text.pack(fill="both", expand=True, padx=10, pady=(0, 7))
+
+        def resize_role_detail(event):
+            role_detail_text.configure(wraplength=max(260, event.width - 22))
+
+        role_detail.bind("<Configure>", resize_role_detail)
+
+        def role_detail_summary(role):
+            best_for = str(role.get("best_for", "") or "").strip()
+            boundary = str(role.get("boundary", "") or "").strip()
+            parts = []
+            if best_for:
+                parts.append("适合：" + best_for)
+            if boundary:
+                parts.append("边界：" + boundary)
+            return "\n".join(parts) or "保留当前宠物身份，只改变表达方式。"
+
+        def refresh_role_buttons():
+            current_role = self.active_chat_role_skill_id()
+            for role_id, button in role_buttons.items():
+                role = CHAT_ROLE_SKILLS.get(role_id, {})
+                selected = role_id == current_role
+                button.configure(
+                    text=f"{role.get('label', role_id)}\n{role.get('short', '')}",
+                    bg="#d88333" if selected else "#fff8ee",
+                    fg="#ffffff" if selected else "#3a2a1c",
+                    activebackground="#c9772d" if selected else "#f4d8b4",
+                    activeforeground="#ffffff" if selected else "#3a2a1c",
+                    highlightbackground="#c9772d" if selected else "#ead7bd",
+                )
+            current = CHAT_ROLE_SKILLS.get(current_role, CHAT_ROLE_SKILLS[DEFAULT_SETTINGS["ai_chat_role_skill"]])
+            role_detail_title.configure(text=current.get("label", "角色 Skill"))
+            role_detail_text.configure(text=role_detail_summary(current))
+
+        def select_chat_role(role_id):
+            if role_id not in CHAT_ROLE_SKILLS:
+                return
+            self.settings["ai_chat_role_skill"] = role_id
+            self.save_settings()
+            refresh_role_buttons()
+            role = CHAT_ROLE_SKILLS[role_id]
+            self.set_ai_status(f"角色 Skill 已切换：{role['label']}，后续 AI 回复会按这个表达方式。")
+            self.set_chat_composer_feedback(f"已切换为：{role['label']}。下一句开始生效。", "success", False)
+
+        role_columns = 4
+        for column in range(role_columns):
+            role_grid.grid_columnconfigure(column, weight=1, uniform="chat_role")
+        for index, role_id in enumerate(CHAT_ROLE_SKILLS):
+            row = index // role_columns
+            column = index % role_columns
+            button = tk.Button(
+                role_grid,
+                text="",
+                command=lambda value=role_id: select_chat_role(value),
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 8),
+                justify="center",
+                padx=6,
+                pady=5,
+                height=2,
+                highlightthickness=1,
+            )
+            button.grid(
+                row=row,
+                column=column,
+                sticky="ew",
+                padx=(0, 7 if column < role_columns - 1 else 0),
+                pady=(0, 7 if row < (len(CHAT_ROLE_SKILLS) - 1) // role_columns else 0),
+            )
+            role_buttons[role_id] = button
+        refresh_role_buttons()
+
+        history_frame = tk.Frame(panel, bg="#fff9f0", padx=14, pady=12)
+        history_frame.grid(row=4, column=0, sticky="nsew")
+        history_frame.grid_columnconfigure(0, weight=1)
+        history_frame.grid_rowconfigure(0, weight=1)
+        chat_canvas = tk.Canvas(history_frame, bg="#f5f0e8", bd=0, highlightthickness=1, highlightbackground="#ead7bd")
+        chat_scrollbar = tk.Scrollbar(history_frame, orient="vertical", command=chat_canvas.yview, bd=0, width=15)
+        chat_canvas.configure(yscrollcommand=chat_scrollbar.set)
+        chat_canvas.grid(row=0, column=0, sticky="nsew")
+        chat_scrollbar.grid(row=0, column=1, sticky="ns")
+
+        def chat_mousewheel(event):
+            try:
+                direction = -1 if event.delta > 0 else 1
+                chat_canvas.yview_scroll(direction * 3, "units")
+            except tk.TclError:
+                pass
+            return "break"
+
+        chat_canvas.bind("<MouseWheel>", chat_mousewheel)
+        panel.bind("<MouseWheel>", chat_mousewheel)
+        chat_ui_settings = self.chat_ui_settings_for_pet(self.active_pet.get("id", "danhuang"))
+        self.chat_history_box = {
+            "canvas": chat_canvas,
+            "messages": [],
+            "typing": False,
+            "pet_avatar": pet_avatar,
+            "chat_ui_settings": chat_ui_settings,
+            "bg_photo": None,
+        }
+
+        def render_chat_canvas(_event=None):
+            if not isinstance(self.chat_history_box, dict):
+                return
+            try:
+                width = max(320, chat_canvas.winfo_width())
+                height = max(320, chat_canvas.winfo_height())
+            except tk.TclError:
+                return
+            chat_canvas.delete("all")
+            settings = self.chat_history_box.get("chat_ui_settings", chat_ui_settings)
+            y = 18
+            max_text_width = max(220, min(390, int(width * 0.62)))
+            font_body = ("Microsoft YaHei UI", 10)
+            font_meta = ("Microsoft YaHei UI", 8)
+
+            def measure_text(value, limit):
+                temp = chat_canvas.create_text(0, 0, text=value, width=limit, anchor="nw", font=font_body)
+                bbox = chat_canvas.bbox(temp) or (0, 0, 80, 24)
+                chat_canvas.delete(temp)
+                return max(28, bbox[2] - bbox[0]), max(22, bbox[3] - bbox[1])
+
+            def draw_message(message):
+                nonlocal y
+                is_user = message.get("speaker") == "主人"
+                text = str(message.get("text", "") or "")
+                if not text:
+                    return
+                text_w, text_h = measure_text(text, max_text_width)
+                bubble_w = min(max_text_width + 28, text_w + 28)
+                bubble_h = text_h + 18
+                if is_user:
+                    bx = width - bubble_w - 22
+                    chat_canvas.create_text(width - 22, y, text="你", fill="#9a6a35", anchor="ne", font=font_meta)
+                    by = y + 18
+                    self.draw_chat_round_rect(chat_canvas, bx, by, bx + bubble_w, by + bubble_h, 10, "#d88333")
+                    chat_canvas.create_text(bx + 14, by + 9, text=text, width=bubble_w - 28, anchor="nw", fill="#ffffff", font=font_body)
+                    y = by + bubble_h + 18
+                    return
+                avatar = self.chat_history_box.get("pet_avatar")
+                if avatar is not None:
+                    chat_canvas.create_image(22, y + 18, image=avatar, anchor="nw")
+                chat_canvas.create_text(70, y, text=pet_name, fill="#7a8570", anchor="nw", font=font_meta)
+                bx = 70
+                by = y + 18
+                self.draw_chat_round_rect(chat_canvas, bx, by, bx + bubble_w, by + bubble_h, 10, "#ffffff")
+                chat_canvas.create_text(bx + 14, by + 9, text=text, width=bubble_w - 28, anchor="nw", fill="#2f2a24", font=font_body)
+                y = max(by + bubble_h, y + 58) + 18
+
+            for message in self.chat_history_box.get("messages", []):
+                draw_message(message)
+            if self.chat_history_box.get("typing"):
+                draw_message({"speaker": pet_name, "text": "正在输入..."})
+            content_height = max(height, y + 10)
+            bg_photo = self.make_chat_background_photo(
+                settings.get("background_image", ""),
+                float(settings.get("background_opacity", 0.16)),
+                (width, content_height),
+            )
+            self.chat_history_box["bg_photo"] = bg_photo
+            bg_item = chat_canvas.create_image(0, 0, image=bg_photo, anchor="nw")
+            chat_canvas.tag_lower(bg_item)
+            chat_canvas.configure(scrollregion=(0, 0, width, content_height))
+            chat_canvas.yview_moveto(1.0)
+
+        self.chat_history_box["render"] = render_chat_canvas
+        chat_canvas.bind("<Configure>", render_chat_canvas)
+        for item in self.chat_memory.get("messages", [])[-10:]:
+            if isinstance(item, dict):
+                user_text = item.get("user", "")
+                reply_text = item.get("reply", "")
+                if user_text:
+                    self.append_chat_history("主人", user_text)
+                if reply_text:
+                    self.append_chat_history(pet_name, reply_text)
+        render_chat_canvas()
+
+        quick = tk.Frame(panel, bg="#fff9f0")
+        quick.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 8))
+
+        def quick_send(text):
+            if self.is_chat_composer_busy():
+                self.set_chat_composer_feedback("上一句还在等回复，稍后再发。", "busy", True)
+                return
+            entry_var.set("")
+            self.handle_chat_message(text)
+
+        def chat_button(parent_widget, text, command, variant="neutral", width=8):
+            palettes = {
+                "primary": ("#c9772d", "#ffffff", "#a86431"),
+                "neutral": ("#fff1dc", "#3a2a1c", "#f4d8b4"),
+                "ghost": ("#fff9f0", "#75614a", "#f4eadc"),
+            }
+            bg, fg, active_bg = palettes.get(variant, palettes["neutral"])
+            return tk.Button(
+                parent_widget,
+                text=text,
+                command=command,
+                bg=bg,
+                activebackground=active_bg,
+                fg=fg,
+                activeforeground=fg,
+                relief="flat",
+                bd=0,
+                width=width,
+                padx=8,
+                pady=7,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 9),
+            )
+
+        quick_items = [
+            ("累了", "主人有点累了"),
+            ("难过", "主人有点难过"),
+            ("想你", f"我想{pet_name}了"),
+            ("休息", "陪我休息一会儿"),
+            ("时间", f"{pet_name}，现在几点？"),
+            ("待办", f"{pet_name}，今天有什么安排？"),
+            ("查资料", "帮我查一下今天有什么值得关注的新消息"),
+            ("背景", None),
+        ]
+        quick_columns = 4
+        for column in range(quick_columns):
+            quick.grid_columnconfigure(column, weight=1, uniform="chat_quick")
+        for index, (label, value) in enumerate(quick_items):
+            row = index // quick_columns
+            column = index % quick_columns
+            command = self.open_chat_background_dialog if value is None else (lambda v=value: quick_send(v))
+            variant = "ghost" if value is None else "neutral"
+            chat_button(
+                quick,
+                label,
+                command,
+                variant,
+                width=6,
+            ).grid(
+                row=row,
+                column=column,
+                sticky="ew",
+                padx=(0, 8 if column < quick_columns - 1 else 0),
+                pady=(0, 7 if row == 0 else 0),
+            )
+
+        composer = tk.Frame(panel, bg="#fffdf7", highlightthickness=1, highlightbackground="#ead7bd")
+        composer.grid(row=6, column=0, sticky="ew", padx=14, pady=(0, 14))
+        composer_top = tk.Frame(composer, bg="#fffdf7")
+        composer_top.pack(fill="x", padx=12, pady=(10, 4))
+        tk.Label(
+            composer_top,
+            text=f"给{pet_name}留句话",
+            bg="#fffdf7",
+            fg="#2f261f",
+            font=("Microsoft YaHei UI", 9, "bold"),
+        ).pack(side="left")
+        composer_status = tk.Label(
+            composer_top,
+            text="输入后会按当前 AI/本地陪伴状态回复。",
+            bg="#fffdf7",
+            fg="#75614a",
+            anchor="e",
+            font=("Microsoft YaHei UI", 8),
+        )
+        composer_status.pack(side="right", fill="x", expand=True, padx=(12, 0))
+        input_row = tk.Frame(composer, bg="#fffdf7")
+        input_row.pack(fill="x", padx=12, pady=(0, 12))
+        entry_var = tk.StringVar()
+        entry_shell = tk.Frame(input_row, bg="#ead7bd", padx=1, pady=1)
+        entry_shell.pack(side="left", fill="x", expand=True)
+        entry = tk.Entry(
+            entry_shell,
+            textvariable=entry_var,
+            bg="#fffdf6",
+            fg="#3a2a1c",
+            relief="flat",
+            font=("Microsoft YaHei UI", 10),
+        )
+        entry.pack(fill="x", ipady=8)
+
+        def send(_event=None):
+            if self.is_chat_composer_busy():
+                self.set_chat_composer_feedback("上一句还在等回复，稍后再发。", "busy", True)
+                entry.focus_set()
+                return "break"
+            text = entry_var.get().strip()
+            if not text:
+                self.set_chat_composer_feedback("先写一句要和它说的话。", "error", False)
+                entry.focus_set()
+                return "break"
+            entry_var.set("")
+            self.set_chat_composer_feedback("已发送，正在等回复。", "busy", True)
+            self.handle_chat_message(text)
+            return "break"
+
+        send_button = chat_button(input_row, "发送", send, "primary", width=8)
+        send_button.pack(side="left", padx=(8, 0))
+        entry.bind("<Return>", send)
+        if isinstance(self.chat_history_box, dict):
+            self.chat_history_box.update({
+                "composer_status": composer_status,
+                "send_button": send_button,
+                "entry": entry,
+                "composer_busy": False,
+            })
+            self.set_chat_composer_feedback()
+
+        def close_chat_panel():
+            self.chat_history_box = None
+            self.chat_ai_status_label = None
+            self.chat_tool_status_widgets = {}
+            self.chat_panel = None
+            try:
+                panel.destroy()
+            except tk.TclError:
+                pass
+
+        panel.protocol("WM_DELETE_WINDOW", close_chat_panel)
+        panel.update_idletasks()
+        self.center_window(panel)
+        panel.deiconify()
+        panel.lift()
+        panel.after(40, entry.focus_set)
+
+    def choose_phrase(self, phrases=None):
+        choices = list(phrases or self.available_phrases())
+        if not choices:
+            return "主人，我在。"
+        if len(choices) > 4:
+            fresh = [phrase for phrase in choices if phrase not in self.recent_phrases]
+            if fresh:
+                choices = fresh
+        phrase = random.choice(choices)
+        self.recent_phrases = (self.recent_phrases + [phrase])[-8:]
+        return phrase
+
+    def available_phrases(self):
+        level = self.companion.get("level", 1)
+        phrases = list(PHRASES)
+        phrases.extend(self.dialogue_phrases("base"))
+        phrases.extend(self.dialogue_phrases("life"))
+        for threshold, extra in LEVEL_PHRASES.items():
+            if level >= threshold:
+                phrases.extend(extra)
+        phrases.extend(self.contextual_phrases())
+        return phrases
+
+    def dialogue_phrases(self, section, key=None):
+        data = self.dialogues.get(section)
+        if key is not None and isinstance(data, dict):
+            data = data.get(key)
+        if isinstance(data, list):
+            return [text for text in data if isinstance(text, str) and text.strip()]
+        if isinstance(data, dict):
+            phrases = []
+            for value in data.values():
+                if isinstance(value, list):
+                    phrases.extend(text for text in value if isinstance(text, str) and text.strip())
+            return phrases
+        return []
+
+    def contextual_phrases(self):
+        phrases = []
+        hour = datetime.now().hour
+        if 5 <= hour < 11:
+            phrases.extend(TIME_PHRASES["morning"])
+        elif 11 <= hour < 18:
+            phrases.extend(TIME_PHRASES["afternoon"])
+        elif 18 <= hour < 23:
+            phrases.extend(TIME_PHRASES["night"])
+        else:
+            phrases.extend(TIME_PHRASES["late"])
+        session_minutes = (time.monotonic() - self.session_started_at) / 60
+        quiet_minutes = (time.monotonic() - self.last_interaction_at) / 60
+        if session_minutes >= 20:
+            phrases.extend(self.dialogue_phrases("care", "eye_break"))
+        if session_minutes >= 45:
+            phrases.extend(self.dialogue_phrases("care", "work_break"))
+        if session_minutes >= 60:
+            phrases.extend(SESSION_PHRASES["long"])
+        if session_minutes >= 90:
+            phrases.extend(self.dialogue_phrases("care", "deep_rest"))
+        if quiet_minutes >= 20:
+            phrases.extend(SESSION_PHRASES["quiet"])
+            phrases.extend(self.dialogue_phrases("moods", "quiet"))
+        if self.companion.get("interactions", 0) >= 20:
+            phrases.extend(SESSION_PHRASES["active"])
+        return phrases
+
+    def hide_bubble(self):
+        if self.bubble is not None and self.bubble.winfo_exists():
+            self.bubble.destroy()
+
+    def show_butterfly(self):
+        if not self.butterfly_frames:
+            return
+        if self.butterfly_window is not None:
+            try:
+                if self.butterfly_window.winfo_exists():
+                    return
+            except tk.TclError:
+                pass
+        window = tk.Toplevel(self.root)
+        self.butterfly_window = window
+        window.overrideredirect(True)
+        window.attributes("-topmost", True)
+        window.configure(bg=BG)
+        try:
+            window.attributes("-transparentcolor", BG)
+        except tk.TclError:
+            pass
+        label = tk.Label(window, bg=BG, bd=0, highlightthickness=0)
+        label.pack()
+        self.butterfly_label = label
+
+    def hide_butterfly(self):
+        try:
+            if self.butterfly_window is not None and self.butterfly_window.winfo_exists():
+                self.butterfly_window.destroy()
+        except tk.TclError:
+            pass
+        self.butterfly_window = None
+        self.butterfly_label = None
+
+    def update_butterfly_position(self):
+        if self.activity_mode != "chase" or not self.butterfly_frames:
+            self.hide_butterfly()
+            return
+        self.show_butterfly()
+        if self.butterfly_window is None or self.butterfly_label is None:
+            return
+        frame = self.butterfly_frames[self.butterfly_frame_index % len(self.butterfly_frames)]
+        self.butterfly_frame_index += 1
+        self.butterfly_label.configure(image=frame)
+        self.butterfly_label.image = frame
+        pet_w, pet_h = self.pet_size()
+        distance = max(68, int(pet_w * 0.42))
+        vertical = int(pet_h * 0.20) + [0, -5, -2, 4, 6, 2, -4, 0][self.frame_index % 8]
+        if self.chase_direction == "left":
+            x = self.root.winfo_x() - distance - frame.width()
+        else:
+            x = self.root.winfo_x() + pet_w + distance
+        y = self.root.winfo_y() + vertical
+        self.butterfly_window.geometry(f"{frame.width()}x{frame.height()}+{int(x)}+{int(y)}")
+
+    def set_mode(self, mode):
+        self.activity_mode = mode
+
+    def stop_position_motion(self):
+        self.roam_target = None
+        self.velocity_x = 0.0
+        self.velocity_y = 0.0
+        self.inertia_until = 0.0
+        self.hide_butterfly()
+
+    def can_interrupt_for_roam(self):
+        return self.activity_mode in {"idle", "roam"} and self.state in {"idle", *MOVEMENT_STATES}
+
+    def roam_loop(self):
+        now = time.monotonic()
+        if self.dragging:
+            self.roam_target = None
+            self.hide_butterfly()
+            self.set_mode("drag")
+            self.next_roam_at = self.next_roam_time()
+        elif self.activity_mode == "chase" and self.roam_target is not None:
+            self.update_roam(now)
+        elif self.settings["roam_enabled"]:
+            if self.roam_target is None and now >= self.next_roam_at and self.can_interrupt_for_roam():
+                self.start_roam()
+            self.update_roam(now)
+        else:
+            self.roam_target = None
+            if self.activity_mode == "roam":
+                self.set_mode("idle")
+        self.root.after(33, self.roam_loop)
+
+    def start_chase_butterfly(self):
+        if self.dragging:
+            return
+        self.hide_bubble()
+        monitors = self.roam_monitors_for_current_position()
+        current_monitor = self.monitor_for_position(self.root.winfo_x(), self.root.winfo_y(), monitors)
+        area = self.monitor_area(current_monitor)
+        current_x = self.root.winfo_x()
+        current_y = self.root.winfo_y()
+        room_right = area["right"] - current_x
+        room_left = current_x - area["left"]
+        direction = "right" if room_right >= room_left else "left"
+        if direction == "right" and room_right < 260 and room_left > room_right:
+            direction = "left"
+        elif direction == "left" and room_left < 260 and room_right > room_left:
+            direction = "right"
+        distance = min(520, max(260, int((area["right"] - area["left"]) * 0.28)))
+        if direction == "right":
+            target_x = min(area["right"], current_x + distance)
+        else:
+            target_x = max(area["left"], current_x - distance)
+        target_y = int(clamp(current_y + random.choice([-36, -22, 18, 30]), area["top"], area["bottom"]))
+        target_x, target_y = self.clamp_position(target_x, target_y, monitors=monitors)
+        if abs(target_x - current_x) < 80:
+            target_x, target_y = self.free_roam_point(current_monitor)
+            direction = "right" if target_x >= current_x else "left"
+        self.chase_direction = direction
+        self.roam_target = {
+            "x": target_x,
+            "y": target_y,
+            "direction": direction,
+            "forced": True,
+            "chase": True,
+            "allow_virtual_gap": self.target_crosses_monitor(current_x, current_y, target_x, target_y, monitors),
+        }
+        self.set_mode("chase")
+        self.loop_once = False
+        self.action_loops_left = 0
+        self.roam_last_tick = time.monotonic()
+        self.set_state("chase-butterfly" if direction == "right" else "chase-butterfly-left")
+        self.update_butterfly_position()
+
+    def start_roam(self, forced=False):
+        if self.dragging:
+            return
+        self.hide_butterfly()
+        self.hide_bubble()
+        monitors = self.roam_monitors_for_current_position()
+        current_monitor = self.monitor_for_position(self.root.winfo_x(), self.root.winfo_y(), monitors)
+        area = self.monitor_area(current_monitor)
+        max_x = area["right"]
+        max_y = area["bottom"]
+        min_x = area["left"]
+        min_y = area["top"]
+        current_x = self.root.winfo_x()
+        current_y = self.root.winfo_y()
+        directions = ["right", "down", "left", "up"]
+        direction = directions[self.roam_direction_index % len(directions)]
+        self.roam_direction_index += 1
+        allow_center = self.monitor_allows_center_roam(current_monitor)
+
+        if not allow_center:
+            snapped_x, snapped_y, edge = self.snap_to_screen_edge(current_x, current_y, area)
+            if abs(snapped_x - current_x) > 3 or abs(snapped_y - current_y) > 3:
+                target_x, target_y = snapped_x, snapped_y
+                if abs(target_x - current_x) >= abs(target_y - current_y):
+                    direction = "right" if target_x > current_x else "left"
+                else:
+                    direction = "down" if target_y > current_y else "up"
+                self.roam_target = {
+                    "x": target_x,
+                    "y": target_y,
+                    "direction": direction,
+                    "forced": forced,
+                    "allow_virtual_gap": self.target_crosses_monitor(current_x, current_y, target_x, target_y, monitors),
+                }
+                self.set_mode("roam")
+                self.record_roam()
+                self.roam_last_tick = time.monotonic()
+                if forced or random.random() < 0.25:
+                    self.say(self.choose_phrase(ROAM_PHRASES + self.dialogue_phrases("roam")))
+                return
+            target_x, target_y, direction = self.next_edge_roam_target(
+                direction,
+                current_x,
+                current_y,
+                area,
+                current_monitor,
+                monitors,
+                forced,
+            )
+            target_x, target_y = self.clamp_position(target_x, target_y, monitors=monitors)
+            if abs(target_x - current_x) < 5 and abs(target_y - current_y) < 5:
+                self.next_roam_at = self.next_roam_time()
+                return
+            self.roam_target = {
+                "x": target_x,
+                "y": target_y,
+                "direction": direction,
+                "forced": forced,
+                "allow_virtual_gap": self.target_crosses_monitor(current_x, current_y, target_x, target_y, monitors),
+            }
+            self.set_mode("roam")
+            self.record_roam()
+            self.roam_last_tick = time.monotonic()
+            if forced or random.random() < 0.25:
+                self.say(self.choose_phrase(ROAM_PHRASES + self.dialogue_phrases("roam")))
+            return
+
+        target_monitor = self.choose_roam_monitor(current_monitor, monitors, forced)
+        target_area = self.monitor_area(target_monitor)
+        if self.monitor_key(target_monitor) != self.monitor_key(current_monitor):
+            if self.monitor_allows_center_roam(target_monitor):
+                target_x, target_y = self.free_roam_point(target_monitor)
+                direction = "right" if target_x > current_x else "left"
+                if abs(target_y - current_y) > abs(target_x - current_x):
+                    direction = "down" if target_y > current_y else "up"
+            else:
+                target_x, target_y, direction = self.entry_edge_point(target_monitor, current_x, current_y)
+            target_x, target_y = self.clamp_position(target_x, target_y, monitors=monitors)
+            self.roam_target = {
+                "x": target_x,
+                "y": target_y,
+                "direction": direction,
+                "forced": forced,
+                "allow_virtual_gap": self.target_crosses_monitor(current_x, current_y, target_x, target_y, monitors),
+            }
+            self.set_mode("roam")
+            self.record_roam()
+            self.roam_last_tick = time.monotonic()
+            if forced or random.random() < 0.25:
+                self.say(self.choose_phrase(ROAM_PHRASES + self.dialogue_phrases("roam")))
+            return
+
+        distance_scale = self.settings["roam_distance"]
+        horizontal_distance = max(180, int((target_area["right"] - target_area["left"]) * random.uniform(distance_scale * 0.55, distance_scale)))
+        vertical_distance = max(140, int((target_area["bottom"] - target_area["top"]) * random.uniform(distance_scale * 0.45, distance_scale * 0.85)))
+        target_x = current_x
+        target_y = current_y
+        if direction == "right":
+            target_x = min(max_x, current_x + horizontal_distance)
+            if abs(target_x - current_x) < 25:
+                target_x = max(min_x, current_x - horizontal_distance)
+                direction = "left"
+        elif direction == "left":
+            target_x = max(min_x, current_x - horizontal_distance)
+            if abs(target_x - current_x) < 25:
+                target_x = min(max_x, current_x + horizontal_distance)
+                direction = "right"
+        elif direction == "down":
+            target_y = min(max_y, current_y + vertical_distance)
+            if abs(target_y - current_y) < 25:
+                target_y = max(min_y, current_y - vertical_distance)
+                direction = "up"
+        else:
+            target_y = max(min_y, current_y - vertical_distance)
+            if abs(target_y - current_y) < 25:
+                target_y = min(max_y, current_y + vertical_distance)
+                direction = "down"
+
+        target_x, target_y = self.clamp_position(target_x, target_y, monitors=monitors)
+        if abs(target_x - current_x) < 5 and abs(target_y - current_y) < 5:
+            self.next_roam_at = now = self.next_roam_time()
+            return
+        self.roam_target = {
+            "x": target_x,
+            "y": target_y,
+            "direction": direction,
+            "forced": forced,
+            "allow_virtual_gap": self.target_crosses_monitor(current_x, current_y, target_x, target_y, monitors),
+        }
+        self.set_mode("roam")
+        self.record_roam()
+        self.roam_last_tick = time.monotonic()
+        if forced or random.random() < 0.25:
+            self.say(self.choose_phrase(ROAM_PHRASES + self.dialogue_phrases("roam")))
+
+    def record_roam(self):
+        self.companion["roams"] += 1
+        self.add_xp(XP_RULES["roam"], "roam")
+
+    def monitor_key(self, monitor):
+        return (monitor["left"], monitor["top"], monitor["right"], monitor["bottom"])
+
+    def target_crosses_monitor(self, current_x, current_y, target_x, target_y, monitors=None):
+        monitors = monitors or self.available_monitors()
+        current_monitor = self.monitor_for_position(current_x, current_y, monitors)
+        target_monitor = self.monitor_for_position(target_x, target_y, monitors)
+        return self.monitor_key(current_monitor) != self.monitor_key(target_monitor)
+
+    def cross_edge_for_monitor(self, current_monitor, target_monitor):
+        current_cx = (current_monitor["left"] + current_monitor["right"]) / 2
+        current_cy = (current_monitor["top"] + current_monitor["bottom"]) / 2
+        target_cx = (target_monitor["left"] + target_monitor["right"]) / 2
+        target_cy = (target_monitor["top"] + target_monitor["bottom"]) / 2
+        if abs(target_cx - current_cx) >= abs(target_cy - current_cy):
+            return "left" if target_cx < current_cx else "right"
+        return "top" if target_cy < current_cy else "bottom"
+
+    def nearest_cross_monitor(self, current_monitor, monitors):
+        others = [monitor for monitor in monitors if self.monitor_key(monitor) != self.monitor_key(current_monitor)]
+        if not others:
+            return None
+        current_cx = (current_monitor["left"] + current_monitor["right"]) / 2
+        current_cy = (current_monitor["top"] + current_monitor["bottom"]) / 2
+        return min(
+            others,
+            key=lambda monitor: (
+                ((monitor["left"] + monitor["right"]) / 2 - current_cx) ** 2
+                + ((monitor["top"] + monitor["bottom"]) / 2 - current_cy) ** 2
+            ),
+        )
+
+    def route_to_cross_monitor_gateway(self, edge, current_x, current_y, area, current_monitor, monitors):
+        if not self.settings["multi_monitor_roam"]:
+            return None
+        target_monitor = self.nearest_cross_monitor(current_monitor, monitors)
+        if target_monitor is None:
+            return None
+        target_edge = self.cross_edge_for_monitor(current_monitor, target_monitor)
+        mid_x = (area["left"] + area["right"]) / 2
+        mid_y = (area["top"] + area["bottom"]) / 2
+        on_top_or_bottom = abs(current_y - area["top"]) <= 6 or abs(area["bottom"] - current_y) <= 6
+        on_left_or_right = abs(current_x - area["left"]) <= 6 or abs(area["right"] - current_x) <= 6
+
+        if target_edge == "left":
+            if edge in {"top", "bottom"} or on_top_or_bottom:
+                return area["left"], current_y, "left"
+            return current_x, area["top"] if current_y <= mid_y else area["bottom"], "up" if current_y <= mid_y else "down"
+        if target_edge == "right":
+            if edge in {"top", "bottom"} or on_top_or_bottom:
+                return area["right"], current_y, "right"
+            return current_x, area["top"] if current_y <= mid_y else area["bottom"], "up" if current_y <= mid_y else "down"
+        if target_edge == "top":
+            if edge in {"left", "right"} or on_left_or_right:
+                return current_x, area["top"], "up"
+            return area["left"] if current_x <= mid_x else area["right"], current_y, "left" if current_x <= mid_x else "right"
+        if edge in {"left", "right"} or on_left_or_right:
+            return current_x, area["bottom"], "down"
+        return area["left"] if current_x <= mid_x else area["right"], current_y, "left" if current_x <= mid_x else "right"
+
+    def choose_roam_monitor(self, current_monitor, monitors, forced=False):
+        if not self.settings["multi_monitor_roam"] or len(monitors) < 2:
+            return current_monitor
+        chance = 0.45 if forced else 0.22
+        if random.random() > chance:
+            return current_monitor
+        others = [monitor for monitor in monitors if self.monitor_key(monitor) != self.monitor_key(current_monitor)]
+        return random.choice(others) if others else current_monitor
+
+    def free_roam_point(self, monitor):
+        area = self.monitor_area(monitor)
+        width = max(1, area["right"] - area["left"])
+        height = max(1, area["bottom"] - area["top"])
+        return (
+            int(area["left"] + random.uniform(0.12, 0.88) * width),
+            int(area["top"] + random.uniform(0.12, 0.88) * height),
+        )
+
+    def entry_edge_point(self, target_monitor, from_x, from_y):
+        area = self.monitor_area(target_monitor)
+        distances = {
+            "left": abs(from_x - area["left"]),
+            "right": abs(from_x - area["right"]),
+            "top": abs(from_y - area["top"]),
+            "bottom": abs(from_y - area["bottom"]),
+        }
+        edge = min(distances, key=distances.get)
+        if edge == "left":
+            return area["left"], int(clamp(from_y, area["top"], area["bottom"])), "right"
+        if edge == "right":
+            return area["right"], int(clamp(from_y, area["top"], area["bottom"])), "left"
+        if edge == "top":
+            return int(clamp(from_x, area["left"], area["right"])), area["top"], "down"
+        return int(clamp(from_x, area["left"], area["right"])), area["bottom"], "up"
+
+    def adjacent_monitor_target(self, edge, current_x, current_y, current_monitor, monitors):
+        candidates = []
+        tolerance = 10
+        for monitor in monitors:
+            if self.monitor_key(monitor) == self.monitor_key(current_monitor):
+                continue
+            if edge == "right" and abs(monitor["left"] - current_monitor["right"]) <= tolerance:
+                overlap = min(monitor["bottom"], current_monitor["bottom"]) - max(monitor["top"], current_monitor["top"])
+                if overlap > 0:
+                    candidates.append((monitor, "right"))
+            elif edge == "left" and abs(monitor["right"] - current_monitor["left"]) <= tolerance:
+                overlap = min(monitor["bottom"], current_monitor["bottom"]) - max(monitor["top"], current_monitor["top"])
+                if overlap > 0:
+                    candidates.append((monitor, "left"))
+            elif edge == "bottom" and abs(monitor["top"] - current_monitor["bottom"]) <= tolerance:
+                overlap = min(monitor["right"], current_monitor["right"]) - max(monitor["left"], current_monitor["left"])
+                if overlap > 0:
+                    candidates.append((monitor, "bottom"))
+            elif edge == "top" and abs(monitor["bottom"] - current_monitor["top"]) <= tolerance:
+                overlap = min(monitor["right"], current_monitor["right"]) - max(monitor["left"], current_monitor["left"])
+                if overlap > 0:
+                    candidates.append((monitor, "top"))
+        if not candidates:
+            return None
+
+        target_monitor, direction = random.choice(candidates)
+        if self.monitor_allows_center_roam(target_monitor):
+            target_x, target_y = self.free_roam_point(target_monitor)
+        else:
+            target_x, target_y, direction = self.entry_edge_point(target_monitor, current_x, current_y)
+        return target_x, target_y, direction
+
+    def cross_monitor_target(self, edge, current_x, current_y, current_monitor, monitors):
+        adjacent = self.adjacent_monitor_target(edge, current_x, current_y, current_monitor, monitors)
+        if adjacent:
+            return adjacent
+        if not self.settings["multi_monitor_roam"]:
+            return None
+        others = [monitor for monitor in monitors if self.monitor_key(monitor) != self.monitor_key(current_monitor)]
+        if not others:
+            return None
+        current_cx = (current_monitor["left"] + current_monitor["right"]) / 2
+        current_cy = (current_monitor["top"] + current_monitor["bottom"]) / 2
+
+        def is_in_edge_direction(monitor):
+            target_cx = (monitor["left"] + monitor["right"]) / 2
+            target_cy = (monitor["top"] + monitor["bottom"]) / 2
+            if edge == "left":
+                return target_cx < current_cx
+            if edge == "right":
+                return target_cx > current_cx
+            if edge == "top":
+                return target_cy < current_cy
+            return target_cy > current_cy
+
+        others = [monitor for monitor in others if is_in_edge_direction(monitor)]
+        if not others:
+            return None
+
+        def distance_to_current(monitor):
+            cx = (monitor["left"] + monitor["right"]) / 2
+            cy = (monitor["top"] + monitor["bottom"]) / 2
+            return (cx - current_x) ** 2 + (cy - current_y) ** 2
+
+        target_monitor = min(others, key=distance_to_current)
+        if self.monitor_allows_center_roam(target_monitor):
+            target_x, target_y = self.free_roam_point(target_monitor)
+            direction = "right" if target_x > current_x else "left"
+            if abs(target_y - current_y) > abs(target_x - current_x):
+                direction = "down" if target_y > current_y else "up"
+            return target_x, target_y, direction
+        return self.entry_edge_point(target_monitor, current_x, current_y)
+
+    def next_edge_roam_target(self, direction, current_x, current_y, area, current_monitor=None, monitors=None, forced=False):
+        current_x, current_y, edge = self.snap_to_screen_edge(current_x, current_y, area)
+        if current_monitor is not None and monitors:
+            candidate_edges = []
+            target_monitor = self.nearest_cross_monitor(current_monitor, monitors)
+            if target_monitor is not None:
+                target_edge = self.cross_edge_for_monitor(current_monitor, target_monitor)
+                if (
+                    (target_edge == "left" and abs(current_x - area["left"]) <= 6)
+                    or (target_edge == "right" and abs(area["right"] - current_x) <= 6)
+                    or (target_edge == "top" and abs(current_y - area["top"]) <= 6)
+                    or (target_edge == "bottom" and abs(area["bottom"] - current_y) <= 6)
+                ):
+                    candidate_edges.append(target_edge)
+            candidate_edges.append(edge)
+            if abs(current_x - area["left"]) <= 6:
+                candidate_edges.append("left")
+            if abs(area["right"] - current_x) <= 6:
+                candidate_edges.append("right")
+            if abs(current_y - area["top"]) <= 6:
+                candidate_edges.append("top")
+            if abs(area["bottom"] - current_y) <= 6:
+                candidate_edges.append("bottom")
+            for candidate_edge in dict.fromkeys(candidate_edges):
+                cross_monitor = self.cross_monitor_target(candidate_edge, current_x, current_y, current_monitor, monitors)
+                if cross_monitor:
+                    return cross_monitor
+            gateway = self.route_to_cross_monitor_gateway(edge, current_x, current_y, area, current_monitor, monitors)
+            if gateway:
+                return gateway
+        distance_scale = self.settings["roam_distance"]
+        max_x = area["right"]
+        max_y = area["bottom"]
+        min_x = area["left"]
+        min_y = area["top"]
+        horizontal_step = max(160, int((max_x - min_x) * random.uniform(distance_scale * 0.35, distance_scale * 0.70)))
+        vertical_step = max(130, int((max_y - min_y) * random.uniform(distance_scale * 0.35, distance_scale * 0.70)))
+
+        if edge == "top":
+            if current_x < max_x - 4:
+                return min(max_x, current_x + horizontal_step), min_y, "right"
+            return max_x, min(max_y, current_y + vertical_step), "down"
+        if edge == "right":
+            if current_y < max_y - 4:
+                return max_x, min(max_y, current_y + vertical_step), "down"
+            return max(min_x, current_x - horizontal_step), max_y, "left"
+        if edge == "bottom":
+            if current_x > min_x + 4:
+                return max(min_x, current_x - horizontal_step), max_y, "left"
+            return min_x, max(min_y, current_y - vertical_step), "up"
+        if current_y > min_y + 4:
+            return min_x, max(min_y, current_y - vertical_step), "up"
+        return min(max_x, current_x + horizontal_step), min_y, "right"
+
+    def snap_to_screen_edge(self, x, y, area):
+        min_x = area["left"]
+        min_y = area["top"]
+        max_x = area["right"]
+        max_y = area["bottom"]
+        distances = {
+            "top": abs(y - min_y),
+            "right": abs(max_x - x),
+            "bottom": abs(max_y - y),
+            "left": abs(x - min_x),
+        }
+        edge = min(distances, key=distances.get)
+        if edge == "top":
+            return int(clamp(x, min_x, max_x)), min_y, edge
+        if edge == "right":
+            return max_x, int(clamp(y, min_y, max_y)), edge
+        if edge == "bottom":
+            return int(clamp(x, min_x, max_x)), max_y, edge
+        return min_x, int(clamp(y, min_y, max_y)), edge
+
+    def is_screen_corner(self, x, y, area, tolerance=6):
+        near_x = abs(x - area["left"]) <= tolerance or abs(area["right"] - x) <= tolerance
+        near_y = abs(y - area["top"]) <= tolerance or abs(area["bottom"] - y) <= tolerance
+        return near_x and near_y
+
+    def begin_corner_pause(self):
+        self.set_mode("action")
+        self.action_loops_left = 1
+        choices = [self.fallback_action_for_state(state) for state in ["sniffing", "standing", "tongue"]]
+        self.set_state(random.choice([state for state in choices if state in self.frames] or ["waiting"]), loop_once=True)
+        self.roam_corner_pause_until = time.monotonic() + random.uniform(0.7, 1.4)
+        self.next_roam_at = self.roam_corner_pause_until + random.uniform(0.2, 0.7)
+
+    def update_roam(self, now):
+        if self.roam_target is None:
+            return
+        if self.activity_mode not in {"roam", "chase"}:
+            self.stop_position_motion()
+            return
+        is_chase = self.activity_mode == "chase" or bool(self.roam_target.get("chase"))
+        dt = max(0.016, now - self.roam_last_tick)
+        self.roam_last_tick = now
+        current_x = self.root.winfo_x()
+        current_y = self.root.winfo_y()
+        dx = self.roam_target["x"] - current_x
+        dy = self.roam_target["y"] - current_y
+        distance = (dx * dx + dy * dy) ** 0.5
+        if distance <= 3:
+            self.move_to(self.roam_target["x"], self.roam_target["y"])
+            arrived_x = self.roam_target["x"]
+            arrived_y = self.roam_target["y"]
+            self.roam_target = None
+            self.velocity_x = 0.0
+            self.velocity_y = 0.0
+            self.remember_position()
+            self.save_settings()
+            if is_chase:
+                self.hide_butterfly()
+                self.set_mode("idle")
+                self.set_state("idle")
+                self.next_roam_at = self.next_roam_time()
+                return
+            monitor = self.monitor_for_position(arrived_x, arrived_y)
+            area = self.monitor_area(monitor)
+            if not self.monitor_allows_center_roam(monitor) and self.is_screen_corner(arrived_x, arrived_y, area):
+                self.begin_corner_pause()
+            else:
+                self.set_mode("idle")
+                self.set_state("idle")
+                self.next_roam_at = self.next_roam_time()
+            return
+
+        step = min(distance, self.settings["roam_speed"] * dt)
+        nx = current_x + dx / distance * step
+        ny = current_y + dy / distance * step
+        self.velocity_x = dx / max(0.12, distance) * self.settings["roam_speed"]
+        self.velocity_y = dy / max(0.12, distance) * self.settings["roam_speed"]
+        if self.roam_target.get("allow_virtual_gap"):
+            monitors = self.available_monitors()
+            current_monitor = self.monitor_for_position(current_x, current_y, monitors)
+            target_monitor = self.monitor_for_position(self.roam_target["x"], self.roam_target["y"], monitors)
+            if self.monitor_key(current_monitor) != self.monitor_key(target_monitor):
+                entry_x, entry_y, _direction = self.entry_edge_point(target_monitor, current_x, current_y)
+                self.move_to(entry_x, entry_y)
+                self.update_roam_animation(dx, dy)
+                return
+        self.move_to(nx, ny)
+        self.update_roam_animation(dx, dy)
+
+    def update_roam_animation(self, dx, dy):
+        if self.activity_mode == "chase":
+            self.chase_direction = "right" if dx >= 0 else "left"
+            self.set_state("chase-butterfly" if self.chase_direction == "right" else "chase-butterfly-left", preserve_phase=True)
+            self.update_butterfly_position()
+            return
+        if abs(dx) >= abs(dy) * 0.65:
+            if dx > 0:
+                self.set_state("running-right", preserve_phase=True)
+            else:
+                self.set_state("running-left", preserve_phase=True)
+        else:
+            self.set_state(self.visible_running_state(dx), preserve_phase=True)
+
+    def say(self, text):
+        if self.bubble is not None and self.bubble.winfo_exists():
+            self.bubble.destroy()
+
+        bubble = tk.Toplevel(self.root)
+        self.bubble = bubble
+        bubble.overrideredirect(True)
+        bubble.attributes("-topmost", True)
+        bubble.configure(bg=BG)
+        try:
+            bubble.attributes("-transparentcolor", BG)
+        except tk.TclError:
+            pass
+
+        canvas = tk.Canvas(bubble, bg=BG, bd=0, highlightthickness=0)
+        canvas.pack()
+        font = ("Microsoft YaHei UI", 10)
+        bubble_model = self.bubble_view_model(text)
+        style = self.settings.get("bubble_style", "rounded")
+        text_color = self.settings["bubble_text"]
+        text_width = 236 if style != "caption" else 250
+        if bubble_model is not None:
+            style = bubble_model["style"]
+            text_color = bubble_model["colors"]["text"]
+            text_width = bubble_model["text_width"]
+        text_item = canvas.create_text(22, 18, text=text, fill=text_color, font=font, anchor="nw", width=text_width)
+        canvas.update_idletasks()
+        x1, y1, x2, y2 = canvas.bbox(text_item)
+        width = max(132, x2 - x1 + 44)
+        height = max(48, y2 - y1 + 34)
+        tail_y = height - 8
+        if style == "caption":
+            width = max(140, x2 - x1 + 34)
+            height = max(38, y2 - y1 + 22)
+        canvas.configure(width=width + 20, height=height + 24)
+        canvas.delete(text_item)
+
+        bubble_image = self.render_bubble_image(style, width + 20, height + 24, width, height, tail_y)
+        canvas.bubble_image = ImageTk.PhotoImage(bubble_image, master=self.root)
+        canvas.create_image(0, 0, image=canvas.bubble_image, anchor="nw")
+        text_x = 24 if style != "caption" else 20
+        text_y = 18 if style != "caption" else 14
+        text_id = canvas.create_text(
+            text_x,
+            text_y,
+            text="",
+            fill=text_color,
+            font=font,
+            anchor="nw",
+            width=width - 32,
+        )
+        self.reveal_bubble_text(canvas, text_id, text)
+        self.bubble_label = canvas
+        self.position_bubble()
+        duration = int(self.settings["bubble_duration"] * 1000)
+        if bubble_model is not None:
+            duration = int(bubble_model["duration_seconds"] * 1000)
+        bubble.after(duration, lambda: bubble.destroy() if bubble.winfo_exists() else None)
+
+    def reveal_bubble_text(self, canvas, text_id, text, index=0):
+        if self.bubble is None or not self.bubble.winfo_exists() or not canvas.winfo_exists():
+            return
+        try:
+            canvas.itemconfigure(text_id, text=text[:index])
+        except tk.TclError:
+            return
+        if index < len(text):
+            canvas.after(28, lambda: self.reveal_bubble_text(canvas, text_id, text, index + 1))
+
+    def render_bubble_image(self, style, canvas_w, canvas_h, width, height, tail_y):
+        if MODULAR_RENDER_BUBBLE_IMAGE is not None:
+            try:
+                return MODULAR_RENDER_BUBBLE_IMAGE(
+                    style,
+                    canvas_w,
+                    canvas_h,
+                    width,
+                    height,
+                    tail_y,
+                    colors={
+                        "fill": self.settings.get("bubble_fill", BUBBLE_FILL),
+                        "outline": self.settings.get("bubble_outline", BUBBLE_OUTLINE),
+                    },
+                    background=BG,
+                )
+            except Exception:
+                pass
+        if style == "caption":
+            return self.render_caption_bubble(canvas_w, canvas_h, width, height)
+        if style == "note":
+            return self.render_note_bubble(canvas_w, canvas_h, width, height)
+        if style == "soft":
+            return self.render_soft_bubble(canvas_w, canvas_h, width, height, tail_y)
+        if style == "cloud":
+            return self.render_cloud_bubble(canvas_w, canvas_h, width, height, tail_y)
+        if style == "thought":
+            return self.render_thought_bubble(canvas_w, canvas_h, width, height)
+        return self.render_rounded_bubble(canvas_w, canvas_h, width, height, tail_y)
+
+    def render_masked_shape(self, canvas_w, canvas_h, draw_mask):
+        scale = 3
+        w = canvas_w * scale
+        h = canvas_h * scale
+        mask = Image.new("L", (w, h), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        draw_mask(mask_draw, scale)
+
+        image = Image.new("RGBA", (w, h), BG)
+        shadow_mask = Image.new("L", (w, h), 0)
+        shadow_mask.paste(mask, (2 * scale, 3 * scale))
+        shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(int(1.4 * scale)))
+        image.paste(self.bubble_shadow_color(), (0, 0), shadow_mask)
+
+        outline = mask.filter(ImageFilter.MaxFilter(scale + 2))
+        image.paste(self.settings["bubble_outline"], (0, 0), outline)
+        image.paste(self.settings["bubble_fill"], (0, 0), mask)
+        return image.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
+
+    def bubble_shadow_color(self):
+        fill = self.settings["bubble_fill"].lstrip("#")
+        try:
+            r = int(fill[0:2], 16)
+            g = int(fill[2:4], 16)
+            b = int(fill[4:6], 16)
+        except ValueError:
+            return BUBBLE_SHADOW
+        r = max(0, int(r * 0.88))
+        g = max(0, int(g * 0.84))
+        b = max(0, int(b * 0.74))
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def render_soft_bubble(self, canvas_w, canvas_h, width, height, tail_y):
+        scale = 3
+        image = Image.new("RGBA", (canvas_w * scale, canvas_h * scale), BG)
+        shadow = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        fill = self.settings["bubble_fill"]
+        outline = self.settings["bubble_outline"]
+        x = 7 * scale
+        y = 6 * scale
+        w = width * scale
+        h = height * scale
+        radius = 18 * scale
+
+        mask = Image.new("L", image.size, 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.rounded_rectangle((x, y, x + w, y + h), radius=radius, fill=255)
+        mask_draw.polygon(
+            [
+                (x + int(w * 0.66), y + h - 3 * scale),
+                (x + int(w * 0.76), y + h + 12 * scale),
+                (x + int(w * 0.72), y + h - 4 * scale),
+            ],
+            fill=255,
+        )
+
+        shadow_mask = Image.new("L", image.size, 0)
+        shadow_mask.paste(mask, (2 * scale, 3 * scale))
+        shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(2 * scale))
+        shadow_draw = ImageDraw.Draw(shadow)
+        shadow_draw.rectangle((0, 0, image.size[0], image.size[1]), fill=self.bubble_shadow_color())
+        image = Image.composite(shadow, image, shadow_mask)
+
+        body = Image.new("RGBA", image.size, fill)
+        image = Image.composite(body, image, mask)
+        draw = ImageDraw.Draw(image)
+        draw.rounded_rectangle((x, y, x + w, y + h), radius=radius, outline=outline, width=max(2, scale))
+        draw.line(
+            [
+                (x + int(w * 0.66), y + h - 3 * scale),
+                (x + int(w * 0.76), y + h + 12 * scale),
+                (x + int(w * 0.72), y + h - 4 * scale),
+            ],
+            fill=outline,
+            width=max(2, scale),
+            joint="curve",
+        )
+        highlight = "#ffffff"
+        draw.arc((x + 8 * scale, y + 7 * scale, x + 58 * scale, y + 34 * scale), 190, 250, fill=highlight, width=scale)
+        return image.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
+
+    def render_rounded_bubble(self, canvas_w, canvas_h, width, height, tail_y):
+        def draw_mask(draw, scale):
+            x = 5 * scale
+            y = 5 * scale
+            w = width * scale
+            h = height * scale
+            r = 14 * scale
+            draw.rounded_rectangle((x, y, x + w, y + h), radius=r, fill=255)
+            draw.polygon(
+                [
+                    (int(width * 0.66 * scale), int((tail_y - 1) * scale)),
+                    (int(width * 0.78 * scale), int((tail_y + 13) * scale)),
+                    (int(width * 0.73 * scale), int((tail_y - 2) * scale)),
+                ],
+                fill=255,
+            )
+        return self.render_masked_shape(canvas_w, canvas_h, draw_mask)
+
+    def render_cloud_bubble(self, canvas_w, canvas_h, width, height, tail_y):
+        def draw_mask(draw, scale):
+            x = 7 * scale
+            y = 7 * scale
+            w = max(40, width - 4) * scale
+            h = max(30, height - 4) * scale
+            draw.rounded_rectangle((x + 8 * scale, y + 8 * scale, x + w - 8 * scale, y + h), radius=20 * scale, fill=255)
+            for oval in [
+                (x, y + h * 0.36, x + 34 * scale, y + h * 0.88),
+                (x + 12 * scale, y + 2 * scale, x + 56 * scale, y + 38 * scale),
+                (x + w * 0.30, y, x + w * 0.70, y + 34 * scale),
+                (x + w - 58 * scale, y + 4 * scale, x + w - 12 * scale, y + 40 * scale),
+                (x + w - 34 * scale, y + h * 0.36, x + w, y + h * 0.88),
+            ]:
+                draw.ellipse(tuple(int(v) for v in oval), fill=255)
+            draw.polygon(
+                [
+                    (int(width * 0.62 * scale), int(tail_y * scale)),
+                    (int(width * 0.75 * scale), int((tail_y + 12) * scale)),
+                    (int(width * 0.70 * scale), int((tail_y - 1) * scale)),
+                ],
+                fill=255,
+            )
+        return self.render_masked_shape(canvas_w, canvas_h, draw_mask)
+
+    def render_thought_bubble(self, canvas_w, canvas_h, width, height):
+        def draw_mask(draw, scale):
+            x = 7 * scale
+            y = 7 * scale
+            w = width * scale
+            h = height * scale
+            draw.rounded_rectangle((x, y, x + w, y + h), radius=22 * scale, fill=255)
+            draw.ellipse((x + w * 0.66, y + h + 2 * scale, x + w * 0.80, y + h + 15 * scale), fill=255)
+            draw.ellipse((x + w * 0.82, y + h + 13 * scale, x + w * 0.91, y + h + 22 * scale), fill=255)
+        return self.render_masked_shape(canvas_w, canvas_h, draw_mask)
+
+    def render_note_bubble(self, canvas_w, canvas_h, width, height):
+        scale = 3
+        image = Image.new("RGBA", (canvas_w * scale, canvas_h * scale), BG)
+        draw = ImageDraw.Draw(image)
+        x = 6 * scale
+        y = 6 * scale
+        w = width * scale
+        h = height * scale
+        fill = self.settings["bubble_fill"]
+        outline = self.settings["bubble_outline"]
+        draw.rounded_rectangle((x + 3 * scale, y + 3 * scale, x + w + 3 * scale, y + h + 3 * scale), radius=6 * scale, fill=self.bubble_shadow_color())
+        draw.rounded_rectangle((x, y, x + w, y + h), radius=6 * scale, fill=fill, outline=outline, width=scale)
+        fold = 14 * scale
+        draw.polygon((x + w - fold, y, x + w, y, x + w, y + fold), fill=self.bubble_fold_color(), outline=outline)
+        return image.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
+
+    def render_caption_bubble(self, canvas_w, canvas_h, width, height):
+        scale = 3
+        image = Image.new("RGBA", (canvas_w * scale, canvas_h * scale), BG)
+        draw = ImageDraw.Draw(image)
+        x = 6 * scale
+        y = 6 * scale
+        w = width * scale
+        h = height * scale
+        draw.rounded_rectangle(
+            (x, y, x + w, y + h),
+            radius=10 * scale,
+            fill=self.settings["bubble_fill"],
+            outline=self.settings["bubble_outline"],
+            width=scale,
+        )
+        return image.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
+
+    def bubble_fold_color(self):
+        fill = self.settings["bubble_fill"].lstrip("#")
+        try:
+            r = min(255, int(int(fill[0:2], 16) * 1.02))
+            g = max(0, int(int(fill[2:4], 16) * 0.94))
+            b = max(0, int(int(fill[4:6], 16) * 0.78))
+        except ValueError:
+            return "#ffe29b"
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def position_bubble(self):
+        if self.bubble is None or not self.bubble.winfo_exists():
+            return
+        self.bubble.update_idletasks()
+        monitor = self.monitor_for_position(self.root.winfo_x(), self.root.winfo_y())
+        if MODULAR_COMPUTE_BUBBLE_POSITION is not None:
+            try:
+                position = MODULAR_COMPUTE_BUBBLE_POSITION(
+                    {
+                        "x": self.root.winfo_x(),
+                        "y": self.root.winfo_y(),
+                        "width": self.root.winfo_width(),
+                        "height": self.root.winfo_height(),
+                    },
+                    {
+                        "canvas_width": self.bubble.winfo_width(),
+                        "canvas_height": self.bubble.winfo_height(),
+                    },
+                    monitor,
+                )
+                self.place_window(self.bubble, int(position["x"]), int(position["y"]))
+                return
+            except Exception:
+                pass
+        x = self.root.winfo_x() - 18
+        y = self.root.winfo_y() - self.bubble.winfo_height() - 8
+        if y < monitor["top"]:
+            y = self.root.winfo_y() + self.root.winfo_height() + 8
+        max_x = max(monitor["left"], monitor["right"] - self.bubble.winfo_width())
+        max_y = max(monitor["top"], monitor["bottom"] - self.bubble.winfo_height())
+        x = clamp(x, monitor["left"], max_x)
+        y = clamp(y, monitor["top"], max_y)
+        self.place_window(self.bubble, x, y)
+
+    def center_window(self, window):
+        window.update_idletasks()
+        width = window.winfo_width()
+        height = window.winfo_height()
+        monitor = self.primary_monitor()
+        x = monitor["left"] + max(0, (monitor["right"] - monitor["left"] - width) // 2)
+        y = monitor["top"] + max(0, (monitor["bottom"] - monitor["top"] - height) // 2)
+        self.place_window(window, x, y)
+
+    def show_panel_toast(self, title, message, tone="success", duration=4200):
+        try:
+            if self.panel_toast is not None and self.panel_toast.winfo_exists():
+                self.panel_toast.destroy()
+        except tk.TclError:
+            pass
+
+        host = self.root
+        try:
+            if self.panel is not None and self.panel.winfo_exists():
+                host = self.panel
+        except tk.TclError:
+            host = self.root
+
+        palettes = {
+            "success": ("#f1f7ed", "#6d775c", "#d7e5d0"),
+            "error": ("#f8ddd3", "#5d3328", "#efc2b2"),
+            "info": ("#fff1df", "#a86431", "#ead7bd"),
+        }
+        bg, fg, border = palettes.get(tone, palettes["info"])
+        toast = tk.Toplevel(self.root)
+        self.panel_toast = toast
+        toast.overrideredirect(True)
+        toast.attributes("-topmost", True)
+        toast.configure(bg=border)
+        try:
+            toast.transient(host)
+        except tk.TclError:
+            pass
+
+        width = 360
+        body = tk.Frame(toast, bg=bg, highlightthickness=1, highlightbackground=border)
+        body.pack(fill="both", expand=True)
+        header = tk.Frame(body, bg=bg)
+        header.pack(fill="x", padx=12, pady=(10, 2))
+        tk.Label(
+            header,
+            text=title,
+            bg=bg,
+            fg=fg,
+            anchor="w",
+            font=("Microsoft YaHei UI", 10, "bold"),
+        ).pack(side="left", fill="x", expand=True)
+        tk.Button(
+            header,
+            text="关闭",
+            command=toast.destroy,
+            bg=bg,
+            fg=fg,
+            activebackground=bg,
+            activeforeground=fg,
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=6,
+            pady=2,
+            font=("Microsoft YaHei UI", 8),
+        ).pack(side="right")
+        tk.Label(
+            body,
+            text=str(message or ""),
+            bg=bg,
+            fg="#2f2a24",
+            anchor="w",
+            justify="left",
+            wraplength=width - 28,
+            font=("Microsoft YaHei UI", 9),
+        ).pack(fill="x", padx=12, pady=(0, 10))
+
+        toast.update_idletasks()
+        height = toast.winfo_height()
+        try:
+            host.update_idletasks()
+            x = host.winfo_rootx() + max(0, host.winfo_width() - width - 24)
+            y = host.winfo_rooty() + 58
+        except tk.TclError:
+            monitor = self.primary_monitor()
+            x = monitor["right"] - width - 28
+            y = monitor["top"] + 72
+        monitor = self.monitor_for_position(x, y)
+        x = clamp(x, monitor["left"] + 8, monitor["right"] - width - 8)
+        y = clamp(y, monitor["top"] + 8, monitor["bottom"] - height - 8)
+        self.place_window(toast, x, y, width, height)
+
+        def close_toast():
+            try:
+                if toast.winfo_exists():
+                    toast.destroy()
+            except tk.TclError:
+                pass
+
+        toast.after(duration, close_toast)
+
+    def companion_title(self):
+        level, title, _xp = self.level_for_xp(self.companion["xp"])
+        return f"Lv{level} {title}"
+
+    def companion_progress_text(self):
+        current = self.level_for_xp(self.companion["xp"])
+        next_level = self.next_level_info()
+        return f"{self.companion['xp']} / {next_level[2]} XP"
+
+    def companion_progress_ratio(self):
+        current = self.level_for_xp(self.companion["xp"])
+        next_level = self.next_level_info()
+        span = max(1, next_level[2] - current[2])
+        return clamp((self.companion["xp"] - current[2]) / span, 0.0, 1.0)
+
+    def companion_next_text(self):
+        next_level = self.next_level_info()
+        remaining = max(0, next_level[2] - self.companion["xp"])
+        return f"再陪主人 {remaining} XP，会到 Lv{next_level[0]} {next_level[1]}。没有满级，只有更久的陪伴。"
+
+    def companion_hours(self):
+        return round(self.companion["total_seconds"] / 3600, 1)
+
+    def companion_status_text(self):
+        return (
+            f"{self.companion_title()} | {self.companion_progress_text()}\n"
+            f"回到主人身边 {self.companion['streak_days']} 天 | 陪你 {self.companion_hours()} 小时\n"
+            f"你叫过我 {self.companion['interactions']} 次 | 我说过 {self.companion['talks']} 句 | 我走过 {self.companion['roams']} 圈"
+        )
+
+    def reset_companion_state(self):
+        pet_name = self.active_pet_name()
+        if not messagebox.askyesno("重置陪伴数据", f"确定要重置{pet_name}的陪伴等级和经验吗？"):
+            return
+        today = date.today().isoformat()
+        self.companion = dict(COMPANION_DEFAULT)
+        self.companion["daily_bonus_dates"] = []
+        self.companion["created_date"] = today
+        self.companion["last_active_date"] = today
+        self.companion["streak_days"] = 1
+        self.save_companion()
+        self.say("我重新从这里陪你。")
+
+    def speed_adjusted_delay(self, base_delay):
+        speed = clamp(self.settings["animation_speed"], 0.35, 1.50)
+        delay = int(base_delay / speed)
+        if self.state.startswith("running"):
+            if self.uses_pangjiu_motion_profile():
+                motion = min(520.0, abs(self.velocity_x) + abs(self.velocity_y))
+                delay = int(delay * (1.0 - min(0.10, motion / 5200.0)))
+                return max(70, delay)
+            motion = min(700.0, abs(self.velocity_x) + abs(self.velocity_y))
+            delay = int(delay * (1.0 - min(0.25, motion / 2800.0)))
+        return max(45, delay)
+
+    def animate(self):
+        self.apply_inertia()
+        now = time.monotonic()
+        if self.dragging and not self.drag_started:
+            self.set_state("stepping", preserve_phase=True)
+        elif self.dragging and now - self.last_motion_at > 0.22:
+            self.drag_direction = "center"
+            self.drag_intent_x = 0.0
+            self.set_state(self.visible_idle_state(), preserve_phase=True)
+        elif not self.dragging and self.inertia_until and now >= self.inertia_until:
+            self.inertia_until = 0.0
+            self.velocity_x = 0.0
+            self.velocity_y = 0.0
+            self.set_mode("idle")
+            self.set_state("idle")
+
+        self.ensure_valid_state()
+        frames = self.frames[self.state]
+        frame, delay = frames[self.frame_index]
+        delay = self.speed_adjusted_delay(delay)
+
+        bob_y = 0
+        squash = 1.0
+        if self.state == "idle":
+            bob_y = [0, 0, 1, 0, -1, 0][self.frame_index % 6]
+            squash = [1.0, 1.0, 0.985, 1.0, 1.01, 1.0][self.frame_index % 6]
+        elif self.state == "standing":
+            bob_y = 0
+        elif self.state in {"tongue", "sniffing"}:
+            bob_y = [0, 0, 1, 0, 0, 0][self.frame_index % 6]
+        elif self.state in {"lying", "sleeping"}:
+            squash = [1.0, 0.99, 1.0, 1.01][self.frame_index % 4]
+        elif self.state == "stretching":
+            bob_y = [1, 1, 0, -1, 0][self.frame_index % 5]
+        elif self.state == "crying":
+            bob_y = [0, 0, 1, 1, 0, 0, -1, 0][self.frame_index % 8]
+        elif self.state in {"chase-butterfly", "chase-butterfly-left"}:
+            bob_y = [0, -2, 1, 0, -2, 1, 0, 1][self.frame_index % 8]
+        elif self.state == "angry":
+            bob_y = [0, 0, -1, 0, 0, 0, 1, 0][self.frame_index % 8]
+        elif self.state.startswith("running"):
+            if self.uses_pangjiu_motion_profile():
+                bob_y = [0, -1, 0, 0, -1, 0, 0, 0][self.frame_index % 8]
+            else:
+                bob_y = [0, -2, 1, 0, -2, 1, 0, 1][self.frame_index % 8]
+        elif self.state == "jumping":
+            if self.current_action_pack_level() == "basic":
+                bob_y = 0
+            else:
+                bob_y = [3, -5, -8, -3, 2][self.frame_index % 5]
+
+        old_width, old_height = self.pet_size()
+        image = self.make_photo(
+            frame,
+            bob_y=bob_y,
+            squash=squash,
+            zoom=VISUAL_ZOOM_BY_STATE.get(self.state, 1.0),
+        )
+        new_width, new_height = self.pet_size()
+        if self.state != self.last_render_state and self.last_render_state:
+            self.clear_photo = ImageTk.PhotoImage(Image.new("RGB", (new_width, new_height), BG), master=self.root)
+            self.label.configure(image=self.clear_photo)
+            self.root.update_idletasks()
+        self.label.configure(image=image)
+        self.label.image = image
+        self.last_render_state = self.state
+        if (new_width, new_height) != (old_width, old_height) and not self.dragging:
+            self.move_to(self.root.winfo_x(), self.root.winfo_y() - (new_height - old_height))
+        else:
+            self.position_bubble()
+
+        self.frame_index += 1
+        if self.frame_index >= len(frames):
+            self.frame_index = 0
+            if self.loop_once:
+                self.action_loops_left -= 1
+                if self.action_loops_left <= 0:
+                    self.loop_once = False
+                    self.set_mode("idle")
+                    self.set_state("idle")
+
+        self.root.after(delay, self.animate)
+
+    def open_legacy_control_panel_unused(self, initial_page="陪伴"):
+        if self.panel is not None and self.panel.winfo_exists():
+            self.panel.lift()
+            return
+
+        panel = tk.Toplevel(self.root)
+        self.panel = panel
+        panel.title("桌宠控制面板")
+        panel.configure(bg="#fbfbf7")
+        panel.attributes("-topmost", True)
+        panel.resizable(False, False)
+
+        content = tk.Frame(panel, bg="#fbfbf7", padx=14, pady=12)
+        content.pack(fill="both", expand=True)
+
+        title = tk.Label(content, text="桌宠控制面板", bg="#fbfbf7", font=("Microsoft YaHei UI", 11, "bold"))
+        title.pack(anchor="w", pady=(0, 8))
+
+        companion_box = tk.LabelFrame(content, text="陪伴等级", bg="#fbfbf7", padx=8, pady=6)
+        companion_box.pack(fill="x", pady=(0, 8))
+        companion_label = tk.Label(
+            companion_box,
+            text=self.companion_status_text(),
+            bg="#fbfbf7",
+            justify="left",
+            anchor="w",
+            font=("Microsoft YaHei UI", 9),
+        )
+        companion_label.pack(fill="x")
+
+        companion_buttons = tk.Frame(companion_box, bg="#fbfbf7")
+        companion_buttons.pack(fill="x", pady=(6, 0))
+
+        def refresh_companion_panel():
+            companion_label.configure(text=self.companion_status_text())
+
+        def encourage_me():
+            self.mark_interaction()
+            self.say(self.choose_phrase())
+            refresh_companion_panel()
+
+        def show_companion_status():
+            self.say(self.companion_status_text())
+            refresh_companion_panel()
+
+        def reset_companion_from_panel():
+            self.reset_companion_state()
+            refresh_companion_panel()
+
+        pet_name = self.active_pet_name()
+        tk.Button(companion_buttons, text=f"摸摸{pet_name}", command=encourage_me, width=10).pack(side="left")
+        tk.Button(companion_buttons, text="查看状态", command=show_companion_status, width=8).pack(side="left", padx=6)
+        tk.Button(companion_buttons, text="重置陪伴", command=reset_companion_from_panel, width=8).pack(side="left")
+
+        presets = tk.Frame(content, bg="#fbfbf7")
+        presets.pack(fill="x", pady=(0, 8))
+
+        def apply_preset(values):
+            self.settings.update(values)
+            self.save_settings()
+            self.reload_frames()
+            panel.destroy()
+            self.open_control_panel()
+
+        tk.Button(
+            presets,
+            text="安静",
+            command=lambda: apply_preset({
+                "animation_speed": 0.50,
+                "drag_sensitivity": 0.55,
+                "inertia": 0.20,
+                "talk_interval": 90.0,
+            }),
+            width=7,
+        ).pack(side="left")
+        tk.Button(
+            presets,
+            text="日常",
+            command=lambda: apply_preset({
+                "animation_speed": 0.70,
+                "drag_sensitivity": 0.70,
+                "inertia": 0.40,
+                "talk_interval": 45.0,
+            }),
+            width=7,
+        ).pack(side="left", padx=6)
+        tk.Button(
+            presets,
+            text="活跃",
+            command=lambda: apply_preset({
+                "animation_speed": 0.95,
+                "drag_sensitivity": 0.95,
+                "inertia": 0.65,
+                "talk_interval": 25.0,
+            }),
+            width=7,
+        ).pack(side="left")
+
+        def add_slider(label, key, from_, to_, resolution, formatter, on_change=None):
+            row = tk.Frame(content, bg="#fbfbf7")
+            row.pack(fill="x", pady=5)
+            value_label = tk.Label(row, bg="#fbfbf7", width=8, anchor="e")
+            name_label = tk.Label(row, text=label, bg="#fbfbf7", width=12, anchor="w")
+            name_label.pack(side="left")
+            scale = tk.Scale(
+                row,
+                from_=from_,
+                to=to_,
+                resolution=resolution,
+                orient="horizontal",
+                length=210,
+                showvalue=False,
+                bg="#fbfbf7",
+                highlightthickness=0,
+                command=lambda value: update(value),
+            )
+            scale.set(self.settings[key])
+            scale.pack(side="left")
+            value_label.pack(side="left")
+
+            def update(value):
+                self.settings[key] = float(value)
+                value_label.configure(text=formatter(self.settings[key]))
+                if on_change:
+                    on_change()
+
+            update(self.settings[key])
+            return scale
+
+        add_slider("体型", "scale", 0.35, 0.80, 0.01, lambda v: f"{int(v * 100)}%", self.reload_frames)
+        add_slider("动作速度", "animation_speed", 0.35, 1.50, 0.05, lambda v: f"{int(v * 100)}%")
+        add_slider("拖动灵敏", "drag_sensitivity", 0.30, 1.40, 0.05, lambda v: f"{int(v * 100)}%")
+        add_slider("惯性", "inertia", 0.00, 1.00, 0.05, lambda v: f"{int(v * 100)}%")
+        add_slider("自动动作", "idle_action_interval", 3.0, 30.0, 1.0, lambda v: f"{int(v)}秒")
+        add_slider("说话间隔", "talk_interval", 15.0, 180.0, 5.0, lambda v: f"{int(v)}秒")
+        add_slider("气泡时长", "bubble_duration", 2.0, 12.0, 1.0, lambda v: f"{int(v)}秒")
+
+        style_box = tk.LabelFrame(content, text="对话框样式", bg="#fbfbf7", padx=8, pady=6)
+        style_box.pack(fill="x", pady=(8, 0))
+        style_var = tk.StringVar(value=self.settings["bubble_style"])
+
+        def update_bubble_style():
+            self.settings["bubble_style"] = style_var.get()
+            if self.bubble is not None and self.bubble.winfo_exists():
+                self.bubble.destroy()
+            self.say("这个小窝可以。")
+
+        for key, label in BUBBLE_STYLES.items():
+            tk.Radiobutton(
+                style_box,
+                text=label,
+                value=key,
+                variable=style_var,
+                command=update_bubble_style,
+                bg="#fbfbf7",
+                activebackground="#fbfbf7",
+            ).pack(side="left", padx=(0, 6))
+
+        color_box = tk.LabelFrame(content, text="对话框颜色", bg="#fbfbf7", padx=8, pady=6)
+        color_box.pack(fill="x", pady=(8, 0))
+
+        swatches = tk.Frame(color_box, bg="#fbfbf7")
+        swatches.pack(fill="x")
+
+        def preview_bubble_color():
+            if self.bubble is not None and self.bubble.winfo_exists():
+                self.bubble.destroy()
+            self.say("这样看着舒服。")
+
+        def apply_color_preset(preset):
+            _label, fill, outline, text = preset
+            self.settings["bubble_fill"] = fill
+            self.settings["bubble_outline"] = outline
+            self.settings["bubble_text"] = text
+            preview_bubble_color()
+
+        for preset in BUBBLE_COLOR_PRESETS.values():
+            label, fill, _outline, _text = preset
+            tk.Button(
+                swatches,
+                text=label,
+                bg=fill,
+                command=lambda p=preset: apply_color_preset(p),
+                width=6,
+            ).pack(side="left", padx=(0, 5), pady=2)
+
+        custom_colors = tk.Frame(color_box, bg="#fbfbf7")
+        custom_colors.pack(fill="x", pady=(6, 0))
+
+        def pick_color(key, title):
+            selected = colorchooser.askcolor(color=self.settings[key], title=title)
+            color = selected[1]
+            if color and is_hex_color(color):
+                self.settings[key] = color
+                preview_bubble_color()
+
+        tk.Button(custom_colors, text="背景", command=lambda: pick_color("bubble_fill", "选择对话框背景色"), width=7).pack(side="left")
+        tk.Button(custom_colors, text="描边", command=lambda: pick_color("bubble_outline", "选择对话框描边色"), width=7).pack(side="left", padx=6)
+        tk.Button(custom_colors, text="文字", command=lambda: pick_color("bubble_text", "选择对话框文字色"), width=7).pack(side="left")
+
+        toggles = tk.Frame(content, bg="#fbfbf7")
+        toggles.pack(fill="x", pady=(8, 0))
+        talk_var = tk.BooleanVar(value=bool(self.settings["talk_enabled"]))
+
+        def update_talk_enabled():
+            self.settings["talk_enabled"] = bool(talk_var.get())
+            self.next_talk_at = self.next_talk_time()
+
+        tk.Checkbutton(
+            toggles,
+            text=f"允许{pet_name}不定时说话",
+            variable=talk_var,
+            command=update_talk_enabled,
+            bg="#fbfbf7",
+            activebackground="#fbfbf7",
+        ).pack(anchor="w")
+
+        keep_var = tk.BooleanVar(value=bool(self.settings["keep_on_screen"]))
+        top_var = tk.BooleanVar(value=bool(self.settings["always_on_top"]))
+        roam_var = tk.BooleanVar(value=bool(self.settings["roam_enabled"]))
+        roam_center_var = tk.BooleanVar(value=bool(self.settings["roam_allow_center"]))
+
+        def update_keep_on_screen():
+            self.settings["keep_on_screen"] = bool(keep_var.get())
+            self.move_to(self.root.winfo_x(), self.root.winfo_y())
+
+        def update_always_on_top():
+            self.settings["always_on_top"] = bool(top_var.get())
+            self.root.attributes("-topmost", self.settings["always_on_top"])
+
+        def update_roam_enabled():
+            self.settings["roam_enabled"] = bool(roam_var.get())
+            self.roam_target = None
+            self.next_roam_at = self.next_roam_time()
+
+        def update_roam_center():
+            self.settings["roam_allow_center"] = bool(roam_center_var.get())
+            self.roam_target = None
+            self.next_roam_at = self.next_roam_time()
+
+        tk.Checkbutton(
+            toggles,
+            text="限制在屏幕内",
+            variable=keep_var,
+            command=update_keep_on_screen,
+            bg="#fbfbf7",
+            activebackground="#fbfbf7",
+        ).pack(anchor="w")
+        tk.Checkbutton(
+            toggles,
+            text="窗口置顶",
+            variable=top_var,
+            command=update_always_on_top,
+            bg="#fbfbf7",
+            activebackground="#fbfbf7",
+        ).pack(anchor="w")
+        tk.Checkbutton(
+            toggles,
+            text=f"允许{pet_name}在屏幕内自由活动",
+            variable=roam_var,
+            command=update_roam_enabled,
+            bg="#fbfbf7",
+            activebackground="#fbfbf7",
+        ).pack(anchor="w")
+        tk.Checkbutton(
+            toggles,
+            text=f"允许{pet_name}跑到屏幕中间",
+            variable=roam_center_var,
+            command=update_roam_center,
+            bg="#fbfbf7",
+            activebackground="#fbfbf7",
+        ).pack(anchor="w")
+
+        add_slider("透明度", "opacity", 0.35, 1.0, 0.05, lambda v: f"{int(v * 100)}%", lambda: self.root.attributes("-alpha", self.settings["opacity"]))
+        add_slider("交互后静默", "talk_after_interaction_delay", 0.0, 120.0, 5.0, lambda v: f"{int(v)}秒")
+        add_slider("自由活动间隔", "roam_interval", 8.0, 180.0, 4.0, lambda v: f"{int(v)}秒", lambda: setattr(self, "next_roam_at", self.next_roam_time()))
+        add_slider("自由活动速度", "roam_speed", 45.0, 260.0, 5.0, lambda v: f"{int(v)}px/s")
+        add_slider("自由活动范围", "roam_distance", 0.20, 0.95, 0.05, lambda v: f"{int(v * 100)}%")
+
+        buttons = tk.Frame(content, bg="#fbfbf7")
+        buttons.pack(fill="x", pady=(12, 0))
+
+        def save_and_close():
+            self.save_settings()
+            self.next_idle_action_at = self.next_idle_time()
+            self.next_talk_at = self.next_talk_time()
+            panel.destroy()
+
+        def reset_defaults():
+            self.settings.update(DEFAULT_SETTINGS)
+            self.save_settings()
+            self.reload_frames()
+            panel.destroy()
+            self.open_control_panel()
+
+        def reset_position():
+            self.move_to_default_position()
+
+        def test_talk():
+            self.say("主人，我在。")
+
+        def test_roam():
+            self.start_roam(forced=True)
+
+        tk.Button(buttons, text="保存", command=save_and_close, width=8).pack(side="left")
+        tk.Button(buttons, text=f"叫{pet_name}", command=test_talk, width=8).pack(side="left", padx=(8, 0))
+        tk.Button(buttons, text="试跑", command=test_roam, width=8).pack(side="left", padx=(8, 0))
+        tk.Button(buttons, text="归位", command=reset_position, width=8).pack(side="left", padx=(8, 0))
+        tk.Button(buttons, text="恢复默认", command=reset_defaults, width=10).pack(side="left", padx=8)
+        tk.Button(buttons, text="关闭", command=panel.destroy, width=8).pack(side="right")
+
+        self.center_window(panel)
+        panel.protocol("WM_DELETE_WINDOW", panel.destroy)
+
+    def open_control_panel(self, initial_page="陪伴"):
+        if self.panel is not None:
+            try:
+                if self.panel.winfo_exists():
+                    if callable(self.control_panel_switch_page):
+                        self.panel.deiconify()
+                        try:
+                            self.panel.state("normal")
+                        except tk.TclError:
+                            pass
+                        self.panel.attributes("-topmost", bool(self.settings.get("panel_pinned", False)))
+                        self.panel.lift()
+                        def safe_focus_existing_panel():
+                            try:
+                                if self.panel is not None and self.panel.winfo_exists():
+                                    self.panel.focus_force()
+                            except tk.TclError:
+                                pass
+
+                        def safe_lift_existing_panel():
+                            try:
+                                if self.panel is not None and self.panel.winfo_exists():
+                                    self.panel.lift()
+                            except tk.TclError:
+                                pass
+
+                        try:
+                            self.control_panel_switch_page(initial_page)
+                        except Exception:
+                            report_callback_exception(*sys.exc_info())
+                        self.panel.after(30, safe_focus_existing_panel)
+                        self.panel.after(80, safe_lift_existing_panel)
+                        return
+                    try:
+                        self.panel.destroy()
+                    except tk.TclError:
+                        pass
+                    self.panel = None
+                    self.control_panel_switch_page = None
+                    self.control_panel_refresh_sidebar = None
+                    self.control_panel_refresh_current_page = None
+                    self.control_panel_current_page = None
+            except tk.TclError:
+                pass
+            self.panel = None
+            self.control_panel_switch_page = None
+            self.control_panel_refresh_sidebar = None
+            self.control_panel_refresh_current_page = None
+            self.control_panel_current_page = None
+
+        panel = tk.Toplevel(self.root)
+        self.panel = panel
+        panel.title("桌宠控制面板")
+        panel.configure(bg="#fff7ec")
+        panel.attributes("-topmost", bool(self.settings.get("panel_pinned", False)))
+        panel.overrideredirect(False)
+        panel.resizable(True, True)
+        panel.geometry("920x640")
+        panel.minsize(920, 640)
+
+        panel_bg = "#fff7ec"
+        sidebar_bg = "#f6e6cf"
+        sidebar_active = "#fffdf8"
+        sidebar_hover = "#fbead1"
+        sidebar_muted = "#8a6c4a"
+        card_bg = "#fffdf8"
+        card_border = "#ead7bd"
+        text_main = "#30261d"
+        text_muted = "#7c6650"
+        accent = "#c8732b"
+        accent_dark = "#8f4d22"
+        accent_soft = "#fff0d7"
+        sage = "#60745e"
+        sage_soft = "#edf3e8"
+        subtle_bg = "#fff2de"
+        nav_text = "#5a4532"
+        panel.bind("<Escape>", lambda _event=None: close_panel())
+
+        shell = tk.Frame(panel, bg=panel_bg)
+        shell.pack(fill="both", expand=True)
+
+        sidebar = tk.Frame(shell, bg=sidebar_bg, width=148)
+        sidebar.pack(side="left", fill="y")
+        sidebar.pack_propagate(False)
+
+        main_area = tk.Frame(shell, bg=panel_bg)
+        main_area.pack(side="left", fill="both", expand=True)
+
+        header = tk.Frame(main_area, bg=panel_bg, height=60)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        title_group = tk.Frame(header, bg=panel_bg)
+        title_group.pack(side="left", padx=18, pady=(7, 0), anchor="n")
+        page_title = tk.Label(title_group, text="", bg=panel_bg, fg=text_main, font=("Microsoft YaHei UI", 15, "bold"))
+        page_title.pack(anchor="w")
+        page_hint = tk.Label(title_group, text="陪伴、聊天和动作设置", bg=panel_bg, fg=text_muted, font=("Microsoft YaHei UI", 9))
+        page_hint.pack(anchor="w", pady=(1, 0))
+        header_actions = tk.Frame(header, bg=panel_bg)
+        header_actions.pack(side="right", padx=(0, 14), pady=12)
+        panel_maximized = {"value": False}
+
+        def toggle_panel_maximized():
+            try:
+                if panel_maximized["value"]:
+                    panel.state("normal")
+                    maximize_button.configure(text="最大化")
+                    panel_maximized["value"] = False
+                else:
+                    panel.state("zoomed")
+                    maximize_button.configure(text="还原")
+                    panel_maximized["value"] = True
+            except tk.TclError:
+                pass
+
+        def refresh_panel_pin_button():
+            pinned = bool(self.settings.get("panel_pinned", False))
+            pin_button.configure(
+                text="取消固定" if pinned else "固定页面",
+                bg=accent if pinned else accent_soft,
+                activebackground=accent_dark if pinned else "#fbe4bf",
+                fg="#ffffff" if pinned else accent_dark,
+                activeforeground="#ffffff" if pinned else text_main,
+            )
+
+        def toggle_panel_pinned():
+            self.settings["panel_pinned"] = not bool(self.settings.get("panel_pinned", False))
+            panel.attributes("-topmost", bool(self.settings["panel_pinned"]))
+            self.save_settings()
+            refresh_panel_pin_button()
+
+        pin_button = tk.Button(
+            header_actions,
+            text="",
+            command=toggle_panel_pinned,
+            relief="flat",
+            bd=0,
+            padx=12,
+            pady=5,
+            cursor="hand2",
+            font=("Microsoft YaHei UI", 9),
+        )
+        pin_button.pack(side="right")
+        refresh_panel_pin_button()
+        maximize_button = tk.Button(
+            header_actions,
+            text="最大化",
+            command=toggle_panel_maximized,
+            relief="flat",
+            bd=0,
+            bg=accent_soft,
+            activebackground="#fbe4bf",
+            fg=accent_dark,
+            activeforeground=text_main,
+            padx=12,
+            pady=5,
+            cursor="hand2",
+            font=("Microsoft YaHei UI", 9),
+        )
+        maximize_button.pack(side="right", padx=(0, 8))
+        mode_text = "高级" if self.settings["panel_advanced"] else "基础"
+        mode_label = tk.Label(header_actions, text=f"{mode_text}模式", bg=sage_soft, fg=sage, font=("Microsoft YaHei UI", 9), padx=12, pady=5)
+        mode_label.pack(side="right", padx=(0, 8))
+
+        body_shell = tk.Frame(main_area, bg=panel_bg)
+        body_shell.pack(fill="both", expand=True, padx=18, pady=(0, 6))
+        body_canvas = tk.Canvas(body_shell, bg=panel_bg, bd=0, highlightthickness=0)
+        body_scrollbar = tk.Scrollbar(body_shell, orient="vertical", command=body_canvas.yview, bd=0, width=12)
+        body = tk.Frame(body_canvas, bg=panel_bg)
+        body_window = body_canvas.create_window((0, 0), window=body, anchor="nw")
+        body_canvas.configure(yscrollcommand=body_scrollbar.set)
+        body_canvas.pack(side="left", fill="both", expand=True)
+        body_scrollbar.pack(side="right", fill="y")
+
+        def canvas_needs_scroll(canvas):
+            try:
+                region = canvas.cget("scrollregion")
+                if not region:
+                    return False
+                parts = [float(part) for part in str(region).split()]
+                if len(parts) != 4:
+                    return False
+                return (parts[3] - parts[1]) > canvas.winfo_height() + 2
+            except (tk.TclError, ValueError):
+                return False
+
+        def refresh_scroll_region(_event=None):
+            bbox = body_canvas.bbox("all")
+            width = max(1, body_canvas.winfo_width())
+            height = max(1, body_canvas.winfo_height())
+            body_canvas.coords(body_window, 0, 0)
+            if not bbox:
+                body_canvas.configure(scrollregion=(0, 0, width, height))
+                body_canvas.yview_moveto(0)
+                if body_scrollbar.winfo_ismapped():
+                    body_scrollbar.pack_forget()
+                return
+            content_width = max(width, bbox[2] - bbox[0])
+            content_height = max(height, bbox[3] - bbox[1])
+            body_canvas.configure(scrollregion=(0, 0, content_width, content_height))
+            try:
+                needs_scroll = content_height > height + 2
+                mapped = bool(body_scrollbar.winfo_ismapped())
+                if needs_scroll and not mapped:
+                    body_scrollbar.pack(side="right", fill="y")
+                elif not needs_scroll and mapped:
+                    body_scrollbar.pack_forget()
+                if not needs_scroll:
+                    body_canvas.yview_moveto(0)
+            except tk.TclError:
+                pass
+
+        def sync_body_width(event):
+            body_canvas.itemconfigure(body_window, width=max(1, event.width))
+            refresh_scroll_region()
+
+        nav_scroll = {"canvas": None}
+
+        def panel_mousewheel(event):
+            try:
+                if not panel.winfo_exists():
+                    return
+                event_widget = getattr(event, "widget", None)
+                if event_widget is not None and hasattr(event_widget, "winfo_toplevel") and event_widget.winfo_toplevel() is not panel:
+                    return
+                if event_widget is not None and not hasattr(event_widget, "winfo_toplevel"):
+                    return
+                px = panel.winfo_rootx()
+                py = panel.winfo_rooty()
+                if not (px <= event.x_root <= px + panel.winfo_width() and py <= event.y_root <= py + panel.winfo_height()):
+                    return
+                delta = -1 if event.delta > 0 else 1
+                nav_canvas = nav_scroll.get("canvas")
+                if nav_canvas is not None:
+                    sx = sidebar.winfo_rootx()
+                    sy = sidebar.winfo_rooty()
+                    if sx <= event.x_root <= sx + sidebar.winfo_width() and sy <= event.y_root <= sy + sidebar.winfo_height():
+                        if canvas_needs_scroll(nav_canvas):
+                            nav_canvas.yview_scroll(delta * 3, "units")
+                        else:
+                            nav_canvas.yview_moveto(0)
+                        return "break"
+                if canvas_needs_scroll(body_canvas):
+                    body_canvas.yview_scroll(delta * 3, "units")
+                else:
+                    body_canvas.yview_moveto(0)
+                    return "break"
+            except tk.TclError:
+                pass
+
+        body.bind("<Configure>", refresh_scroll_region)
+        body_canvas.bind("<Configure>", sync_body_width)
+        panel.bind_all("<MouseWheel>", panel_mousewheel)
+
+        footer = tk.Frame(main_area, bg=panel_bg, height=54)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+
+        nav_buttons = {}
+        pages = {}
+        page_hints = {
+            "首页": "今日状态、常用入口和陪伴进度",
+            "形象": "主形象、现实照片和宠物切换",
+            "档案": "不同宠物的等级、记忆和聊天历史",
+            "故事": "主人与宠物的故事、照片和思念日记",
+            "行为": "动作速度、拖动手感和日常模式",
+            "对话": "聊天、气泡和自动说话",
+            "AI": "多模型厂商、Key 和连接测试",
+            "提醒": "本地待办、到点提醒和稍后处理",
+            "动作": "逐个播放当前宠物动作",
+            "操作": "临时动作和窗口快捷操作",
+            "设置": "路径、构建和高级配置",
+            "安全": "备份、导出和当前文件",
+            "巡逻": "屏幕活动范围和跨屏策略",
+            "外观": "体型、透明度和气泡颜色",
+        }
+        page_aliases = {
+            "陪伴": "首页",
+            "宠物": "形象",
+            "生成": "形象",
+        }
+
+        def clear_body():
+            cached_frames = {frame for frame in page_frames.values() if frame is not None}
+            for child in body.winfo_children():
+                if child in cached_frames:
+                    child.pack_forget()
+                else:
+                    child.destroy()
+
+        page_frames = {}
+        cacheable_pages = {"首页", "档案", "对话", "操作", "安全"}
+
+        def switch_page(name):
+            name = page_aliases.get(name, name)
+            if name not in pages:
+                name = "首页"
+            self.control_panel_current_page = name
+            close_dropdown()
+            body_canvas.coords(body_window, 0, 0)
+            body_canvas.configure(scrollregion=(0, 0, max(1, body_canvas.winfo_width()), max(1, body_canvas.winfo_height())))
+            body_canvas.yview_moveto(0)
+            for key, button in nav_buttons.items():
+                active = key == name
+                button.configure(
+                    bg=accent if active else sidebar_bg,
+                    fg="#ffffff" if active else nav_text,
+                    activebackground=accent_dark if active else sidebar_hover,
+                    activeforeground="#ffffff" if active else text_main,
+                    font=("Microsoft YaHei UI", 10, "bold" if active else "normal"),
+                    padx=10 if active else 8,
+                )
+            if callable(self.control_panel_refresh_sidebar):
+                self.control_panel_refresh_sidebar()
+            clear_body()
+            body_canvas.coords(body_window, 0, 0)
+            body_canvas.yview_moveto(0)
+            page_title.configure(text=name)
+            page_hint.configure(text=page_hints.get(name, "陪伴、聊天和动作设置"))
+            try:
+                cached = page_frames.get(name)
+                if cached is not None and cached.winfo_exists():
+                    cached.pack(fill="x")
+                else:
+                    panel._image_refs = []
+                    frame = tk.Frame(body, bg=panel_bg)
+                    frame.pack(fill="x")
+                    pages[name](frame)
+                    if name in cacheable_pages:
+                        page_frames[name] = frame
+                body.update_idletasks()
+                refresh_scroll_region()
+                body_canvas.yview_moveto(0)
+            except Exception:
+                report_callback_exception(*sys.exc_info())
+                for child in body.winfo_children():
+                    child.pack_forget()
+                fallback = tk.Frame(body, bg=card_bg, highlightthickness=1, highlightbackground=card_border)
+                fallback.pack(fill="both", expand=True)
+                tk.Label(
+                    fallback,
+                    text=f"{name} 页面加载失败",
+                    bg=card_bg,
+                    fg=text_main,
+                    font=("Microsoft YaHei UI", 13, "bold"),
+                    anchor="w",
+                ).pack(fill="x", padx=16, pady=(18, 4))
+                tk.Label(
+                    fallback,
+                    text=f"我已经把错误写入 desktop-pet-error.log。可以先切到其他页面，{self.active_pet_name()}不会卡死。",
+                    bg=card_bg,
+                    fg=text_muted,
+                    anchor="w",
+                    justify="left",
+                    wraplength=620,
+                ).pack(fill="x", padx=16, pady=(0, 12))
+                body.update_idletasks()
+                refresh_scroll_region()
+                body_canvas.yview_moveto(0)
+
+        self.control_panel_switch_page = switch_page
+
+        def refresh_current_page():
+            name = self.control_panel_current_page or (page_title.cget("text") if page_title.winfo_exists() else "") or "首页"
+            for cached in list(page_frames.values()):
+                try:
+                    if cached is not None and cached.winfo_exists():
+                        cached.destroy()
+                except tk.TclError:
+                    pass
+            page_frames.clear()
+            switch_page(name)
+
+        self.control_panel_refresh_current_page = refresh_current_page
+
+        def draw_round_rect(canvas, x1, y1, x2, y2, radius, fill, outline):
+            radius = min(radius, (x2 - x1) // 2, (y2 - y1) // 2)
+            canvas.create_rectangle(x1 + radius, y1, x2 - radius, y2, fill=fill, outline="")
+            canvas.create_rectangle(x1, y1 + radius, x2, y2 - radius, fill=fill, outline="")
+            canvas.create_arc(x1, y1, x1 + radius * 2, y1 + radius * 2, start=90, extent=90, fill=fill, outline="")
+            canvas.create_arc(x2 - radius * 2, y1, x2, y1 + radius * 2, start=0, extent=90, fill=fill, outline="")
+            canvas.create_arc(x2 - radius * 2, y2 - radius * 2, x2, y2, start=270, extent=90, fill=fill, outline="")
+            canvas.create_arc(x1, y2 - radius * 2, x1 + radius * 2, y2, start=180, extent=90, fill=fill, outline="")
+            canvas.create_line(x1 + radius, y1, x2 - radius, y1, fill=outline)
+            canvas.create_line(x2, y1 + radius, x2, y2 - radius, fill=outline)
+            canvas.create_line(x1 + radius, y2, x2 - radius, y2, fill=outline)
+            canvas.create_line(x1, y1 + radius, x1, y2 - radius, fill=outline)
+            canvas.create_arc(x1, y1, x1 + radius * 2, y1 + radius * 2, start=90, extent=90, style="arc", outline=outline)
+            canvas.create_arc(x2 - radius * 2, y1, x2, y1 + radius * 2, start=0, extent=90, style="arc", outline=outline)
+            canvas.create_arc(x2 - radius * 2, y2 - radius * 2, x2, y2, start=270, extent=90, style="arc", outline=outline)
+            canvas.create_arc(x1, y2 - radius * 2, x1 + radius * 2, y2, start=180, extent=90, style="arc", outline=outline)
+
+        def panel_button(parent, text, command, width=92, height=30, variant="neutral", selected=False):
+            parent_bg = parent["bg"] if "bg" in parent.keys() else panel_bg
+            palettes = {
+                "primary": (accent, accent_dark, "#ffffff", accent_dark),
+                "selected": (accent, accent_dark, "#ffffff", accent_dark),
+                "neutral": ("#fff7e9", "#fde8c7", text_main, "#e4c18d"),
+                "danger": ("#f8ddd3", "#efc2b2", "#5d3328", "#dda996"),
+                "ghost": (parent_bg, "#f8ead6", text_muted, "#dfc5a0"),
+                "sage": (sage_soft, "#dce9d5", sage, "#b9c9af"),
+            }
+            fill, hover, fg, outline = palettes.get("selected" if selected else variant, palettes["neutral"])
+            canvas = tk.Canvas(parent, width=width, height=height, bg=parent_bg, bd=0, highlightthickness=0, cursor="hand2")
+
+            def paint(color):
+                canvas.delete("all")
+                draw_round_rect(canvas, 1, 1, width - 2, height - 2, min(10, height // 2), color, outline)
+                canvas.create_text(width // 2, height // 2, text=text, fill=fg, font=("Microsoft YaHei UI", 9))
+
+            def invoke(_event=None):
+                command()
+
+            paint(fill)
+            canvas.bind("<Enter>", lambda _event: paint(hover))
+            canvas.bind("<Leave>", lambda _event: paint(fill))
+            canvas.bind("<Button-1>", invoke)
+            return canvas
+
+        active_dropdown = {"popup": None, "host_click": None, "host_escape": None}
+
+        def close_dropdown():
+            for key in ("host_click", "host_escape"):
+                binding = active_dropdown.get(key)
+                if binding:
+                    widget, sequence, func_id = binding
+                    try:
+                        if widget.winfo_exists():
+                            widget.unbind(sequence, func_id)
+                    except tk.TclError:
+                        pass
+                    active_dropdown[key] = None
+            popup = active_dropdown.get("popup")
+            if popup is not None:
+                try:
+                    if popup.winfo_exists():
+                        popup.destroy()
+                except tk.TclError:
+                    pass
+            active_dropdown["popup"] = None
+
+        def select_box(parent, variable, values, width=132, height=30, command=None):
+            combo_values = [str(value) for value in values]
+            current = str(variable.get() or "")
+            if current and current not in combo_values:
+                combo_values.insert(0, current)
+            if not current and combo_values:
+                variable.set(combo_values[0])
+            values = combo_values
+            parent_bg = parent["bg"] if "bg" in parent.keys() else card_bg
+            canvas = tk.Canvas(parent, width=width, height=height, bg=parent_bg, bd=0, highlightthickness=0, cursor="hand2")
+
+            def visual_units(text):
+                return sum(2 if ord(char) > 127 else 1 for char in str(text))
+
+            def truncate_visual(text, max_units):
+                text = str(text)
+                used = 0
+                result = []
+                for char in text:
+                    unit = 2 if ord(char) > 127 else 1
+                    if used + unit > max_units:
+                        return "".join(result).rstrip() + "..."
+                    result.append(char)
+                    used += unit
+                return text
+
+            def popup_width():
+                widest = max([visual_units(value) for value in values] + [visual_units(variable.get())])
+                return max(width, min(420, widest * 7 + 34))
+
+            def current_text():
+                text = str(variable.get() or (values[0] if values else ""))
+                return truncate_visual(text, max(8, (width - 34) // 7))
+
+            def paint(hover=False):
+                canvas.delete("all")
+                fill = "#fffaf3" if not hover else "#fff1df"
+                outline = "#dfc59b" if not hover else accent
+                draw_round_rect(canvas, 1, 1, width - 2, height - 2, 8, fill, outline)
+                canvas.create_text(10, height // 2, text=current_text(), fill=text_main, anchor="w", font=("Microsoft YaHei UI", 9))
+                cx = width - 17
+                cy = height // 2 + 1
+                canvas.create_oval(cx - 10, cy - 10, cx + 10, cy + 10, fill="#fff7e9", outline="#ead1a9")
+                canvas.create_polygon(cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, fill=accent_dark if hover else text_muted, outline="")
+
+            def choose(value):
+                before = str(variable.get() or "")
+                variable.set(value)
+                close_dropdown()
+                paint(False)
+                if command is not None and str(value) != before:
+                    command(value)
+
+            def open_popup(_event=None):
+                close_dropdown()
+                if not values:
+                    return
+                try:
+                    host = parent.winfo_toplevel()
+                except tk.TclError:
+                    host = panel
+                row_height = 34
+                max_visible_rows = 5
+                pop_width = popup_width()
+                monitor = self.monitor_for_position(canvas.winfo_rootx(), canvas.winfo_rooty())
+                host_left = max(host.winfo_rootx(), monitor["left"])
+                host_top = max(host.winfo_rooty(), monitor["top"])
+                host_right = min(host.winfo_rootx() + host.winfo_width(), monitor["right"])
+                host_bottom = min(host.winfo_rooty() + host.winfo_height(), monitor["bottom"])
+                x = max(host_left + 6, min(canvas.winfo_rootx(), host_right - pop_width - 6))
+                below_y = canvas.winfo_rooty() + height + 2
+                below_space = max(0, host_bottom - below_y - 8)
+                above_space = max(0, canvas.winfo_rooty() - host_top - 8)
+                prefer_below = below_space >= min(len(values), max_visible_rows) * row_height or below_space >= above_space
+                max_space = below_space if prefer_below else above_space
+                visible_rows = max(1, min(len(values), max_visible_rows, max(1, max_space // row_height)))
+                pop_height = visible_rows * row_height + 2
+                y = below_y if prefer_below else canvas.winfo_rooty() - pop_height - 2
+                y = max(host_top + 6, min(y, host_bottom - pop_height - 6))
+                needs_scroll = len(values) > visible_rows
+                if needs_scroll:
+                    pop_width = min(420, pop_width + 14)
+                    x = max(host_left + 6, min(x, host_right - pop_width - 6))
+                popup = tk.Toplevel(host)
+                active_dropdown["popup"] = popup
+                popup.overrideredirect(True)
+                popup.transient(host)
+                try:
+                    host_topmost = bool(host.attributes("-topmost"))
+                except tk.TclError:
+                    host_topmost = bool(self.settings.get("panel_pinned", False))
+                popup.attributes("-topmost", True)
+                popup.configure(bg="#fff7e9")
+                popup.geometry(f"{pop_width}x{pop_height}+{int(x)}+{int(y)}")
+                holder = tk.Frame(popup, bg="#fffaf3", highlightthickness=1, highlightbackground="#dfc59b")
+                holder.pack(fill="both", expand=True)
+                list_canvas = tk.Canvas(holder, bg="#fffaf3", bd=0, highlightthickness=0)
+                list_canvas.pack(side="left", fill="both", expand=True)
+                list_content = tk.Frame(list_canvas, bg="#fffaf3")
+                list_window = list_canvas.create_window((0, 0), window=list_content, anchor="nw")
+                scrollbar = None
+                if needs_scroll:
+                    scrollbar = tk.Scrollbar(holder, orient="vertical", command=list_canvas.yview, bd=0, width=10)
+                    scrollbar.pack(side="right", fill="y")
+                    list_canvas.configure(yscrollcommand=scrollbar.set)
+
+                def refresh_list_region(_event=None):
+                    list_canvas.configure(scrollregion=list_canvas.bbox("all"))
+
+                def sync_list_width(event):
+                    list_canvas.itemconfigure(list_window, width=max(1, event.width))
+                    refresh_list_region()
+
+                def popup_mousewheel(event):
+                    if needs_scroll:
+                        direction = -1 if event.delta > 0 else 1
+                        list_canvas.yview_scroll(direction, "units")
+                    return "break"
+
+                list_content.bind("<Configure>", refresh_list_region)
+                list_canvas.bind("<Configure>", sync_list_width)
+                popup.bind("<MouseWheel>", popup_mousewheel)
+                def option_colors(value, hover=False):
+                    selected = value == variable.get()
+                    if selected:
+                        return "#fff2df", accent_dark, accent
+                    if hover:
+                        return "#fff8ee", text_main, "#e7bd83"
+                    return "#fffaf3", text_main, "#f7e7cc"
+
+                def paint_option(row, marker, label, value, hover=False):
+                    bg, fg, marker_bg = option_colors(value, hover)
+                    row.configure(bg=bg)
+                    marker.configure(bg=marker_bg)
+                    label.configure(bg=bg, fg=fg)
+
+                for value in values:
+                    selected = value == variable.get()
+                    initial_bg, initial_fg, initial_marker = option_colors(value, False)
+                    row = tk.Frame(list_content, bg="#fffaf3", cursor="hand2")
+                    row.pack(fill="x")
+                    marker = tk.Frame(row, width=4, bg=initial_marker)
+                    marker.pack(side="left", fill="y")
+                    label = tk.Label(
+                        row,
+                        text=("✓  " if selected else "   ") + value,
+                        bg=initial_bg,
+                        fg=initial_fg,
+                        anchor="w",
+                        padx=9,
+                        pady=0,
+                        height=1,
+                        font=("Microsoft YaHei UI", 9, "bold" if selected else "normal"),
+                        cursor="hand2",
+                    )
+                    label.pack(side="left", fill="x", expand=True, ipady=8)
+                    for widget in (row, marker, label):
+                        widget.bind("<Button-1>", lambda _event, v=value: choose(v))
+                        widget.bind("<Enter>", lambda _event, r=row, m=marker, l=label, v=value: paint_option(r, m, l, v, True))
+                        widget.bind("<Leave>", lambda _event, r=row, m=marker, l=label, v=value: paint_option(r, m, l, v, False))
+                popup.bind("<Escape>", lambda _event: close_dropdown())
+
+                def install_dropdown_close_handlers():
+                    try:
+                        if not popup.winfo_exists():
+                            return
+                    except tk.TclError:
+                        return
+
+                    def close_on_host_click(event):
+                        try:
+                            if event.widget == canvas:
+                                return None
+                            if event.widget.winfo_toplevel() == popup:
+                                return None
+                        except tk.TclError:
+                            pass
+                        close_dropdown()
+                        return None
+
+                    click_id = host.bind("<Button-1>", close_on_host_click, add="+")
+                    escape_id = host.bind("<Escape>", lambda _event: close_dropdown(), add="+")
+                    active_dropdown["host_click"] = (host, "<Button-1>", click_id)
+                    active_dropdown["host_escape"] = (host, "<Escape>", escape_id)
+
+                try:
+                    popup.lift(host)
+                    popup.update_idletasks()
+                except tk.TclError:
+                    pass
+                popup.after(180, install_dropdown_close_handlers)
+            paint(False)
+            variable.trace_add("write", lambda *_args: paint(False))
+            canvas.bind("<Enter>", lambda _event: paint(True))
+            canvas.bind("<Leave>", lambda _event: paint(False))
+            canvas.bind("<Button-1>", open_popup)
+            return canvas
+
+        nav_parent_holder = {"frame": None}
+
+        def nav_button(name):
+            parent_widget = nav_parent_holder.get("frame") or sidebar
+            button = tk.Button(
+                parent_widget,
+                text=name,
+                anchor="w",
+                relief="flat",
+                bd=0,
+                bg=sidebar_bg,
+                activebackground=sidebar_hover,
+                activeforeground=text_main,
+                fg=nav_text,
+                font=("Microsoft YaHei UI", 10),
+                command=lambda: switch_page(name),
+                padx=14,
+                pady=8,
+                cursor="hand2",
+            )
+            button.pack(fill="x", padx=12, pady=(3, 0))
+            nav_buttons[name] = button
+
+        def nav_section(text):
+            parent_widget = nav_parent_holder.get("frame") or sidebar
+            label = tk.Label(
+                parent_widget,
+                text=text,
+                bg=sidebar_bg,
+                fg=sidebar_muted,
+                anchor="w",
+                font=("Microsoft YaHei UI", 8, "bold"),
+            )
+            label.pack(fill="x", padx=16, pady=(12, 2))
+            return label
+
+        selected_pet_card = tk.Frame(sidebar, bg="#fff3df", highlightthickness=1, highlightbackground="#e4c79b")
+        selected_pet_card.pack(fill="x", padx=10, pady=(12, 10))
+        sidebar_photo_box = tk.Frame(selected_pet_card, bg="#fff3df", width=62, height=62)
+        sidebar_photo_box.pack(anchor="center", padx=9, pady=(9, 4))
+        sidebar_photo_box.pack_propagate(False)
+        sidebar_photo_label = tk.Label(sidebar_photo_box, bg="#fff3df", fg=sidebar_muted)
+        sidebar_photo_label.pack(expand=True)
+        sidebar_name_label = tk.Label(selected_pet_card, text="", bg="#fff3df", fg=text_main, font=("Microsoft YaHei UI", 15, "bold"), anchor="center")
+        sidebar_name_label.pack(fill="x", padx=9)
+        sidebar_level_label = tk.Label(selected_pet_card, text="", bg="#e7bb7c", fg="#ffffff", font=("Microsoft YaHei UI", 8, "bold"), padx=8, pady=4)
+        sidebar_level_label.pack(anchor="center", padx=9, pady=(6, 9))
+
+        def refresh_panel_sidebar():
+            pet = self.active_pet if isinstance(self.active_pet, dict) else self.active_pet_config()
+            photo = self.pet_main_photo(pet, size=(52, 52))
+            panel._sidebar_refs = [photo] if photo else []
+            if photo:
+                sidebar_photo_label.configure(image=photo, text="")
+            else:
+                sidebar_photo_label.configure(image="", text="无图")
+            state = self.companion if pet.get("id") == self.active_pet.get("id") else self.companion_for_pet(pet.get("id"))
+            level, title, _threshold = self.level_for_xp(state.get("xp", 0))
+            sidebar_name_label.configure(text=pet.get("display_name", pet.get("id", "宠物")))
+            sidebar_level_label.configure(text=f"Lv{level} {title}")
+
+        self.control_panel_refresh_sidebar = refresh_panel_sidebar
+        refresh_panel_sidebar()
+
+        nav_canvas = tk.Canvas(sidebar, bg=sidebar_bg, bd=0, highlightthickness=0)
+        nav_canvas.pack(fill="both", expand=True, pady=(0, 8))
+        nav_frame = tk.Frame(nav_canvas, bg=sidebar_bg)
+        nav_window = nav_canvas.create_window((0, 0), window=nav_frame, anchor="nw")
+        nav_parent_holder["frame"] = nav_frame
+        nav_scroll["canvas"] = nav_canvas
+
+        def refresh_nav_scroll(_event=None):
+            bbox = nav_canvas.bbox("all")
+            width = max(1, nav_canvas.winfo_width())
+            height = max(1, nav_canvas.winfo_height())
+            nav_canvas.coords(nav_window, 0, 0)
+            if not bbox:
+                nav_canvas.configure(scrollregion=(0, 0, width, height))
+                nav_canvas.yview_moveto(0)
+                return
+            content_width = max(width, bbox[2] - bbox[0])
+            content_height = max(height, bbox[3] - bbox[1])
+            nav_canvas.configure(scrollregion=(0, 0, content_width, content_height))
+            if content_height <= height + 2:
+                nav_canvas.yview_moveto(0)
+
+        def sync_nav_width(event):
+            nav_canvas.itemconfigure(nav_window, width=max(1, event.width))
+            refresh_nav_scroll()
+
+        nav_frame.bind("<Configure>", refresh_nav_scroll)
+        nav_canvas.bind("<Configure>", sync_nav_width)
+
+        def make_card(parent, title=None):
+            card = tk.Frame(parent, bg=card_bg, highlightthickness=1, highlightbackground=card_border)
+            card.pack(fill="x", pady=(0, 12))
+            if title:
+                title_row = tk.Frame(card, bg=card_bg)
+                title_row.pack(fill="x", padx=14, pady=(13, 6))
+                tk.Frame(title_row, bg=accent, width=4, height=18).pack(side="left", padx=(0, 8))
+                tk.Label(title_row, text=title, bg=card_bg, fg=text_main, font=("Microsoft YaHei UI", 11, "bold")).pack(side="left", anchor="w")
+            return card
+
+        def metric_cell(parent, column, name, value, hint, bg=None):
+            fill = bg or subtle_bg
+            cell = tk.Frame(parent, bg=fill, highlightthickness=1, highlightbackground="#ead7bd")
+            cell.grid(row=0, column=column, sticky="nsew", padx=4, pady=2)
+            tk.Label(cell, text=name, bg=fill, fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(anchor="w", padx=10, pady=(7, 0))
+            tk.Label(
+                cell,
+                text=value,
+                bg=fill,
+                fg=text_main,
+                font=("Microsoft YaHei UI", 12, "bold"),
+                anchor="w",
+                justify="left",
+                wraplength=260,
+            ).pack(anchor="w", fill="x", padx=10, pady=(1, 0))
+            tk.Label(cell, text=hint, bg=fill, fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(anchor="w", padx=10, pady=(1, 7))
+            return cell
+
+        def add_slider(parent, label, key, from_, to_, resolution, formatter, on_change=None):
+            row = tk.Frame(parent, bg="#fff8ec", highlightthickness=1, highlightbackground="#ead7bd")
+            row.pack(fill="x", padx=12, pady=6)
+            head = tk.Frame(row, bg="#fff8ec")
+            head.pack(fill="x", padx=12, pady=(8, 0))
+            tk.Label(head, text=label, bg="#fff8ec", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9)).pack(side="left")
+            value_label = tk.Label(head, bg="#fff8ec", fg=accent_dark, anchor="e", font=("Microsoft YaHei UI", 9, "bold"))
+            value_label.pack(side="right")
+            slider_height = 30
+            slider = tk.Canvas(row, height=slider_height, bg="#fff8ec", bd=0, highlightthickness=0, cursor="hand2")
+            slider.pack(fill="x", expand=True, padx=12, pady=(1, 8))
+
+            def normalize(raw):
+                raw = clamp(float(raw), from_, to_)
+                steps = round((raw - from_) / resolution)
+                return clamp(from_ + steps * resolution, from_, to_)
+
+            def value_to_x(value):
+                ratio = (value - from_) / max(0.000001, to_ - from_)
+                width = max(120, slider.winfo_width())
+                return 12 + ratio * (width - 24)
+
+            def x_to_value(x):
+                width = max(120, slider.winfo_width())
+                ratio = clamp((x - 12) / max(1, width - 24), 0.0, 1.0)
+                return normalize(from_ + ratio * (to_ - from_))
+
+            def paint(hover=False):
+                slider.delete("all")
+                width = max(120, slider.winfo_width())
+                value = float(self.settings[key])
+                x = value_to_x(value)
+                y = slider_height // 2
+                draw_round_rect(slider, 8, y - 4, width - 8, y + 4, 4, "#eadbc4", "#dfcaa9")
+                draw_round_rect(slider, 8, y - 4, int(x), y + 4, 4, accent if hover else "#d88a39", accent_dark)
+                knob_fill = "#fffaf2" if not hover else "#fff1d9"
+                slider.create_oval(x - 8, y - 8, x + 8, y + 8, fill=knob_fill, outline=accent_dark, width=1)
+                slider.create_oval(x - 3, y - 3, x + 3, y + 3, fill=accent, outline="")
+
+            def apply(value):
+                self.settings[key] = normalize(value)
+                value_label.configure(text=formatter(self.settings[key]))
+                paint(False)
+                if on_change:
+                    on_change()
+
+            def drag(event):
+                apply(x_to_value(event.x))
+
+            slider.bind("<Button-1>", drag)
+            slider.bind("<B1-Motion>", drag)
+            slider.bind("<Enter>", lambda _event: paint(True))
+            slider.bind("<Leave>", lambda _event: paint(False))
+            slider.bind("<Configure>", lambda _event: paint(False))
+            apply(self.settings[key])
+            return slider
+
+        def add_check(parent, text, key, on_change=None):
+            var = tk.BooleanVar(value=bool(self.settings[key]))
+
+            row = tk.Frame(parent, bg="#fff8ec", highlightthickness=1, highlightbackground="#ead7bd", cursor="hand2")
+            row.pack(fill="x", padx=12, pady=5)
+            label = tk.Label(row, text=text, bg="#fff8ec", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9), cursor="hand2")
+            label.pack(side="left", fill="x", expand=True, padx=12, pady=9)
+            switch = tk.Canvas(row, width=48, height=26, bg="#fff8ec", bd=0, highlightthickness=0, cursor="hand2")
+            switch.pack(side="right", padx=12, pady=7)
+
+            def paint():
+                switch.delete("all")
+                checked = bool(var.get())
+                fill = accent if checked else "#e6d6bf"
+                outline = accent_dark if checked else "#d2b992"
+                draw_round_rect(switch, 2, 3, 46, 23, 10, fill, outline)
+                knob_x = 34 if checked else 14
+                switch.create_oval(knob_x - 8, 5, knob_x + 8, 21, fill="#fffdf8", outline="#d8bf99")
+                switch.create_text(24, 13, text="", fill=text_main)
+
+            def update():
+                self.settings[key] = bool(var.get())
+                paint()
+                if on_change:
+                    on_change()
+
+            def toggle(_event=None):
+                var.set(not bool(var.get()))
+                update()
+
+            for widget in (row, label, switch):
+                widget.bind("<Button-1>", toggle)
+            paint()
+
+        def page_companion(parent):
+            card = make_card(parent, "陪伴状态")
+            top = tk.Frame(card, bg="#fffdf7")
+            top.pack(fill="x", padx=12, pady=(4, 8))
+
+            level, title, _xp = self.level_for_xp(self.companion["xp"])
+            badge = tk.Label(top, text=f"Lv{level}", bg=sage, fg="#ffffff", font=("Microsoft YaHei UI", 13, "bold"), padx=12, pady=6)
+            badge.pack(side="left")
+
+            title_box = tk.Frame(top, bg="#fffdf7")
+            title_box.pack(side="left", fill="x", expand=True, padx=(12, 0))
+            title_label = tk.Label(title_box, text=title, bg="#fffdf7", fg="#2f2b24", font=("Microsoft YaHei UI", 12, "bold"), anchor="w")
+            title_label.pack(fill="x")
+            next_label = tk.Label(title_box, text=self.companion_next_text(), bg="#fffdf7", fg="#6f6048", font=("Microsoft YaHei UI", 9), anchor="w")
+            next_label.pack(fill="x", pady=(2, 0))
+
+            progress = tk.Canvas(card, height=18, bg="#fffdf7", bd=0, highlightthickness=0)
+            progress.pack(fill="x", padx=12, pady=(0, 10))
+
+            stats = tk.Frame(card, bg="#fffdf7")
+            stats.pack(fill="x", padx=12, pady=(0, 12))
+            stat_labels = []
+
+            def make_stat(column, row, name, value):
+                cell = tk.Frame(stats, bg="#fff6e8", highlightthickness=1, highlightbackground="#ead7bd")
+                cell.grid(row=row, column=column, sticky="nsew", padx=3, pady=3)
+                tk.Label(cell, text=name, bg="#fff6e8", fg="#7a6a52", font=("Microsoft YaHei UI", 8)).pack(anchor="w", padx=8, pady=(5, 0))
+                value_label = tk.Label(cell, text=value, bg="#fff6e8", fg="#2f2b24", font=("Microsoft YaHei UI", 10, "bold"))
+                value_label.pack(anchor="w", padx=8, pady=(0, 5))
+                stat_labels.append((name, value_label))
+
+            for column in range(3):
+                stats.grid_columnconfigure(column, weight=1, uniform="stats")
+
+            make_stat(0, 0, "经验", self.companion_progress_text())
+            make_stat(1, 0, "连续", f"{self.companion['streak_days']} 天")
+            make_stat(2, 0, "累计", f"{self.companion_hours()} 小时")
+            make_stat(0, 1, "互动", f"{self.companion['interactions']} 次")
+            make_stat(1, 1, "说话", f"{self.companion['talks']} 次")
+            make_stat(2, 1, "巡逻", f"{self.companion['roams']} 次")
+
+            buttons = tk.Frame(card, bg="#fffdf7")
+            buttons.pack(fill="x", padx=12, pady=(0, 12))
+
+            def refresh():
+                level_now, title_now, _xp_now = self.level_for_xp(self.companion["xp"])
+                badge.configure(text=f"Lv{level_now}")
+                title_label.configure(text=title_now)
+                next_label.configure(text=self.companion_next_text())
+                values = {
+                    "经验": self.companion_progress_text(),
+                    "连续": f"{self.companion['streak_days']} 天",
+                    "累计": f"{self.companion_hours()} 小时",
+                    "互动": f"{self.companion['interactions']} 次",
+                    "说话": f"{self.companion['talks']} 次",
+                    "巡逻": f"{self.companion['roams']} 次",
+                }
+                for name, value_label in stat_labels:
+                    value_label.configure(text=values[name])
+                progress.delete("all")
+                width = max(1, progress.winfo_width())
+                draw_round_rect(progress, 0, 4, width - 1, 15, 5, "#eadcc4", "#e0d2bb")
+                fill_width = max(8, int(width * self.companion_progress_ratio()))
+                draw_round_rect(progress, 0, 4, fill_width, 15, 5, accent, accent_dark)
+
+            def encourage():
+                self.mark_interaction()
+                self.say(self.choose_phrase())
+                refresh()
+
+            def show_status():
+                self.say(self.companion_status_text())
+                refresh()
+
+            def mood(section, key, state):
+                self.say_category(section, key, state)
+                refresh()
+
+            def reset_state():
+                self.reset_companion_state()
+                refresh()
+
+            pet_name = self.active_pet_name()
+            panel_button(buttons, f"摸摸{pet_name}", encourage, width=106, variant="primary").pack(side="left")
+            panel_button(buttons, "查看状态", show_status, width=94).pack(side="left", padx=8)
+            moods = tk.Frame(card, bg="#fffdf7")
+            moods.pack(fill="x", padx=12, pady=(0, 12))
+            panel_button(moods, "累了", lambda: mood("moods", "tired", "lying"), width=78).pack(side="left")
+            panel_button(moods, "难过", lambda: mood("moods", "sad", "review"), width=78).pack(side="left", padx=8)
+            panel_button(moods, "想你", lambda: mood("moods", "miss", "standing"), width=78).pack(side="left")
+            panel_button(moods, "休息", lambda: mood("care", "rest", "sleeping"), width=78).pack(side="left", padx=8)
+            danger_row = tk.Frame(card, bg="#fff8f2", highlightthickness=1, highlightbackground="#efcdbf")
+            danger_row.pack(fill="x", padx=12, pady=(0, 12))
+            tk.Label(
+                danger_row,
+                text="重置陪伴会清空当前宠物的等级和经验，日常入口不再把它放在主操作区。",
+                bg="#fff8f2",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=520,
+                font=("Microsoft YaHei UI", 8),
+            ).pack(side="left", fill="x", expand=True, padx=10, pady=8)
+            panel_button(danger_row, "重置陪伴", reset_state, width=94, height=28, variant="danger").pack(side="right", padx=10, pady=8)
+            progress.bind("<Configure>", lambda _event: refresh())
+            progress.after(50, refresh)
+
+            dashboard = make_card(parent, "今日看板")
+            grid = tk.Frame(dashboard, bg=card_bg)
+            grid.pack(fill="x", padx=14, pady=(2, 10))
+
+            provider_id, provider = self.active_ai_provider()
+            ai_text = self.provider_display_text(provider_id, provider)
+            todo_count = len(self.open_todos())
+            talk_text = "开启" if self.settings.get("talk_enabled", True) else "关闭"
+
+            for col in range(3):
+                grid.grid_columnconfigure(col, weight=1, uniform="dashboard")
+            metric_cell(grid, 0, "AI", ai_text[:16], "当前对话厂商", sage_soft)
+            metric_cell(grid, 1, "待办", f"{todo_count} 项", "本地提醒")
+            metric_cell(grid, 2, "自动说话", talk_text, f"间隔 {int(self.settings.get('talk_interval', 0))} 秒")
+
+            shortcuts = tk.Frame(dashboard, bg=card_bg)
+            shortcuts.pack(fill="x", padx=14, pady=(0, 14))
+            pet_name = self.active_pet_name()
+            panel_button(shortcuts, f"和{pet_name}聊", self.open_chat_panel, width=98, variant="primary").pack(side="left")
+            panel_button(shortcuts, "新增提醒", lambda: switch_page("提醒"), width=98).pack(side="left", padx=8)
+            panel_button(shortcuts, "AI 配置", lambda: switch_page("AI"), width=98).pack(side="left")
+            panel_button(shortcuts, "动作", lambda: switch_page("动作"), width=98).pack(side="left", padx=8)
+
+        def page_behavior(parent):
+            preset = make_card(parent, "模式预设")
+            row = tk.Frame(preset, bg="#fffdf7")
+            row.pack(fill="x", padx=12, pady=(4, 12))
+
+            def apply_preset(values):
+                self.settings.update(values)
+                self.save_settings()
+                self.reload_frames()
+                refresh_current_page()
+
+            presets = [
+                ("安静", {"animation_speed": 0.50, "drag_sensitivity": 0.55, "inertia": 0.20, "talk_interval": 90.0}),
+                ("日常", {"animation_speed": 0.70, "drag_sensitivity": 0.70, "inertia": 0.40, "talk_interval": 45.0}),
+                ("活跃", {"animation_speed": 0.95, "drag_sensitivity": 0.95, "inertia": 0.65, "talk_interval": 25.0}),
+            ]
+            def preset_selected(values):
+                return all(abs(float(self.settings.get(key, 0)) - float(value)) < 0.011 for key, value in values.items())
+
+            for text, values in presets:
+                panel_button(row, text, lambda v=values: apply_preset(v), width=76, selected=preset_selected(values)).pack(side="left", padx=(0, 8))
+
+            screen_card = make_card(parent, "屏幕活动")
+            screen_body = tk.Frame(screen_card, bg="#fffdf7")
+            screen_body.pack(fill="x", padx=12, pady=(2, 12))
+            screen_status = tk.Label(
+                screen_body,
+                text="",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=590,
+                font=("Microsoft YaHei UI", 9),
+            )
+            screen_status.pack(fill="x", pady=(0, 8))
+
+            def refresh_screen_status():
+                pet_name = self.active_pet_name()
+                if self.settings.get("roam_current_monitor_only", False):
+                    text = f"当前：自动活动只在{pet_name}所在屏幕。你把{pet_name}拖到副屏后，副屏就是新的活动范围。"
+                elif self.settings.get("multi_monitor_roam", True):
+                    text = f"当前：按多屏策略自动活动，{pet_name}可能自己从主屏跑到副屏。"
+                else:
+                    text = "当前：按主屏策略自动活动，不主动使用副屏。"
+                screen_status.configure(text=text)
+
+            def apply_screen_scope(current_only):
+                self.settings["roam_current_monitor_only"] = bool(current_only)
+                self.roam_target = None
+                self.next_roam_at = time.monotonic() + 1.0
+                self.save_settings()
+                refresh_screen_status()
+                if current_only:
+                    self.say("主人，我就在这块屏幕活动。")
+                else:
+                    self.say("主人，我可以按多屏策略活动。")
+                refresh_current_page()
+
+            screen_buttons = tk.Frame(screen_body, bg="#fffdf7")
+            screen_buttons.pack(fill="x")
+            current_only_selected = bool(self.settings.get("roam_current_monitor_only", False))
+            panel_button(screen_buttons, "只在当前屏幕", lambda: apply_screen_scope(True), width=116, selected=current_only_selected).pack(side="left")
+            panel_button(screen_buttons, "允许多屏策略", lambda: apply_screen_scope(False), width=116, selected=not current_only_selected).pack(side="left", padx=8)
+            refresh_screen_status()
+
+            guide_card = make_card(parent, "生图提示词使用方法")
+            tk.Label(
+                guide_card,
+                text="动作提示词不是单独用的：先把当前宠物主像素图上传给生图 AI，再复制动作提示词。上传前重点看 5 件事：帧数是否正确、每帧是否 192x208、脚底基线是否稳定、脸型毛色是否一致、有没有把蝴蝶/阴影/速度线这类多余物体画进动作条。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=680,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 8))
+            guide_row = tk.Frame(guide_card, bg="#fffdf7")
+            guide_row.pack(fill="x", padx=12, pady=(0, 12))
+            panel_button(guide_row, "复制使用教学", lambda: self.copy_text_to_clipboard(self.prompt_usage_guide_text(), "提示词使用教学"), width=112, height=28).pack(side="left")
+            panel_button(guide_row, "复制扩展动作提示词", lambda: self.copy_text_to_clipboard(self.extension_action_prompt("自定义扩展动作", self.active_pet_name(), self.active_pet.get("species", ""), self.active_pet.get("notes", ""), self.active_pet.get("category", "")), "扩展动作提示词"), width=142, height=28, variant="primary").pack(side="left", padx=8)
+
+            chase_asset = next((asset for asset in self.pet_extension_assets() if asset.get("id") == "chase-butterfly"), None)
+            if chase_asset:
+                try:
+                    chase_path = self.pet_asset_path(chase_asset.get("strip"))
+                    if chase_path and chase_path.exists():
+                        chase_strip = self.remove_cyan_background(Image.open(chase_path).convert("RGBA"))
+                        chase_count = min(int(chase_asset.get("frames") or 0), chase_strip.width // CELL_W, CUSTOM_ACTION_MAX_FRAMES)
+                        if chase_count and not self.should_use_chase_strip(chase_strip, chase_count):
+                            tk.Label(
+                                guide_card,
+                                text="当前追蝴蝶动作条检测到基线/体积或多余物体问题，运行时会自动回退到稳定跑步帧；建议重新复制“追蝴蝶”提示词生成只含宠物本体的动作条。",
+                                bg="#eef6ea",
+                                fg=sage,
+                                anchor="w",
+                                justify="left",
+                                wraplength=680,
+                                font=("Microsoft YaHei UI", 9, "bold"),
+                            ).pack(fill="x", padx=12, pady=(0, 12))
+                except OSError:
+                    pass
+
+            card = make_card(parent, "动作")
+            add_slider(card, "动作速度", "animation_speed", 0.35, 1.50, 0.05, lambda v: f"{int(v * 100)}%")
+            add_slider(card, "拖动灵敏", "drag_sensitivity", 0.30, 1.40, 0.05, lambda v: f"{int(v * 100)}%")
+            add_slider(card, "惯性", "inertia", 0.00, 1.00, 0.05, lambda v: f"{int(v * 100)}%")
+
+        def page_roam(parent):
+            def refresh_roam_bounds():
+                self.roam_target = None
+                self.next_roam_at = time.monotonic() + 1.0
+                self.move_to(self.root.winfo_x(), self.root.winfo_y())
+
+            overview = make_card(parent, "巡逻状态")
+            overview_grid = tk.Frame(overview, bg=card_bg)
+            overview_grid.pack(fill="x", padx=14, pady=(2, 10))
+            for col in range(3):
+                overview_grid.grid_columnconfigure(col, weight=1, uniform="roam_overview")
+            scope = "当前屏幕" if self.settings.get("roam_current_monitor_only", False) else ("多屏" if self.settings.get("multi_monitor_roam", True) else "主屏")
+            edge_text = "主屏四边" if self.settings.get("primary_monitor_edge_only", True) else "可进屏幕"
+            metric_cell(overview_grid, 0, "状态", "开启" if self.settings.get("roam_enabled") else "关闭", "自动活动")
+            metric_cell(overview_grid, 1, "范围", scope, edge_text, sage_soft)
+            metric_cell(overview_grid, 2, "速度", f"{int(self.settings.get('roam_speed', 0))}px/s", f"{int(self.settings.get('roam_interval', 0))}秒间隔")
+
+            strategy = make_card(parent, "活动策略")
+            pet_name = self.active_pet_name()
+            add_check(strategy, f"允许{pet_name}自由活动", "roam_enabled", refresh_roam_bounds)
+            add_check(strategy, "只在当前屏幕活动", "roam_current_monitor_only", refresh_roam_bounds)
+            add_check(strategy, "允许跨屏幕活动", "multi_monitor_roam", refresh_roam_bounds)
+            add_check(strategy, "主屏幕只沿四边", "primary_monitor_edge_only", refresh_roam_bounds)
+            add_check(strategy, "副屏全屏幕自由活动", "secondary_monitor_full_roam", refresh_roam_bounds)
+            add_check(strategy, "通用允许跑到屏幕中间", "roam_allow_center", refresh_roam_bounds)
+
+            speed = make_card(parent, "巡逻参数")
+            add_slider(speed, "自由活动间隔", "roam_interval", 8.0, 180.0, 4.0, lambda v: f"{int(v)}秒", lambda: setattr(self, "next_roam_at", self.next_roam_time()))
+            add_slider(speed, "自由活动速度", "roam_speed", 45.0, 260.0, 5.0, lambda v: f"{int(v)}px/s")
+            add_slider(speed, "自由活动范围", "roam_distance", 0.20, 0.95, 0.05, lambda v: f"{int(v * 100)}%")
+
+        def page_dialog(parent):
+            pet_name = self.active_pet_name()
+            active_provider_id, active_provider = self.active_ai_provider()
+
+            def provider_key_state(provider):
+                env_key = str(provider.get("env_key", "") or "").strip()
+                if self.provider_saved_key(provider):
+                    return "本机加密"
+                if env_key and os.getenv(env_key):
+                    return "环境变量"
+                return "未配置"
+
+            def ai_mode_info():
+                provider_text = self.provider_display_text(active_provider_id, active_provider)
+                model_text = self.provider_model_name(active_provider)
+                if self.ai_can_respond():
+                    return "云端可用", f"{provider_text} / {model_text}", sage_soft, sage
+                if self.settings.get("ai_enabled", True) and self.settings.get("ai_fallback_enabled", True):
+                    return "本地兜底", f"{provider_text} Key {provider_key_state(active_provider)}", "#fff8ee", accent_dark
+                if self.settings.get("ai_enabled", True):
+                    return "待配置", f"{provider_text} Key {provider_key_state(active_provider)}", "#fff1df", accent_dark
+                return "已关闭", "只使用本地短句陪伴", "#fff1df", accent_dark
+
+            overview = make_card(parent, "对话总览")
+            overview_grid = tk.Frame(overview, bg=card_bg)
+            overview_grid.pack(fill="x", padx=14, pady=(2, 10))
+            for col in range(4):
+                overview_grid.grid_columnconfigure(col, weight=1, uniform="dialog_overview")
+            ai_title, ai_hint, ai_bg, _ai_fg = ai_mode_info()
+            metric_cell(overview_grid, 0, "快速试聊", "可发送", "Enter 或按钮发送", sage_soft)
+            metric_cell(overview_grid, 1, "AI", ai_title, ai_hint, ai_bg)
+            metric_cell(overview_grid, 2, "记忆", f"{len(self.chat_memory.get('messages', []))} 条", f"最近情绪 {self.memory_summary.get('last_mood') or self.chat_memory.get('last_mood') or '暂无'}")
+            metric_cell(overview_grid, 3, "气泡", BUBBLE_STYLES.get(self.settings.get("bubble_style"), "默认"), f"{int(self.settings.get('bubble_duration', 0))} 秒")
+
+            chat_card = make_card(parent, f"快速试聊")
+            tk.Label(
+                chat_card,
+                text=f"这里用于快速试一句话；完整聊天窗口仍保留背景、历史和连续对话能力。",
+                bg=card_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=690,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(0, 8))
+            chat_var = tk.StringVar()
+            chat_row = tk.Frame(chat_card, bg="#fffdf7")
+            chat_row.pack(fill="x", padx=12, pady=(0, 8))
+            chat_entry = tk.Entry(
+                chat_row,
+                textvariable=chat_var,
+                bg="#fff7e8",
+                fg=text_main,
+                relief="flat",
+                font=("Microsoft YaHei UI", 10),
+            )
+            chat_entry.pack(side="left", fill="x", expand=True, ipady=7)
+            chat_status = tk.Label(chat_card, text="输入后会按当前 AI/本地兜底状态回复。", bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8))
+            chat_status.pack(fill="x", padx=12, pady=(0, 8))
+
+            def send_from_panel(_event=None):
+                text = chat_var.get().strip()
+                if not text:
+                    chat_status.configure(text="先写一句要和它说的话。", fg="#5d3328")
+                    chat_entry.focus_set()
+                    return
+                chat_var.set("")
+                chat_status.configure(text="已发送，回复会出现在桌面气泡或聊天窗里。", fg=sage)
+                self.handle_chat_message(text)
+
+            panel_button(chat_row, "发送", send_from_panel, width=72, height=32, variant="primary").pack(side="left", padx=(8, 0))
+            chat_entry.bind("<Return>", send_from_panel)
+
+            quick_row = tk.Frame(chat_card, bg="#fffdf7")
+            quick_row.pack(fill="x", padx=12, pady=(0, 12))
+            for label, value in [
+                ("累了", "主人有点累了"),
+                ("难过", "主人有点难过"),
+                ("想你", f"我想{pet_name}了"),
+                ("压力大", "主人压力有点大"),
+                ("打开聊天窗", ""),
+            ]:
+                command = self.open_chat_panel if not value else (lambda v=value: self.handle_chat_message(v))
+                panel_button(quick_row, label, command, width=78, height=28).pack(side="left", padx=(0, 7))
+
+            ai_card = make_card(parent, "AI 与记忆")
+            state_title, state_hint, state_bg, state_fg = ai_mode_info()
+            state = tk.Frame(ai_card, bg=state_bg, highlightthickness=1, highlightbackground="#ead7bd")
+            state.pack(fill="x", padx=12, pady=(0, 10))
+            tk.Label(state, text=state_title, bg=state_bg, fg=state_fg, width=10, anchor="center", font=("Microsoft YaHei UI", 10, "bold")).pack(side="left", padx=10, pady=10)
+            tk.Label(state, text=state_hint, bg=state_bg, fg=text_main, anchor="w", justify="left", wraplength=560, font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True, pady=10)
+            add_check(ai_card, "启用云端 AI 对话", "ai_enabled")
+            add_check(ai_card, "AI 失败时使用本地兜底", "ai_fallback_enabled")
+            add_slider(ai_card, "AI 超时", "ai_timeout", 4.0, 120.0, 1.0, lambda v: f"{int(v)}秒")
+            status_label = tk.Label(ai_card, text=self.ai_status_text(), bg="#fffdf7", fg=text_muted, anchor="w", justify="left", font=("Microsoft YaHei UI", 9))
+            status_label.pack(fill="x", padx=12, pady=(4, 8))
+            self.ai_status_label = status_label
+
+            ai_buttons = tk.Frame(ai_card, bg="#fffdf7")
+            ai_buttons.pack(fill="x", padx=12, pady=(0, 10))
+            panel_button(ai_buttons, "刷新状态", lambda: self.set_ai_status(""), width=82).pack(side="left")
+            panel_button(ai_buttons, "AI 配置", lambda: switch_page("AI"), width=82, variant="primary").pack(side="left", padx=7)
+            panel_button(ai_buttons, "测试连接", self.test_active_ai_provider_async, width=82).pack(side="left")
+            panel_button(ai_buttons, "询问模型", self.ask_active_ai_model_async, width=82).pack(side="left", padx=7)
+            panel_button(ai_buttons, "查看记忆", self.open_memory_window, width=82).pack(side="left")
+            tk.Label(ai_card, text=self.memory_status_text(), bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=12, pady=(0, 10))
+
+            card = make_card(parent, "自动说话")
+            add_check(card, f"允许{pet_name}不定时说话", "talk_enabled", lambda: setattr(self, "next_talk_at", self.next_talk_time()))
+            add_slider(card, "说话间隔", "talk_interval", 15.0, 180.0, 5.0, lambda v: f"{int(v)}秒", lambda: setattr(self, "next_talk_at", self.next_talk_time()))
+            add_slider(card, "交互后静默", "talk_after_interaction_delay", 0.0, 120.0, 5.0, lambda v: f"{int(v)}秒")
+
+            style_card = make_card(parent, "气泡外观")
+            tk.Label(
+                style_card,
+                text="先选气泡形状，再到外观页调颜色。这里的预览只展示控件效果，不改变聊天记录。",
+                bg=card_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=690,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(0, 8))
+            style_grid = tk.Frame(style_card, bg=card_bg)
+            style_grid.pack(fill="x", padx=12, pady=(0, 8))
+            for col in range(3):
+                style_grid.grid_columnconfigure(col, weight=1, uniform="bubble_style")
+            style_refs = []
+            style_hints = {
+                "soft": "温和陪聊",
+                "rounded": "稳定通用",
+                "cloud": "轻松可爱",
+                "thought": "适合想事",
+                "note": "像便签",
+                "caption": "少挡桌面",
+            }
+
+            def choose_style(style_key):
+                self.settings["bubble_style"] = style_key
+                self.hide_bubble()
+                self.say("这个小窝可以。")
+                draw_style_options()
+
+            def bind_style_click(widget, style_key):
+                widget.bind("<Button-1>", lambda _event, key=style_key: choose_style(key))
+                widget.configure(cursor="hand2")
+
+            def draw_style_options():
+                for child in style_grid.winfo_children():
+                    child.destroy()
+                style_refs.clear()
+                current = self.settings.get("bubble_style", "soft")
+                for idx, (key, label) in enumerate(BUBBLE_STYLES.items()):
+                    selected = key == current
+                    fill = "#fff1df" if selected else "#fffdf7"
+                    border = accent_dark if selected else "#ead7bd"
+                    cell = tk.Frame(style_grid, bg=fill, highlightthickness=1, highlightbackground=border)
+                    cell.grid(row=idx // 3, column=idx % 3, sticky="nsew", padx=(0 if idx % 3 == 0 else 8, 0), pady=(0, 8))
+                    preview = tk.Canvas(cell, width=160, height=66, bg=fill, bd=0, highlightthickness=0)
+                    preview.pack(fill="x", padx=8, pady=(8, 2))
+                    image = self.render_bubble_image(key, 154, 62, 120, 36, 46)
+                    photo = ImageTk.PhotoImage(image, master=panel)
+                    style_refs.append(photo)
+                    preview.create_image(3, 2, image=photo, anchor="nw")
+                    title = tk.Label(cell, text=("当前 · " if selected else "") + label, bg=fill, fg=accent_dark if selected else text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold"))
+                    title.pack(fill="x", padx=10, pady=(0, 1))
+                    hint = tk.Label(cell, text=style_hints.get(key, "气泡样式"), bg=fill, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8))
+                    hint.pack(fill="x", padx=10, pady=(0, 8))
+                    for widget in (cell, preview, title, hint):
+                        bind_style_click(widget, key)
+                style_grid._bubble_style_refs = style_refs
+
+            draw_style_options()
+            add_slider(style_card, "气泡时长", "bubble_duration", 2.0, 12.0, 1.0, lambda v: f"{int(v)}秒")
+            color_row = tk.Frame(style_card, bg=card_bg)
+            color_row.pack(fill="x", padx=12, pady=(0, 12))
+            for name, color in [("背景", self.settings.get("bubble_fill")), ("描边", self.settings.get("bubble_outline")), ("文字", self.settings.get("bubble_text"))]:
+                swatch = tk.Frame(color_row, bg="#fffdf7", highlightthickness=1, highlightbackground="#ead7bd")
+                swatch.pack(side="left", padx=(0, 8))
+                tk.Frame(swatch, bg=color if is_hex_color(color) else "#fffaf0", width=22, height=22).pack(side="left", padx=6, pady=5)
+                tk.Label(swatch, text=name, bg="#fffdf7", fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(side="left", padx=(0, 8))
+            panel_button(color_row, "调整颜色", lambda: switch_page("外观"), width=88, height=30, variant="primary").pack(side="left", padx=(2, 0))
+
+        def page_ai(parent):
+            def native_button(parent_widget, text, command, variant="neutral", width=None):
+                colors = {
+                    "primary": (accent, "#ffffff", accent_dark),
+                    "selected": (accent, "#ffffff", accent_dark),
+                    "current": (sage_soft, sage, "#dce9d5"),
+                    "neutral": ("#fff7e9", text_main, "#fde8c7"),
+                    "sage": (sage_soft, sage, "#dce9d5"),
+                    "danger": ("#f8ddd3", "#5d3328", "#efc2b2"),
+                    "ghost": ("#fffdf7", text_muted, "#fff1df"),
+                }
+                bg, fg, active_bg = colors.get(variant, colors["neutral"])
+                button = tk.Button(
+                    parent_widget,
+                    text=text,
+                    command=command,
+                    bg=bg,
+                    fg=fg,
+                    activebackground=active_bg,
+                    activeforeground=fg,
+                    relief="flat",
+                    bd=0,
+                    cursor="hand2",
+                    padx=14,
+                    pady=9,
+                    font=("Microsoft YaHei UI", 9),
+                )
+                if width is not None:
+                    button.configure(width=width)
+                return button
+
+            def default_env_key(provider_id):
+                preset = AI_PROVIDER_PRESETS.get(provider_id, {})
+                return str(preset.get("env_key", "") or "")
+
+            def looks_like_secret(value):
+                text = str(value or "").strip()
+                if not text or len(text) < 18:
+                    return False
+                if re.fullmatch(r"[A-Z_][A-Z0-9_]*", text):
+                    return False
+                return any(ch in text for ch in "-_.") or any(ch.islower() for ch in text)
+
+            def migrate_secret_from_env_field(provider_id):
+                provider = self.ai_providers["providers"].get(provider_id, {})
+                env_value = str(provider.get("env_key", "") or "").strip()
+                if not looks_like_secret(env_value):
+                    return False
+                self.save_provider_api_key(provider_id, env_value)
+                provider = self.ai_providers["providers"].get(provider_id, {})
+                provider["env_key"] = default_env_key(provider_id)
+                self.ai_providers["providers"][provider_id] = self.normalize_ai_provider(provider_id, provider)
+                self.save_ai_providers()
+                self.set_ai_status("检测到 Key 填在环境变量名里，已转为本机加密保存。")
+                return True
+
+            def provider_key_state(provider):
+                env_key = str(provider.get("env_key", "") or "").strip()
+                if self.provider_saved_key(provider):
+                    return "本机加密"
+                if env_key and os.getenv(env_key):
+                    return "环境变量"
+                return "未配置"
+
+            active_provider_id, active_provider = self.active_ai_provider()
+            overview = make_card(parent, "连接状态")
+            overview_grid = tk.Frame(overview, bg=card_bg)
+            overview_grid.pack(fill="x", padx=14, pady=(2, 10))
+            for col in range(4):
+                overview_grid.grid_columnconfigure(col, weight=1, uniform="ai_overview")
+            metric_cell(overview_grid, 0, "AI 对话", "已开启" if self.settings.get("ai_enabled") else "未开启", "测试成功会自动开启", sage_soft)
+            metric_cell(overview_grid, 1, "厂商", self.provider_display_text(active_provider_id, active_provider), "当前启用")
+            metric_cell(overview_grid, 2, "模型", self.provider_model_name(active_provider), "本地配置")
+            metric_cell(overview_grid, 3, "Key", provider_key_state(active_provider), "真实 Key 不显示")
+
+            overview_actions = tk.Frame(overview, bg=card_bg)
+            overview_actions.pack(fill="x", padx=14, pady=(0, 12))
+            add_check(overview_actions, "启用云端 AI 对话", "ai_enabled")
+            add_check(overview_actions, "失败时用本地兜底", "ai_fallback_enabled")
+            native_button(overview_actions, "测试当前连接", self.test_active_ai_provider_async, "primary").pack(side="left", padx=(12, 8), pady=(2, 0))
+            native_button(overview_actions, f"和{self.active_pet_name()}聊", self.open_chat_panel).pack(side="left", pady=(2, 0))
+
+            workspace = make_card(parent, "AI 连接设置")
+            provider_ids = list(self.ai_providers.get("providers", {}).keys())
+            initial_provider_id = self.ai_provider_panel_selected_id or self.active_provider_id()
+            if initial_provider_id not in self.ai_providers.get("providers", {}):
+                initial_provider_id = self.active_provider_id()
+            selected_provider_var = tk.StringVar(value=initial_provider_id)
+            provider_label_to_id = {}
+            provider_id_to_label = {}
+            for provider_id in provider_ids:
+                provider = self.ai_providers["providers"].get(provider_id, {})
+                label = self.provider_display_text(provider_id, provider)
+                if label in provider_label_to_id:
+                    label = f"{label} · {provider_id}"
+                provider_label_to_id[label] = provider_id
+                provider_id_to_label[provider_id] = label
+            selected_provider_label_var = tk.StringVar(
+                value=provider_id_to_label.get(selected_provider_var.get(), selected_provider_var.get())
+            )
+
+            header = tk.Frame(workspace, bg=card_bg)
+            header.pack(fill="x", padx=14, pady=(0, 10))
+            tk.Label(header, text="先选择厂商，再配置模型、Key、额度和连接测试。测试只验证连接，不要求模型返回 JSON。", bg=card_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).pack(side="left")
+            selected_status = tk.Label(header, text="", bg=card_bg, fg=accent_dark, anchor="e", font=("Microsoft YaHei UI", 9, "bold"))
+            selected_status.pack(side="right")
+
+            selector = tk.Frame(workspace, bg="#fffaf3", highlightthickness=1, highlightbackground=card_border)
+            selector.pack(fill="x", padx=14, pady=(0, 12))
+            selector.grid_columnconfigure(1, weight=1)
+            tk.Label(selector, text="厂商", bg="#fffaf3", fg=text_main, font=("Microsoft YaHei UI", 10, "bold")).grid(row=0, column=0, sticky="w", padx=12, pady=12)
+            select_box(selector, selected_provider_label_var, list(provider_label_to_id.keys()), width=190, height=34).grid(row=0, column=1, sticky="w", padx=(0, 10), pady=12)
+            provider_note_label = tk.Label(selector, text="", bg="#fffaf3", fg=text_muted, anchor="w", justify="left", wraplength=520, font=("Microsoft YaHei UI", 9))
+            provider_note_label.grid(row=0, column=2, sticky="ew", padx=(0, 12), pady=12)
+            provider_selector_guard = {"value": False}
+
+            workspace_body = tk.Frame(workspace, bg=card_bg)
+            workspace_body.pack(fill="x", padx=14, pady=(0, 12))
+            details = tk.Frame(workspace_body, bg=card_bg)
+            details.pack(fill="both", expand=True, anchor="n")
+
+            def selected_provider_id():
+                provider_id = provider_label_to_id.get(selected_provider_label_var.get(), selected_provider_var.get())
+                return provider_id if provider_id in self.ai_providers.get("providers", {}) else self.active_provider_id()
+
+            def refresh_provider_selector():
+                provider_id = selected_provider_id()
+                provider = self.ai_providers["providers"].get(provider_id, {})
+                selected_provider_var.set(provider_id)
+                self.ai_provider_panel_selected_id = provider_id
+                desired_label = provider_id_to_label.get(provider_id, provider_id)
+                if selected_provider_label_var.get() != desired_label:
+                    provider_selector_guard["value"] = True
+                    selected_provider_label_var.set(desired_label)
+                    provider_selector_guard["value"] = False
+                selected_status.configure(
+                    text=f"已选：{self.provider_display_text(provider_id, provider)} ｜ 当前：{self.provider_display_text(self.active_provider_id())}"
+                )
+                provider_note_label.configure(
+                    text=f"{provider.get('provider_note', '') or 'OpenAI 兼容厂商'} ｜ Key：{provider_key_state(provider)}"
+                )
+
+            def choose_provider(provider_id):
+                selected_provider_var.set(provider_id)
+                provider_selector_guard["value"] = True
+                selected_provider_label_var.set(provider_id_to_label.get(provider_id, provider_id))
+                provider_selector_guard["value"] = False
+                refresh_provider_selector()
+                draw_details()
+
+            def on_provider_label_change(*_args):
+                if provider_selector_guard["value"]:
+                    return
+                selected_provider_var.set(selected_provider_id())
+                refresh_provider_selector()
+                draw_details()
+
+            selected_provider_label_var.trace_add("write", on_provider_label_change)
+
+            def draw_details():
+                for child in details.winfo_children():
+                    child.destroy()
+                provider_id = selected_provider_id()
+                migrated = migrate_secret_from_env_field(provider_id)
+                provider = self.ai_providers["providers"].get(provider_id, {})
+                if migrated:
+                    refresh_provider_selector()
+
+                title_row = tk.Frame(details, bg=card_bg)
+                title_row.pack(fill="x", pady=(2, 10))
+                tk.Label(title_row, text=self.provider_display_text(provider_id, provider), bg=card_bg, fg=text_main, font=("Microsoft YaHei UI", 14, "bold")).pack(side="left")
+                badge = provider_key_state(provider)
+                badge_bg = sage_soft if badge != "未配置" else "#fff1df"
+                badge_fg = sage if badge != "未配置" else accent_dark
+                tk.Label(title_row, text=f"Key：{badge}", bg=badge_bg, fg=badge_fg, padx=10, pady=4, font=("Microsoft YaHei UI", 9)).pack(side="left", padx=10)
+
+                def section_heading(parent_widget, title, subtitle):
+                    row = tk.Frame(parent_widget, bg=card_bg)
+                    row.pack(fill="x", pady=(6, 4))
+                    tk.Label(row, text=title, bg=card_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 11, "bold")).pack(side="left")
+                    tk.Label(row, text=subtitle, bg=card_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8)).pack(side="left", padx=(10, 0))
+
+                def provider_state_info():
+                    status_text = self.ai_status_text()
+                    display_text = self.provider_display_text(provider_id, provider)
+                    is_active = provider_id == self.active_provider_id()
+                    if not is_active and display_text not in status_text:
+                        status_text = ""
+                    has_key = self.provider_saved_key(provider) or bool(
+                        str(provider.get("env_key", "") or "").strip()
+                        and os.getenv(str(provider.get("env_key", "") or "").strip())
+                    )
+                    if "正在" in status_text or "请求中" in status_text:
+                        return "测试中", status_text, "#fff1df", accent_dark, "等待测试结果；如果长时间无返回，检查网络或降低模型复杂度。"
+                    if "失败" in status_text:
+                        return "失败", status_text, "#f8ddd3", "#5d3328", "先检查 Key、模型、Base URL 和网络；兼容接口可尝试切换 chat_completions / responses。"
+                    if "测试成功" in status_text:
+                        return "可用", status_text, "#f1f7ed", sage, "可以直接对话；后续更换模型后建议重新测试一次。"
+                    if not has_key:
+                        return "未配置", f"{self.provider_display_text(provider_id, provider)} 还没有可用 Key。", "#fff1df", accent_dark, "先保存本机加密 Key，再点击测试并启用。"
+                    if is_active and self.settings.get("ai_enabled", True):
+                        return "可用", f"当前启用：{self.provider_display_text(provider_id, provider)} / {self.provider_model_name(provider)}", "#f1f7ed", sage, "已可用于云端陪聊；测试失败时会按设置回落到本地陪伴。"
+                    return "已保存 Key", "Key 已在本机可用，但该厂商还不是当前启用项。", "#fff8ee", accent_dark, "点击“测试并启用”会保存配置、测试连接，并在成功后切为当前。"
+
+                state_title, state_detail, state_bg, state_fg, recovery_hint = provider_state_info()
+                state_card = tk.Frame(details, bg=state_bg, highlightthickness=1, highlightbackground="#ead7bd")
+                state_card.pack(fill="x", pady=(0, 12))
+                state_card.grid_columnconfigure(1, weight=1)
+                tk.Label(state_card, text=state_title, bg=state_bg, fg=state_fg, anchor="center", width=10, font=("Microsoft YaHei UI", 11, "bold")).grid(row=0, column=0, rowspan=2, sticky="nsw", padx=12, pady=10)
+                tk.Label(state_card, text=state_detail, bg=state_bg, fg=text_main, anchor="w", justify="left", wraplength=660, font=("Microsoft YaHei UI", 9, "bold")).grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=(9, 1))
+                tk.Label(state_card, text=f"恢复建议：{recovery_hint}", bg=state_bg, fg=text_muted, anchor="w", justify="left", wraplength=660, font=("Microsoft YaHei UI", 8)).grid(row=1, column=1, sticky="ew", padx=(0, 12), pady=(0, 9))
+
+                recommendation = self.provider_model_recommendation(provider_id, provider)
+                intro = tk.Frame(details, bg="#fffdf7", highlightthickness=1, highlightbackground="#ead7bd")
+                intro.pack(fill="x", pady=(0, 12))
+                intro.grid_columnconfigure(0, weight=1)
+                intro.grid_columnconfigure(1, weight=1)
+
+                def intro_row(row, column, title, body, fill="#fffdf7", fg=text_muted, span=1):
+                    cell = tk.Frame(intro, bg=fill)
+                    cell.grid(row=row, column=column, columnspan=span, sticky="nsew", padx=(0 if column == 0 else 8, 0), pady=(0 if row == 0 else 8, 0))
+                    tk.Label(cell, text=title, bg=fill, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(fill="x", padx=12, pady=(9, 2))
+                    tk.Label(cell, text=body, bg=fill, fg=fg, anchor="nw", justify="left", wraplength=720 if span > 1 else 360, font=("Microsoft YaHei UI", 9)).pack(fill="both", expand=True, padx=12, pady=(0, 9))
+
+                use_case_text = " / ".join(recommendation.get("use_cases", [])[:4]) or str(provider.get("provider_note", "") or "通用聊天和办公")
+                speed_text = str(provider.get("speed_note", "") or provider.get("model_recommendation", "") or recommendation.get("summary", "")).strip()
+                diagnostic_text = str(provider.get("diagnostic_hint", "") or "测试失败时先检查 Key、模型名、Base URL 和额度。").strip()
+                intro_row(0, 0, "适合场景", use_case_text, "#fffdf7")
+                intro_row(0, 1, "模型建议", speed_text, "#fff8ee", accent_dark)
+                intro_row(1, 0, "排查提示", diagnostic_text, "#f1f7ed", sage, span=2)
+
+                form_vars = {}
+                key_var = tk.StringVar()
+                format_var = tk.StringVar(value=str(provider.get("api_format", "chat_completions")))
+
+                guide = tk.Frame(details, bg="#fffaf3", highlightthickness=1, highlightbackground="#ead7bd")
+                guide.pack(fill="x", pady=(0, 12))
+                for column in range(3):
+                    guide.grid_columnconfigure(column, weight=1, uniform="ai_guide")
+
+                def guide_cell(column, title, value, hint, fill="#fffaf3"):
+                    cell = tk.Frame(guide, bg=fill)
+                    cell.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 1, 0))
+                    tk.Label(cell, text=title, bg=fill, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=10, pady=(8, 0))
+                    tk.Label(cell, text=value, bg=fill, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x", padx=10, pady=(1, 0))
+                    tk.Label(cell, text=hint, bg=fill, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8), wraplength=240).pack(fill="x", padx=10, pady=(1, 8))
+
+                base_hint = "这是 API 地址，不是网页控制台。" if provider_id == "xiaomi_mimo" else "OpenAI 兼容接口填 /v1"
+                guide_cell(0, "1 连接地址", str(provider.get("base_url", "") or "未填写")[:36], base_hint)
+                guide_cell(1, "2 Key 来源", provider_key_state(provider), "优先使用本机 DPAPI 加密 Key")
+                guide_cell(2, "3 连接测试", self.provider_model_name(provider)[:24] or "未选择模型", "成功后自动设为当前并开启 AI")
+
+                quota_box = tk.Frame(details, bg="#f1f7ed", highlightthickness=1, highlightbackground="#d7e5d0")
+                quota_box.pack(fill="x", pady=(0, 12))
+                quota_box.grid_columnconfigure(0, weight=1)
+                self.ai_quota_provider_id = provider_id
+                tk.Label(
+                    quota_box,
+                    text="额度 / 用量",
+                    bg="#f1f7ed",
+                    fg=sage,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 10, "bold"),
+                ).grid(row=0, column=0, sticky="ew", padx=12, pady=(9, 1))
+                self.ai_quota_label = tk.Label(
+                    quota_box,
+                    text=self.provider_quota_text(provider_id, provider),
+                    bg="#f1f7ed",
+                    fg=text_muted,
+                    anchor="w",
+                    justify="left",
+                    wraplength=620,
+                    font=("Microsoft YaHei UI", 9),
+                )
+                self.ai_quota_label.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 9))
+                quota_actions = tk.Frame(quota_box, bg="#f1f7ed")
+                quota_actions.grid(row=0, column=1, rowspan=2, sticky="e", padx=12, pady=9)
+                native_button(quota_actions, "查询额度", lambda pid=provider_id: self.query_provider_quota_async(pid), "sage").pack(side="left", padx=(0, 8))
+                native_button(quota_actions, "打开控制台", lambda pid=provider_id: self.open_provider_console_url(pid), "ghost").pack(side="left")
+
+                research_box = tk.Frame(details, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+                research_box.pack(fill="x", pady=(0, 12))
+                tk.Label(
+                    research_box,
+                    text="资料查询能力",
+                    bg="#fff8ee",
+                    fg=text_main,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 10, "bold"),
+                ).pack(fill="x", padx=12, pady=(9, 1))
+                recent_research = self.ai_last_research_summary or "普通陪聊不会预查询；主人明确说“查一下、搜索、最新、资料、往年今日”等才会先检索网页，再交给当前 AI 回复。问“现在几点/今天几号”会直接使用本机时间回答；AI 未连接时也会先给网页摘要。"
+                tk.Label(
+                    research_box,
+                    text=recent_research,
+                    bg="#fff8ee",
+                    fg=text_muted,
+                    anchor="w",
+                    justify="left",
+                    wraplength=720,
+                    font=("Microsoft YaHei UI", 9),
+                ).pack(fill="x", padx=12, pady=(0, 10))
+
+                def field(parent_widget, row, label, key, helper="", show=None, value_var=None):
+                    field_bg = parent_widget["bg"] if "bg" in parent_widget.keys() else card_bg
+                    tk.Label(parent_widget, text=label, bg=field_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=0, sticky="nw", pady=(7, 2), padx=(0, 12))
+                    value = value_var or tk.StringVar(value=str(provider.get(key, "") or ""))
+                    entry = tk.Entry(parent_widget, textvariable=value, bg="#fffaf3", fg=text_main, relief="flat", show=show, font=("Microsoft YaHei UI", 9), highlightthickness=1, highlightbackground="#ead1a9", highlightcolor=accent)
+                    entry.grid(row=row, column=1, sticky="ew", pady=(4, 2), ipady=7)
+                    if helper:
+                        tk.Label(parent_widget, text=helper, bg=field_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8), wraplength=520).grid(row=row + 1, column=1, sticky="ew", pady=(0, 5))
+                    form_vars[key] = value
+                    return entry
+
+                section_heading(details, "模型选择", "先选文本/多模态聊天模型，TTS 模型不要放在这里")
+                settings_grid = tk.Frame(details, bg=card_bg)
+                settings_grid.pack(fill="x", pady=(0, 8))
+                settings_grid.grid_columnconfigure(1, weight=1)
+                models = [str(model) for model in provider.get("models", []) if str(model).strip()]
+                current_model = str(provider.get("model", "") or provider.get("default_model", "") or "").strip()
+                if current_model and current_model not in models:
+                    models.append(current_model)
+                if not current_model and models:
+                    current_model = models[0]
+                form_vars["model"] = tk.StringVar(value=current_model)
+                form_vars["base_url"] = tk.StringVar(value=str(provider.get("base_url", "") or ""))
+                form_vars["env_key"] = tk.StringVar(value=str(provider.get("env_key", "") or default_env_key(provider_id)))
+                model_recommendation_label = {"label": None}
+                model_status_label = {"label": None}
+
+                def apply_model_selection(model_name):
+                    model_name = str(model_name or "").strip()
+                    if not model_name:
+                        return
+                    provider_record = self.ai_providers["providers"].get(provider_id, {})
+                    provider_models = provider_record.get("models", [])
+                    if not isinstance(provider_models, list):
+                        provider_models = []
+                    if model_name not in [str(item) for item in provider_models]:
+                        provider_models.append(model_name)
+                    provider_record["models"] = provider_models
+                    provider_record["model"] = model_name
+                    self.ai_providers["providers"][provider_id] = self.normalize_ai_provider(provider_id, provider_record)
+                    self.save_ai_providers()
+                    if model_recommendation_label["label"] is not None:
+                        model_recommendation_label["label"].configure(text=recommendation_text_for_model(model_name))
+                    if model_status_label["label"] is not None:
+                        model_status_label["label"].configure(text=f"已选模型：{model_name}。已写入当前厂商配置；测试会使用这个模型。")
+                    self.set_ai_status(f"模型已切换：{self.provider_display_text(provider_id)} / {model_name}")
+
+                tk.Label(settings_grid, text="模型", bg=card_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=(7, 2), padx=(0, 12))
+                model_row = tk.Frame(settings_grid, bg=card_bg)
+                model_row.grid(row=0, column=1, sticky="w", pady=(4, 2))
+                select_box(model_row, form_vars["model"], models or [current_model], width=260, height=34, command=apply_model_selection).pack(side="left")
+                model_status_label["label"] = tk.Label(
+                    model_row,
+                    text=f"已选模型：{current_model or '未选择'}",
+                    bg=card_bg,
+                    fg=sage,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8, "bold"),
+                )
+                model_status_label["label"].pack(side="left", padx=(10, 0))
+                tk.Label(
+                    settings_grid,
+                    text="聊天模型只放文本/多模态对话模型；TTS 模型不放在这里，避免测试误选失败。",
+                    bg=card_bg,
+                    fg=text_muted,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8),
+                    wraplength=620,
+                ).grid(row=1, column=1, sticky="ew", pady=(0, 2))
+                def recommendation_text_for_model(model_name):
+                    preview_provider = dict(provider)
+                    preview_provider["model"] = str(model_name or "").strip()
+                    recommendation = self.provider_model_recommendation(provider_id, preview_provider)
+                    recommendation_lines = [recommendation["summary"]]
+                    if recommendation["model_note"]:
+                        recommendation_lines.append(f"当前模型：{recommendation['model_note']}")
+                    if recommendation["use_cases"]:
+                        recommendation_lines.append("适合：" + " / ".join(recommendation["use_cases"][:4]))
+                    if recommendation["source_checked_at"]:
+                        recommendation_lines.append(f"模型目录来源已核对：{recommendation['source_checked_at']}")
+                    return "\n".join(recommendation_lines)
+
+                recommendation_card = tk.Frame(settings_grid, bg="#fffdf7", highlightthickness=1, highlightbackground="#ead7bd")
+                recommendation_card.grid(row=2, column=1, sticky="ew", pady=(0, 8))
+                tk.Label(
+                    recommendation_card,
+                    text="当前模型说明",
+                    bg="#fffdf7",
+                    fg=text_main,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 9, "bold"),
+                ).pack(fill="x", padx=10, pady=(8, 2))
+                recommendation_label = tk.Label(
+                    recommendation_card,
+                    text=recommendation_text_for_model(form_vars["model"].get()),
+                    bg="#fffdf7",
+                    fg=text_muted,
+                    anchor="w",
+                    justify="left",
+                    font=("Microsoft YaHei UI", 9),
+                    wraplength=620,
+                )
+                recommendation_label.pack(fill="x", padx=10, pady=(0, 8))
+                model_recommendation_label["label"] = recommendation_label
+                catalog = self.provider_model_recommendation(provider_id, provider).get("catalog", [])
+                if catalog:
+                    catalog_frame = tk.Frame(settings_grid, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+                    catalog_frame.grid(row=3, column=1, sticky="ew", pady=(0, 8))
+                    tk.Label(
+                        catalog_frame,
+                        text="模型推荐",
+                        bg="#fff8ee",
+                        fg=text_main,
+                        anchor="w",
+                        font=("Microsoft YaHei UI", 9, "bold"),
+                    ).pack(fill="x", padx=10, pady=(8, 3))
+                    model_list = tk.Frame(catalog_frame, bg="#fff8ee")
+                    model_list.pack(fill="x", padx=10, pady=(0, 8))
+                    model_list.grid_columnconfigure(0, weight=1)
+                    model_list.grid_columnconfigure(1, weight=1)
+                    for idx, item in enumerate(catalog[:6]):
+                        status = str(item.get("status", "") or "")
+                        chip_bg = sage_soft if status == "recommended" else "#fff4df"
+                        chip_fg = sage if status == "recommended" else accent_dark
+                        text = f"{item.get('id', '')}"
+                        if item.get("best_for"):
+                            text += f" · {item.get('best_for')}"
+                        cell = tk.Label(
+                            model_list,
+                            text=text,
+                            bg=chip_bg,
+                            fg=chip_fg,
+                            anchor="w",
+                            padx=9,
+                            pady=6,
+                            font=("Microsoft YaHei UI", 8, "bold" if status == "recommended" else "normal"),
+                            wraplength=310,
+                        )
+                        cell.grid(row=idx // 2, column=idx % 2, sticky="ew", padx=(0 if idx % 2 == 0 else 8, 0), pady=(0, 6))
+                    source_url = str(provider.get("model_source_url", "") or "")
+                    if source_url:
+                        tk.Label(
+                            settings_grid,
+                            text=f"模型来源：{source_url}",
+                            bg=card_bg,
+                            fg=text_muted,
+                            anchor="w",
+                            font=("Microsoft YaHei UI", 8),
+                            wraplength=620,
+                        ).grid(row=4, column=1, sticky="ew", pady=(0, 8))
+
+                advanced_open = {"value": False}
+                section_heading(details, "连接配置", "Base URL、接口格式和环境变量名默认收起，减少误填")
+                advanced_bar = tk.Frame(details, bg=card_bg)
+                advanced_bar.pack(fill="x", pady=(2, 4))
+                advanced_body = tk.Frame(details, bg=card_bg)
+
+                def toggle_advanced():
+                    advanced_open["value"] = not advanced_open["value"]
+                    if advanced_open["value"]:
+                        advanced_body.pack(fill="x", pady=(0, 10))
+                        advanced_button.configure(text="收起高级连接参数")
+                    else:
+                        advanced_body.pack_forget()
+                        advanced_button.configure(text="高级连接参数")
+
+                advanced_button = native_button(advanced_bar, "高级连接参数", toggle_advanced, "ghost")
+                advanced_button.pack(side="left")
+                tk.Label(
+                    advanced_bar,
+                    text="Base URL、接口格式和环境变量名一般不用改，默认收起避免误填。",
+                    bg=card_bg,
+                    fg=text_muted,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8),
+                ).pack(side="left", padx=(10, 0))
+
+                advanced_grid = tk.Frame(advanced_body, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+                advanced_grid.pack(fill="x")
+                advanced_grid.grid_columnconfigure(1, weight=1)
+                base_helper = "这是 API Base URL，不要在浏览器里直接打开；网页控制台请用上方“打开控制台”。" if provider_id == "xiaomi_mimo" else "OpenAI 兼容接口填到 /v1 即可，程序会自动拼 /chat/completions。"
+                field(advanced_grid, 0, "Base URL", "base_url", base_helper, value_var=form_vars["base_url"])
+                tk.Label(advanced_grid, text="接口格式", bg="#fff8ee", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=2, column=0, sticky="w", pady=(7, 2), padx=(0, 12))
+                format_row = tk.Frame(advanced_grid, bg="#fff8ee")
+                format_row.grid(row=2, column=1, sticky="w", pady=(4, 2))
+                select_box(format_row, format_var, ["responses", "chat_completions"], width=190).pack(side="left")
+                field(
+                    advanced_grid,
+                    3,
+                    "环境变量名（可选）",
+                    "env_key",
+                    "这里不是 API Key。只有你使用系统环境变量时才改这里，例如 XIAOMI_API_KEY。",
+                    value_var=form_vars["env_key"],
+                )
+
+                section_heading(details, "本机 Key", "真实 Key 只写入本机加密存储，不显示、不导出")
+                key_section = tk.Frame(details, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+                key_section.pack(fill="x", pady=(10, 8))
+                key_section.grid_columnconfigure(1, weight=1)
+                has_saved_key = self.provider_saved_key(provider)
+                key_entry = None
+                tk.Label(key_section, text="API Key（本机加密）", bg="#fff8ee", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 10, "bold")).grid(row=0, column=0, sticky="nw", padx=(12, 10), pady=(12, 2))
+                if has_saved_key:
+                    saved_bar = tk.Frame(key_section, bg="#fffdf7", highlightthickness=1, highlightbackground="#d9b57f", height=42)
+                    saved_bar.grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=(10, 2))
+                    saved_bar.grid_propagate(False)
+                    tk.Label(saved_bar, text="********", bg="#fffdf7", fg=accent_dark, font=("Microsoft YaHei UI", 14, "bold"), anchor="center").pack(fill="both", expand=True)
+                    tk.Label(key_section, text="已保存的 Key 只显示掩码，不提供复制或显示真实 Key。需要替换时在下面粘贴新 Key 后保存。", bg="#fff8ee", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8), wraplength=620).grid(row=1, column=1, sticky="ew", padx=(0, 12), pady=(0, 6))
+                    tk.Label(key_section, text="替换 Key（可选）", bg="#fff8ee", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=2, column=0, sticky="w", padx=(12, 10), pady=(6, 2))
+                    key_entry = tk.Entry(key_section, textvariable=key_var, bg="#ffffff", fg=text_main, relief="flat", show="*", font=("Microsoft YaHei UI", 10), highlightthickness=1, highlightbackground="#d9b57f", highlightcolor=accent)
+                    key_entry.grid(row=2, column=1, sticky="ew", padx=(0, 12), pady=(6, 2), ipady=8)
+                    key_source_row = 3
+                else:
+                    key_entry = tk.Entry(key_section, textvariable=key_var, bg="#ffffff", fg=text_main, relief="flat", show="*", font=("Microsoft YaHei UI", 10), highlightthickness=1, highlightbackground="#d9b57f", highlightcolor=accent)
+                    key_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=(10, 2), ipady=8)
+                    tk.Label(key_section, text="把平台生成的真实 Key 粘贴在这里。保存后输入框会清空，Key 只保存在本机 DPAPI。", bg="#fff8ee", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8), wraplength=620).grid(row=1, column=1, sticky="ew", padx=(0, 12), pady=(0, 10))
+                    key_source_row = 2
+                key_source_text = "测试会使用上面的本机加密 Key。真实 Key 不会显示，也不会写入日志。" if has_saved_key else "还没有本机加密 Key。请把平台 Key 粘贴到输入框，点“保存 Key”。"
+                tk.Label(
+                    key_section,
+                    text=key_source_text,
+                    bg=sage_soft if has_saved_key else "#fff1df",
+                    fg=sage if has_saved_key else accent_dark,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8, "bold"),
+                    padx=10,
+                    pady=6,
+                ).grid(row=key_source_row, column=1, sticky="ew", padx=(0, 12), pady=(0, 12))
+
+                def pull_key_from_inputs():
+                    api_key = key_var.get().strip()
+                    env_value = form_vars["env_key"].get().strip()
+                    if api_key:
+                        return api_key, "api"
+                    if looks_like_secret(env_value):
+                        form_vars["env_key"].set(default_env_key(provider_id))
+                        return env_value, "env_mistake"
+                    return "", ""
+
+                def save_provider_fields(show_status=True):
+                    api_key, source = pull_key_from_inputs()
+                    self.update_ai_provider_field(provider_id, "base_url", form_vars["base_url"].get())
+                    self.update_ai_provider_field(provider_id, "model", form_vars["model"].get())
+                    self.update_ai_provider_field(provider_id, "env_key", form_vars["env_key"].get())
+                    self.update_ai_provider_field(provider_id, "api_format", format_var.get())
+                    if api_key:
+                        self.save_provider_api_key(provider_id, api_key)
+                        key_var.set("")
+                        if source == "env_mistake":
+                            self.set_ai_status("检测到 Key 填在环境变量名里，已转为本机加密保存。")
+                    elif show_status:
+                        self.set_ai_status(f"配置已保存：{self.provider_display_text(provider_id)}")
+                    return bool(api_key)
+
+                def ai_confirm_parent():
+                    confirm_parent = self.root
+                    try:
+                        if self.panel is not None and self.panel.winfo_exists():
+                            confirm_parent = self.panel
+                    except tk.TclError:
+                        confirm_parent = self.root
+                    return confirm_parent
+
+                def open_key_confirm(title, heading, body, detail_title, detail_body, confirm_text, on_confirm, variant="danger", cancel_status=""):
+                    confirm = tk.Toplevel(self.root)
+                    confirm.title(title)
+                    confirm.configure(bg="#fff8ec")
+                    confirm.attributes("-topmost", True)
+                    confirm.resizable(False, False)
+                    confirm.geometry("440x280")
+                    confirm.transient(ai_confirm_parent())
+
+                    confirm_bg = "#fff8ec"
+                    confirm_card_bg = "#fffdf7"
+                    confirm_border = "#ead7bd"
+                    confirm_danger_bg = "#f8ddd3"
+                    confirm_danger_fg = "#5d3328"
+                    confirm_primary_bg = accent
+                    confirm_primary_fg = "#ffffff"
+                    confirm_primary_active = accent_dark
+
+                    tk.Label(
+                        confirm,
+                        text=heading,
+                        bg=confirm_bg,
+                        fg=text_main,
+                        font=("Microsoft YaHei UI", 14, "bold"),
+                        anchor="w",
+                    ).pack(fill="x", padx=18, pady=(16, 4))
+                    tk.Label(
+                        confirm,
+                        text=body,
+                        bg=confirm_bg,
+                        fg=text_muted,
+                        font=("Microsoft YaHei UI", 9),
+                        anchor="w",
+                        justify="left",
+                        wraplength=390,
+                    ).pack(fill="x", padx=18, pady=(0, 12))
+
+                    card = tk.Frame(confirm, bg=confirm_card_bg, highlightthickness=1, highlightbackground=confirm_border)
+                    card.pack(fill="x", padx=18, pady=(0, 14))
+                    tk.Label(
+                        card,
+                        text=detail_title,
+                        bg=confirm_card_bg,
+                        fg=text_main,
+                        font=("Microsoft YaHei UI", 11, "bold"),
+                        anchor="w",
+                    ).pack(fill="x", padx=12, pady=(10, 2))
+                    tk.Label(
+                        card,
+                        text=detail_body,
+                        bg=confirm_card_bg,
+                        fg=text_muted,
+                        font=("Microsoft YaHei UI", 9),
+                        anchor="w",
+                        justify="left",
+                        wraplength=370,
+                    ).pack(fill="x", padx=12, pady=(0, 10))
+
+                    def confirm_button(parent_widget, text, command, variant="neutral"):
+                        if variant == "danger":
+                            bg, fg, active_bg = confirm_danger_bg, confirm_danger_fg, "#efc2b2"
+                        elif variant == "primary":
+                            bg, fg, active_bg = confirm_primary_bg, confirm_primary_fg, confirm_primary_active
+                        else:
+                            bg, fg, active_bg = "#fff0d2", text_main, "#fbe4bf"
+                        return tk.Button(
+                            parent_widget,
+                            text=text,
+                            command=command,
+                            bg=bg,
+                            fg=fg,
+                            activebackground=active_bg,
+                            activeforeground=fg,
+                            relief="flat",
+                            bd=0,
+                            width=11,
+                            padx=10,
+                            pady=8,
+                            cursor="hand2",
+                            font=("Microsoft YaHei UI", 9, "bold" if variant == "danger" else "normal"),
+                        )
+
+                    def cancel_confirm():
+                        if cancel_status:
+                            self.set_ai_status(cancel_status)
+                        if confirm.winfo_exists():
+                            confirm.destroy()
+
+                    def confirm_action():
+                        if on_confirm():
+                            if confirm.winfo_exists():
+                                confirm.destroy()
+
+                    actions_row = tk.Frame(confirm, bg=confirm_bg)
+                    actions_row.pack(fill="x", padx=18, pady=(0, 16))
+                    confirm_button(actions_row, "取消", cancel_confirm).pack(side="right")
+                    confirm_button(actions_row, confirm_text, confirm_action, variant).pack(side="right", padx=(0, 8))
+                    confirm.bind("<Escape>", lambda _event: cancel_confirm())
+                    confirm.focus_force()
+                    self.center_window(confirm)
+
+                def save_key():
+                    api_key, source = pull_key_from_inputs()
+                    if not api_key:
+                        if self.provider_saved_key(self.ai_providers["providers"].get(provider_id, {})):
+                            self.set_ai_status("Key 已保存在本机。如需替换，请在替换 Key 输入框粘贴新 Key。")
+                        else:
+                            messagebox.showwarning("没有填写 Key", "请把真实 API Key 粘贴到“API Key（本机加密）”输入框。")
+                            if key_entry is not None:
+                                key_entry.focus_set()
+                            self.set_ai_status("Key 未保存：API Key 输入框为空")
+                        return
+
+                    display_name = self.provider_display_text(provider_id)
+
+                    def apply_save_key():
+                        try:
+                            self.save_provider_api_key(provider_id, api_key)
+                            if source == "env_mistake":
+                                self.update_ai_provider_field(provider_id, "env_key", default_env_key(provider_id))
+                            key_var.set("")
+                            self.set_ai_status(f"Key 已加密保存在本机：{display_name}；建议点击测试并启用")
+                            self.say("主人，Key 已经加密保存在本机。")
+                            refresh_provider_selector()
+                            draw_details()
+                            return True
+                        except Exception as exc:
+                            messagebox.showerror("保存失败", str(exc))
+                            self.set_ai_status(f"Key 保存失败：{str(exc)[:80]}")
+                            return False
+
+                    if self.provider_saved_key(self.ai_providers["providers"].get(provider_id, {})):
+                        open_key_confirm(
+                            "替换 Key",
+                            "替换本机 Key",
+                            "当前厂商已经保存过 Key。确认后会用输入框里的新 Key 覆盖旧 Key，旧 Key 不会显示。",
+                            display_name,
+                            "替换后只有本机加密存储会更新；不会写入日志、聊天记录或公开导出包。",
+                            "确认替换",
+                            apply_save_key,
+                            "danger",
+                            "Key 替换已取消",
+                        )
+                        return
+                    apply_save_key()
+
+                def clear_key():
+                    provider_record = self.ai_providers["providers"].get(provider_id, {})
+                    display_name = self.provider_display_text(provider_id, provider_record)
+                    if not self.provider_saved_key(provider_record):
+                        self.set_ai_status(f"没有可清除的本机 Key：{display_name}")
+                        return
+
+                    def apply_clear_key():
+                        self.save_provider_api_key(provider_id, "")
+                        self.set_ai_status(f"Key 已清除：{display_name}")
+                        self.say("主人，这个厂商的本机 Key 已经清除了。")
+                        refresh_provider_selector()
+                        draw_details()
+                        return True
+
+                    open_key_confirm(
+                        "清除 Key",
+                        "清除本机 Key",
+                        "只会清除这个厂商保存在本机的加密 Key，不会修改环境变量，也不会删除聊天记忆。",
+                        display_name,
+                        "清除后，这个厂商会回到未配置 Key 状态；需要继续使用时请重新粘贴并保存 Key。",
+                        "确认清除",
+                        apply_clear_key,
+                        "danger",
+                        "Key 清除已取消",
+                    )
+
+                def activate_provider():
+                    save_provider_fields(show_status=False)
+                    if self.set_active_ai_provider(provider_id):
+                        self.set_ai_status(f"已切换当前厂商：{self.provider_display_text(provider_id)}")
+                        self.say(f"主人，已经切到{self.provider_display_text(provider_id)}。")
+                        switch_page("AI")
+
+                def test_and_enable():
+                    if self.ai_testing_provider_id:
+                        self.test_active_ai_provider_async(provider_id, True)
+                        return
+                    try:
+                        save_provider_fields(show_status=False)
+                    except Exception as exc:
+                        messagebox.showerror("保存失败", str(exc))
+                        self.set_ai_status(f"保存失败：{str(exc)[:80]}")
+                        return
+                    self.set_ai_status(f"正在测试：{self.provider_display_text(provider_id)} / {form_vars['model'].get().strip() or self.provider_model_name(provider)}；成功后会自动设为当前")
+                    self.test_active_ai_provider_async(provider_id, True)
+
+                actions = tk.Frame(details, bg=card_bg)
+                actions.pack(fill="x", pady=(2, 8))
+                native_button(actions, "保存配置", lambda: save_provider_fields(True)).pack(side="left", padx=(0, 8))
+                native_button(actions, "保存 Key", save_key, "neutral").pack(side="left", padx=(0, 8))
+                provider_is_testing = self.ai_testing_provider_id == provider_id
+                test_button = native_button(actions, "测试中..." if provider_is_testing else "测试并启用", test_and_enable, "primary")
+                if provider_is_testing:
+                    test_button.configure(
+                        state="disabled",
+                        bg="#f1ddc5",
+                        fg=text_muted,
+                        activebackground="#f1ddc5",
+                        disabledforeground=text_muted,
+                        cursor="arrow",
+                    )
+                test_button.pack(side="left", padx=(0, 8))
+                native_button(actions, "设为当前", activate_provider).pack(side="left", padx=(0, 8))
+                native_button(actions, "清除 Key", clear_key, "danger").pack(side="left", padx=(12, 0))
+
+                section_heading(details, "测试结果", "失败时按恢复建议检查 Key、模型、Base URL、网络或兼容模式")
+                status = tk.Frame(details, bg="#fffdf7")
+                status.pack(fill="x", pady=(8, 0))
+                tk.Label(status, text="当前状态", bg="#fffdf7", fg=text_main, font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w", padx=12, pady=(10, 2))
+                self.ai_status_label = tk.Label(status, text=self.ai_status_text(), bg="#fffdf7", fg=text_muted, anchor="w", justify="left", font=("Microsoft YaHei UI", 9), wraplength=720)
+                self.ai_status_label.pack(fill="x", padx=12, pady=(0, 8))
+                status_actions = tk.Frame(status, bg="#fffdf7")
+                status_actions.pack(fill="x", padx=12, pady=(0, 10))
+                native_button(status_actions, "刷新状态", lambda: self.set_ai_status("")).pack(side="left", padx=(0, 8))
+                native_button(status_actions, "询问模型", self.ask_active_ai_model_async).pack(side="left", padx=(0, 8))
+                native_button(status_actions, "查看记忆", self.open_memory_window).pack(side="left", padx=(0, 8))
+                native_button(status_actions, "导出记忆", self.export_ai_memory).pack(side="left", padx=(0, 8))
+                native_button(status_actions, "清空记忆", self.clear_ai_memory, "danger").pack(side="left", padx=(8, 0))
+
+            refresh_provider_selector()
+            draw_details()
+
+        def page_reminders(parent):
+            add_card = make_card(parent, "快速记录")
+            title_var = tk.StringVar()
+            due_var = tk.StringVar(value=(datetime.now() + timedelta(hours=1)).strftime("%H:%M"))
+            priority_var = tk.StringVar(value="普通")
+
+            def add_from_form():
+                due_text = due_var.get().strip()
+                if due_text and self.parse_local_datetime(due_text) is None:
+                    messagebox.showerror("时间格式不对", "可填 30分钟后、18:30、今天 18:00、明天 09:00、2026-05-19 18:30。")
+                    return
+                try:
+                    todo = self.add_todo(
+                        title_var.get(),
+                        due_text,
+                        "工作",
+                        priority_var.get(),
+                        "none",
+                        "",
+                        0,
+                    )
+                except ValueError as exc:
+                    messagebox.showerror("添加失败", str(exc))
+                    return
+                title_var.set("")
+                self.todo_selected_id = todo.get("id", "")
+                self.refresh_todo_listbox()
+                self.say(f"主人，我记下了：{todo['title']}。")
+
+            def submit_from_entry(_event=None):
+                add_from_form()
+                return "break"
+
+            fields = tk.Frame(add_card, bg="#fffdf7")
+            fields.pack(fill="x", padx=12, pady=(4, 8))
+            fields.grid_columnconfigure(1, weight=1)
+            fields.grid_columnconfigure(3, weight=0)
+
+            def field_label(row, column, text):
+                tk.Label(fields, text=text, bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).grid(
+                    row=row,
+                    column=column,
+                    sticky="w",
+                    padx=(0 if column == 0 else 14, 6),
+                    pady=3,
+                )
+
+            field_label(0, 0, "事项")
+            title_entry = tk.Entry(fields, textvariable=title_var, bg="#fff9f0", fg=text_main, relief="flat", font=("Microsoft YaHei UI", 9))
+            title_entry.grid(row=0, column=1, columnspan=2, sticky="ew", pady=3, ipady=5)
+            title_entry.bind("<Return>", submit_from_entry)
+            panel_button(fields, "添加", add_from_form, width=68, height=30, variant="primary").grid(row=0, column=3, sticky="e", padx=(10, 0), pady=3)
+
+            field_label(1, 0, "时间")
+            tk.Entry(fields, textvariable=due_var, bg="#fff9f0", fg=text_main, relief="flat", font=("Microsoft YaHei UI", 9)).grid(row=1, column=1, sticky="ew", pady=3, ipady=5)
+            tk.Label(fields, text="重要程度", bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).grid(row=1, column=2, sticky="e", padx=(14, 6), pady=3)
+            select_box(fields, priority_var, TODO_PRIORITIES, width=96, height=28).grid(row=1, column=3, sticky="e", pady=3)
+
+            helper_row = tk.Frame(add_card, bg="#fffdf7")
+            helper_row.pack(fill="x", padx=12, pady=(0, 8))
+            tk.Label(
+                helper_row,
+                text="分类、重复、持续提醒和备注在“详细”里设置。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                font=("Microsoft YaHei UI", 8),
+            ).pack(side="left", fill="x", expand=True)
+            panel_button(helper_row, "详细", lambda: self.open_todo_editor(), width=64, height=28).pack(side="right")
+
+            quick = tk.Frame(add_card, bg="#fffdf7")
+            quick.pack(fill="x", padx=12, pady=(0, 10))
+            tk.Label(quick, text="常用时间", bg="#fffdf7", fg=text_muted, font=("Microsoft YaHei UI", 8, "bold")).pack(side="left", padx=(0, 7))
+            panel_button(quick, "30分钟后", lambda: due_var.set("30分钟后"), width=82).pack(side="left", padx=(0, 7))
+            panel_button(quick, "今天18:00", lambda: due_var.set("18:00"), width=82).pack(side="left")
+            panel_button(quick, "明天09:00", lambda: due_var.set("明天 09:00"), width=86).pack(side="left", padx=7)
+            panel_button(quick, "无提醒", lambda: due_var.set(""), width=70).pack(side="left")
+            panel_button(quick, "清空", lambda: title_var.set(""), width=62, variant="ghost").pack(side="left", padx=7)
+            tk.Label(
+                add_card,
+                text="快速记录默认分类为“工作”、不重复；需要更多规则时用详细编辑。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                font=("Microsoft YaHei UI", 8),
+            ).pack(fill="x", padx=12, pady=(0, 10))
+
+            board = make_card(parent, "本地待办看板")
+            stats = self.todo_stats()
+            stat_grid = tk.Frame(board, bg="#fffdf7")
+            stat_grid.pack(fill="x", padx=12, pady=(0, 8))
+
+            def stat_cell(column, name, value, hint):
+                cell = tk.Frame(stat_grid, bg=subtle_bg, highlightthickness=1, highlightbackground="#ecd6b0")
+                cell.grid(row=0, column=column, sticky="nsew", padx=3)
+                tk.Label(cell, text=name, bg=subtle_bg, fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(anchor="w", padx=8, pady=(5, 0))
+                tk.Label(cell, text=value, bg=subtle_bg, fg=text_main, font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w", padx=8)
+                tk.Label(cell, text=hint, bg=subtle_bg, fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(anchor="w", padx=8, pady=(0, 5))
+
+            for column in range(4):
+                stat_grid.grid_columnconfigure(column, weight=1, uniform="todo_stats")
+            stat_cell(0, "未完成", str(stats["open"]), "本地保存")
+            stat_cell(1, "今日", str(stats["today"]), "今天要看")
+            stat_cell(2, "已超时", str(stats["overdue"]), "到点未处理")
+            stat_cell(3, "重要", str(stats["important"]), "持续提醒")
+
+            list_card = make_card(parent, "待办列表")
+            filter_row = tk.Frame(list_card, bg="#fffdf7")
+            filter_row.pack(fill="x", padx=12, pady=(0, 7))
+            self.todo_search_var = tk.StringVar()
+            self.todo_category_filter_var = tk.StringVar(value="全部")
+            self.todo_focus_filter_var = tk.StringVar(value="全部")
+            self.todo_show_done_var = tk.BooleanVar(value=False)
+
+            search_row = tk.Frame(filter_row, bg="#fffdf7")
+            search_row.pack(fill="x", pady=(0, 6))
+            tk.Label(search_row, text="搜索", bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).pack(side="left", padx=(0, 6))
+            search = tk.Entry(search_row, textvariable=self.todo_search_var, bg="#fff9f0", fg=text_main, relief="flat", font=("Microsoft YaHei UI", 9))
+            search.pack(side="left", fill="x", expand=True, ipady=5)
+
+            filter_controls = tk.Frame(filter_row, bg="#fffdf7")
+            filter_controls.pack(fill="x")
+            tk.Label(filter_controls, text="分类", bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).pack(side="left", padx=(0, 6))
+            select_box(filter_controls, self.todo_category_filter_var, ["全部", *TODO_CATEGORIES], width=112, height=28).pack(side="left", padx=(0, 12))
+            tk.Label(filter_controls, text="焦点", bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).pack(side="left", padx=(0, 6))
+            select_box(filter_controls, self.todo_focus_filter_var, ["全部", "今日", "逾期", "重要"], width=90, height=28).pack(side="left", padx=(0, 12))
+            tk.Checkbutton(
+                filter_controls,
+                text="显示已完成",
+                variable=self.todo_show_done_var,
+                command=self.refresh_todo_listbox,
+                bg="#fffdf7",
+                activebackground="#fffdf7",
+                fg=text_muted,
+                selectcolor="#efe4cf",
+            ).pack(side="left")
+            tk.Label(
+                filter_controls,
+                text="双击待办可进入详细编辑",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="e",
+                font=("Microsoft YaHei UI", 8),
+            ).pack(side="right")
+            self.todo_search_var.trace_add("write", lambda *_args: self.refresh_todo_listbox())
+            self.todo_category_filter_var.trace_add("write", lambda *_args: self.refresh_todo_listbox())
+            self.todo_focus_filter_var.trace_add("write", lambda *_args: self.refresh_todo_listbox())
+
+            list_frame = tk.Frame(list_card, bg="#fffdf7", height=276)
+            list_frame.pack(fill="x", padx=12, pady=(0, 8))
+            list_frame.pack_propagate(False)
+            list_canvas = tk.Canvas(list_frame, height=270, bg="#fffdf7", bd=0, highlightthickness=0)
+            list_scrollbar = tk.Scrollbar(list_frame, orient="vertical", command=list_canvas.yview, bd=0, width=10)
+            list_inner = tk.Frame(list_canvas, bg="#fffdf7")
+            list_window = list_canvas.create_window((0, 0), window=list_inner, anchor="nw")
+            list_canvas.configure(yscrollcommand=list_scrollbar.set)
+            list_canvas.pack(side="left", fill="both", expand=True)
+            list_scrollbar.pack(side="right", fill="y")
+            self.todo_listbox = None
+            self.todo_list_canvas = list_canvas
+            self.todo_list_container = list_inner
+
+            def refresh_todo_canvas(_event=None):
+                list_canvas.configure(scrollregion=list_canvas.bbox("all"))
+
+            def fit_todo_canvas(event):
+                list_canvas.itemconfigure(list_window, width=event.width)
+                refresh_todo_canvas()
+
+            def wheel_todo_cards(event):
+                return self.scroll_todo_cards(event)
+
+            list_inner.bind("<Configure>", refresh_todo_canvas)
+            list_canvas.bind("<Configure>", fit_todo_canvas)
+            list_canvas.bind("<MouseWheel>", wheel_todo_cards)
+            list_inner.bind("<MouseWheel>", wheel_todo_cards)
+
+            def complete_selected():
+                todo = self.selected_todo()
+                if todo:
+                    if todo.get("status") == "done":
+                        self.reopen_todo(todo["id"])
+                    else:
+                        self.complete_todo(todo["id"])
+
+            def snooze_selected(minutes):
+                todo = self.selected_todo()
+                if todo:
+                    self.snooze_todo(todo["id"], minutes)
+
+            def edit_selected():
+                todo = self.selected_todo()
+                if todo:
+                    self.open_todo_editor(todo)
+
+            def pin_selected():
+                todo = self.selected_todo()
+                if todo:
+                    self.toggle_todo_pin(todo["id"])
+
+            def delete_selected():
+                todo = self.selected_todo()
+                if todo:
+                    self.delete_todo(todo["id"])
+
+            actions = tk.Frame(list_card, bg="#fffdf7")
+            actions.pack(fill="x", padx=12, pady=(0, 8))
+            primary_actions = tk.Frame(actions, bg="#fffdf7")
+            primary_actions.pack(fill="x", pady=(0, 6))
+            panel_button(primary_actions, "完成/重开", complete_selected, width=88, variant="primary").pack(side="left")
+            panel_button(primary_actions, "编辑", edit_selected, width=60).pack(side="left", padx=6)
+            panel_button(primary_actions, "置顶", pin_selected, width=60).pack(side="left")
+            panel_button(primary_actions, "时间轴", self.open_todo_history_window, width=70).pack(side="right")
+
+            snooze_actions = tk.Frame(actions, bg="#fffdf7")
+            snooze_actions.pack(fill="x")
+            tk.Label(snooze_actions, text="稍后提醒", bg="#fffdf7", fg=text_muted, font=("Microsoft YaHei UI", 8, "bold")).pack(side="left", padx=(0, 7))
+            panel_button(snooze_actions, "15分钟", lambda: snooze_selected(15), width=68).pack(side="left", padx=(0, 6))
+            panel_button(snooze_actions, "1小时", lambda: snooze_selected(60), width=62).pack(side="left")
+            panel_button(snooze_actions, "明天", lambda: snooze_selected(24 * 60), width=60).pack(side="left", padx=6)
+            panel_button(snooze_actions, "删除", delete_selected, width=60, variant="danger").pack(side="right")
+            detail = tk.Frame(list_card, bg=subtle_bg, highlightthickness=1, highlightbackground="#ecd6b0")
+            detail.pack(fill="x", padx=12, pady=(0, 8))
+            tk.Label(detail, text="当前详情", bg=subtle_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(fill="x", padx=10, pady=(7, 0))
+            self.todo_detail_label = tk.Label(
+                detail,
+                text="",
+                bg=subtle_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=610,
+                font=("Microsoft YaHei UI", 8),
+            )
+            self.todo_detail_label.pack(fill="x", padx=10, pady=(2, 8))
+            self.todo_status_label = tk.Label(list_card, text="", bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8))
+            self.todo_status_label.pack(fill="x", padx=12, pady=(0, 4))
+            self.todo_timeline_label = tk.Label(
+                list_card,
+                text="",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                font=("Microsoft YaHei UI", 8),
+            )
+            self.todo_timeline_label.pack(fill="x", padx=12, pady=(0, 10))
+            self.refresh_todo_listbox()
+
+        def page_appearance(parent):
+            def current_color_preset_label():
+                fill = self.settings.get("bubble_fill")
+                outline = self.settings.get("bubble_outline")
+                text = self.settings.get("bubble_text")
+                for preset_label, preset_fill, preset_outline, preset_text in BUBBLE_COLOR_PRESETS.values():
+                    if (fill, outline, text) == (preset_fill, preset_outline, preset_text):
+                        return preset_label
+                return "自定义"
+
+            overview = make_card(parent, "外观总览")
+            overview_grid = tk.Frame(overview, bg=card_bg)
+            overview_grid.pack(fill="x", padx=14, pady=(2, 12))
+            for col in range(4):
+                overview_grid.grid_columnconfigure(col, weight=1, uniform="appearance_overview")
+            overview_values = {}
+            overview_hints = {}
+
+            def appearance_metric(column, name, bg=None):
+                fill = bg or subtle_bg
+                cell = tk.Frame(overview_grid, bg=fill, highlightthickness=1, highlightbackground="#ead7bd")
+                cell.grid(row=0, column=column, sticky="nsew", padx=4, pady=2)
+                tk.Label(cell, text=name, bg=fill, fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(anchor="w", padx=10, pady=(7, 0))
+                value_label = tk.Label(cell, text="", bg=fill, fg=text_main, font=("Microsoft YaHei UI", 12, "bold"), anchor="w", justify="left")
+                value_label.pack(anchor="w", fill="x", padx=10, pady=(1, 0))
+                hint_label = tk.Label(cell, text="", bg=fill, fg=text_muted, font=("Microsoft YaHei UI", 8), anchor="w", justify="left", wraplength=150)
+                hint_label.pack(anchor="w", fill="x", padx=10, pady=(1, 7))
+                overview_values[name] = value_label
+                overview_hints[name] = hint_label
+
+            appearance_metric(0, "体型", sage_soft)
+            appearance_metric(1, "透明度")
+            appearance_metric(2, "窗口")
+            appearance_metric(3, "气泡")
+
+            def update_overview():
+                overview_values["体型"].configure(text=f"{int(float(self.settings.get('scale', 0.55)) * 100)}%")
+                overview_hints["体型"].configure(text="当前显示大小")
+                overview_values["透明度"].configure(text=f"{int(float(self.settings.get('opacity', 1.0)) * 100)}%")
+                overview_hints["透明度"].configure(text="窗口整体透明")
+                overview_values["窗口"].configure(text="置顶" if self.settings.get("always_on_top") else "普通")
+                overview_hints["窗口"].configure(text="控制面板内可切换")
+                overview_values["气泡"].configure(text=current_color_preset_label())
+                overview_hints["气泡"].configure(text=BUBBLE_STYLES.get(self.settings.get("bubble_style"), "默认"))
+
+            def update_scale_preview():
+                self.reload_frames()
+                update_overview()
+
+            def update_opacity_preview():
+                self.root.attributes("-alpha", self.settings["opacity"])
+                update_overview()
+
+            def update_topmost_preview():
+                self.root.attributes("-topmost", self.settings["always_on_top"])
+                update_overview()
+
+            update_overview()
+
+            card = make_card(parent, "窗口行为")
+            add_slider(card, "体型", "scale", 0.35, 0.80, 0.01, lambda v: f"{int(v * 100)}%", update_scale_preview)
+            add_slider(card, "透明度", "opacity", 0.35, 1.0, 0.05, lambda v: f"{int(v * 100)}%", update_opacity_preview)
+            add_check(card, "限制在屏幕内", "keep_on_screen", lambda: self.move_to(self.root.winfo_x(), self.root.winfo_y()))
+            add_check(card, "窗口置顶", "always_on_top", update_topmost_preview)
+            add_check(card, "多屏拖动保持同一大小", "lock_size_across_monitors", lambda: self.move_to(self.root.winfo_x(), self.root.winfo_y()))
+
+            color_card = make_card(parent, "对话框颜色")
+            tk.Label(
+                color_card,
+                text="颜色会立即预览到桌面气泡；底部保存后才会固化到配置。",
+                bg=card_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=680,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(0, 8))
+
+            preview_row = tk.Frame(color_card, bg="#fffdf7")
+            preview_row.pack(fill="x", padx=12, pady=(0, 10))
+            preview_canvas = tk.Canvas(preview_row, width=250, height=72, bg="#fffdf7", bd=0, highlightthickness=0)
+            preview_canvas.pack(side="left")
+            color_info = tk.Frame(preview_row, bg="#fffdf7")
+            color_info.pack(side="left", fill="x", expand=True, padx=(12, 0))
+            color_status = tk.Label(
+                color_info,
+                text="",
+                bg="#fffdf7",
+                fg=text_main,
+                anchor="w",
+                font=("Microsoft YaHei UI", 10, "bold"),
+            )
+            color_status.pack(fill="x")
+            color_hint = tk.Label(
+                color_info,
+                text="",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=410,
+                font=("Microsoft YaHei UI", 8),
+            )
+            color_hint.pack(fill="x", pady=(2, 0))
+            color_values = tk.Frame(color_info, bg="#fffdf7")
+            color_values.pack(fill="x", pady=(7, 0))
+            color_value_labels = {}
+            for label, key in [("背景", "bubble_fill"), ("描边", "bubble_outline"), ("文字", "bubble_text")]:
+                value = tk.Label(
+                    color_values,
+                    text="",
+                    bg="#fff7e9",
+                    fg=text_muted,
+                    highlightthickness=1,
+                    highlightbackground="#ead7bd",
+                    font=("Microsoft YaHei UI", 8),
+                    padx=7,
+                    pady=3,
+                )
+                value.pack(side="left", padx=(0, 6))
+                color_value_labels[key] = (label, value)
+
+            preset_tiles = []
+
+            def draw_preview():
+                fill = self.settings.get("bubble_fill", BUBBLE_FILL)
+                outline = self.settings.get("bubble_outline", BUBBLE_OUTLINE)
+                text = self.settings.get("bubble_text", BUBBLE_TEXT)
+                preview_canvas.delete("all")
+                draw_round_rect(preview_canvas, 12, 10, 226, 54, 15, fill, outline)
+                preview_canvas.create_text(28, 31, text="这样看着舒服。", fill=text, anchor="w", font=("Microsoft YaHei UI", 10, "bold"))
+                preview_canvas.create_polygon(66, 54, 78, 66, 92, 54, fill=fill, outline=outline)
+
+            def refresh_color_state():
+                preset_label = current_color_preset_label()
+                fill = self.settings.get("bubble_fill", BUBBLE_FILL)
+                outline = self.settings.get("bubble_outline", BUBBLE_OUTLINE)
+                text = self.settings.get("bubble_text", BUBBLE_TEXT)
+                color_status.configure(text=f"当前气泡：{preset_label}")
+                color_hint.configure(text=f"{BUBBLE_STYLES.get(self.settings.get('bubble_style'), '默认')} / 背景 {fill} / 描边 {outline} / 文字 {text}")
+                for key, (label, widget) in color_value_labels.items():
+                    widget.configure(text=f"{label} {self.settings.get(key, '')}")
+                draw_preview()
+                update_overview()
+                for tile, status_label, preset in preset_tiles:
+                    _preset_label, preset_fill, preset_outline, preset_text = preset
+                    selected = (fill, outline, text) == (preset_fill, preset_outline, preset_text)
+                    tile_bg = "#fff1df" if selected else "#fff8ec"
+                    tile.configure(bg=tile_bg, highlightbackground=accent if selected else "#ead7bd")
+                    status_label.configure(text="当前" if selected else "预设", bg=tile_bg, fg=accent_dark if selected else text_muted)
+
+            def preview():
+                self.hide_bubble()
+                self.say("这样看着舒服。")
+                refresh_color_state()
+
+            def apply_color(preset):
+                _label, fill, outline, text = preset
+                self.settings["bubble_fill"] = fill
+                self.settings["bubble_outline"] = outline
+                self.settings["bubble_text"] = text
+                preview()
+
+            def bind_click_tree(widget, command):
+                widget.bind("<Button-1>", lambda _event: command())
+                for child in widget.winfo_children():
+                    bind_click_tree(child, command)
+
+            preset_grid = tk.Frame(color_card, bg="#fffdf7")
+            preset_grid.pack(fill="x", padx=8, pady=(0, 10))
+            for col in range(3):
+                preset_grid.grid_columnconfigure(col, weight=1, uniform="bubble_color_presets")
+
+            for index, preset in enumerate(BUBBLE_COLOR_PRESETS.values()):
+                label, fill, outline, text = preset
+                tile = tk.Frame(preset_grid, bg="#fff8ec", highlightthickness=1, highlightbackground="#ead7bd", cursor="hand2")
+                tile.grid(row=index // 3, column=index % 3, sticky="nsew", padx=4, pady=4)
+                head = tk.Frame(tile, bg="#fff8ec", cursor="hand2")
+                head.pack(fill="x", padx=9, pady=(8, 2))
+                tk.Label(head, text=label, bg="#fff8ec", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold"), cursor="hand2").pack(side="left", fill="x", expand=True)
+                status_label = tk.Label(head, text="预设", bg="#fff8ec", fg=text_muted, anchor="e", font=("Microsoft YaHei UI", 8), cursor="hand2")
+                status_label.pack(side="right")
+                sample = tk.Canvas(tile, width=172, height=39, bg="#fff8ec", bd=0, highlightthickness=0, cursor="hand2")
+                sample.pack(fill="x", padx=9, pady=(1, 8))
+                draw_round_rect(sample, 4, 4, 146, 31, 10, fill, outline)
+                sample.create_text(17, 18, text="主人，我在。", fill=text, anchor="w", font=("Microsoft YaHei UI", 8, "bold"))
+                sample.create_oval(152, 8, 164, 20, fill=outline, outline="")
+                sample.create_oval(154, 22, 162, 30, fill=fill, outline=outline)
+                preset_tiles.append((tile, status_label, preset))
+                bind_click_tree(tile, lambda p=preset: apply_color(p))
+
+            custom = tk.Frame(color_card, bg="#fffdf7")
+            custom.pack(fill="x", padx=12, pady=(0, 12))
+
+            def pick_color(key, title):
+                selected = colorchooser.askcolor(color=self.settings[key], title=title)
+                color = selected[1]
+                if color and is_hex_color(color):
+                    self.settings[key] = color
+                    preview()
+
+            panel_button(custom, "预览气泡", preview, width=86).pack(side="left")
+            panel_button(custom, "背景", lambda: pick_color("bubble_fill", "选择对话框背景色"), width=72).pack(side="left", padx=(8, 0))
+            panel_button(custom, "描边", lambda: pick_color("bubble_outline", "选择对话框描边色"), width=72).pack(side="left", padx=8)
+            panel_button(custom, "文字", lambda: pick_color("bubble_text", "选择对话框文字色"), width=72).pack(side="left")
+            refresh_color_state()
+
+        def page_family(parent):
+            self.pet_family = self.load_pet_family()
+            card = make_card(parent, "家庭宠物")
+            tk.Label(
+                card,
+                text="可以在这里切换已生成动作图的家人形象；参考已归档但未生成动作图的，会先显示待生成状态。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                wraplength=610,
+                justify="left",
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            import_row = tk.Frame(card, bg="#fffdf7")
+            import_row.pack(fill="x", padx=12, pady=(0, 10))
+            panel_button(import_row, "新增宠物", lambda: self.import_basic_pet_assets(lambda: switch_page("形象")), width=88, height=30, variant="primary").pack(side="left")
+            tk.Label(
+                import_row,
+                text="上传主形象图，再逐项上传 5 个中文基础动作；全部通过校验后自动组装并加入切换列表。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                font=("Microsoft YaHei UI", 8),
+            ).pack(side="left", padx=10)
+            current_id = self.settings.get("current_pet_id", "danhuang")
+            ready_pets = [pet for pet in self.pet_family.get("pets", []) if self.pet_ready(pet)]
+            pending_pets = [pet for pet in self.pet_family.get("pets", []) if not self.pet_ready(pet)]
+            current_pet = self.pet_by_id(current_id)
+            ordered_ready = []
+            if self.pet_ready(current_pet):
+                ordered_ready.append(current_pet)
+            ordered_ready.extend([pet for pet in ready_pets if pet.get("id") != current_id])
+            ordered_all = ordered_ready + [pet for pet in pending_pets if pet.get("id") != current_id]
+
+            def keep_photo(photo):
+                if photo:
+                    if not hasattr(panel, "_image_refs"):
+                        panel._image_refs = []
+                    panel._image_refs.append(photo)
+                return photo
+
+            def pet_preview_widget(parent_widget, pet, size=(72, 72), bg="#fff6e8"):
+                holder = tk.Frame(parent_widget, bg=bg, width=size[0] + 12, height=size[1] + 12, highlightthickness=1, highlightbackground="#ead1a8")
+                holder.pack_propagate(False)
+                photo = keep_photo(self.pet_main_photo(pet, size=size))
+                if photo:
+                    tk.Label(holder, image=photo, bg=bg).pack(expand=True)
+                else:
+                    tk.Label(holder, text="无图", bg=bg, fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(expand=True)
+                return holder
+
+            summary = tk.Frame(card, bg="#fff3dc", highlightthickness=1, highlightbackground="#efd3a3")
+            summary.pack(fill="x", padx=12, pady=(0, 10))
+            summary_top = tk.Frame(summary, bg="#fff3dc")
+            summary_top.pack(fill="x")
+            tk.Label(
+                summary_top,
+                text=f"当前：{current_pet.get('display_name', '蛋黄')}  |  可切换：{len(ready_pets)}  |  待生成：{len(pending_pets)}",
+                bg="#fff3dc",
+                fg=text_main,
+                anchor="w",
+                font=("Microsoft YaHei UI", 10, "bold"),
+            ).pack(side="left", fill="x", expand=True, padx=10, pady=(9, 4))
+            tk.Label(
+                summary_top,
+                text="当前优先，更多形象在下方列表",
+                bg="#fff3dc",
+                fg=text_muted,
+                anchor="e",
+                font=("Microsoft YaHei UI", 8),
+            ).pack(side="right", padx=10, pady=(9, 4))
+            switch_grid = tk.Frame(summary, bg="#fff3dc")
+            switch_grid.pack(fill="x", padx=10, pady=(0, 9))
+            for col in range(4):
+                switch_grid.grid_columnconfigure(col, weight=1, uniform="pet_switch")
+            visible_ready = ordered_ready[:6]
+            for index, pet in enumerate(visible_ready):
+                label = pet.get("display_name", pet.get("id", ""))
+                is_current = pet.get("id") == current_id
+                text = f"当前 · {label}" if is_current else label
+                if is_current:
+                    command = lambda pet_id=pet.get("id"), fallback=label: self.say(f"主人，现在就是{self.pet_by_id(pet_id).get('display_name', fallback)}。")
+                else:
+                    command = lambda pet_id=pet.get("id"): (self.switch_pet(pet_id), switch_page("形象"))
+                panel_button(
+                    switch_grid,
+                    text,
+                    command,
+                    width=132,
+                    height=28,
+                    variant="neutral",
+                    selected=is_current,
+                ).grid(row=index // 4, column=index % 4, sticky="ew", padx=4, pady=4)
+            if len(ordered_ready) > len(visible_ready):
+                panel_button(
+                    switch_grid,
+                    f"下方还有 {len(ordered_ready) - len(visible_ready)} 个",
+                    lambda: self.say("主人，更多家人形象在下面的列表里。"),
+                    width=132,
+                    height=28,
+                    variant="ghost",
+                ).grid(row=len(visible_ready) // 4, column=len(visible_ready) % 4, sticky="ew", padx=4, pady=4)
+
+            current_visual = tk.Frame(card, bg="#fffaf1", highlightthickness=1, highlightbackground="#ecd2a8")
+            current_visual.pack(fill="x", padx=12, pady=(0, 10))
+            pet_preview_widget(current_visual, current_pet, size=(106, 106), bg="#fff4df").pack(side="left", padx=12, pady=12)
+            visual_info = tk.Frame(current_visual, bg="#fffaf1")
+            visual_info.pack(side="left", fill="both", expand=True, padx=(0, 12), pady=12)
+            tk.Label(
+                visual_info,
+                text=f"{current_pet.get('display_name', '蛋黄')} · 主像素形象",
+                bg="#fffaf1",
+                fg=text_main,
+                anchor="w",
+                font=("Microsoft YaHei UI", 12, "bold"),
+            ).pack(fill="x")
+            current_refs = [ref for ref in current_pet.get("reference_images", []) if self.is_user_reference_image(ref) and self.pet_asset_path(ref) and self.pet_asset_path(ref).exists()]
+            identity_path = self.pet_identity_image_path(current_pet)
+            identity_note = "已单独设置" if identity_path else "未单独设置，使用动作精灵图待机帧"
+            tk.Label(
+                visual_info,
+                text=f"分类：{self.pet_category_label(current_pet)} | 主像素图：{identity_note} | 现实照片 {len(current_refs)} 张 | 动作包：{'完整动作' if current_pet.get('action_pack_level') == 'full' else ('基础动作' if current_pet.get('action_pack_level') == 'basic' else '参考')}",
+                bg="#fffaf1",
+                fg=text_muted,
+                anchor="w",
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", pady=(4, 8))
+            visual_actions = tk.Frame(visual_info, bg="#fffaf1")
+            visual_actions.pack(fill="x")
+            panel_button(visual_actions, "更换主像素图", lambda pet_id=current_pet.get("id"): self.choose_pet_identity_image(pet_id, lambda: switch_page("形象")), width=110, height=28, variant="primary").pack(side="left")
+            panel_button(visual_actions, "删除主像素图", lambda pet_id=current_pet.get("id"): self.clear_pet_identity_image(pet_id, lambda: switch_page("形象")), width=104, height=28, variant="danger").pack(side="left", padx=8)
+            panel_button(visual_actions, "添加现实照片", lambda pet_id=current_pet.get("id"): self.add_reference_images_to_pet(pet_id, lambda: switch_page("形象")), width=104, height=28).pack(side="left")
+            panel_button(visual_actions, "管理动作", lambda: switch_page("动作"), width=82, height=28).pack(side="left", padx=8)
+            panel_button(visual_actions, "编辑资料", lambda pet_id=current_pet.get("id"): self.open_pet_profile_editor(pet_id, lambda: switch_page("形象")), width=82, height=28).pack(side="left")
+
+            list_card = make_card(parent, "家人形象列表")
+            tk.Label(
+                list_card,
+                text="当前形象排在最前；操作放在卡片内容区，避免窄列把按钮文字挤成竖排。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=620,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+
+            def row_chip(parent_widget, text, fill, fg):
+                return tk.Label(
+                    parent_widget,
+                    text=text,
+                    bg=fill,
+                    fg=fg,
+                    padx=8,
+                    pady=3,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8, "bold"),
+                )
+
+            for pet in ordered_all:
+                is_current = pet.get("id") == current_id
+                row_bg = "#fff0d7" if is_current else subtle_bg
+                row = tk.Frame(list_card, bg=row_bg, highlightthickness=1, highlightbackground=accent if is_current else "#ecd6b0")
+                row.pack(fill="x", padx=12, pady=(0, 8))
+                row.grid_columnconfigure(1, weight=1)
+                ready = self.pet_ready(pet)
+                name = pet.get("display_name", pet.get("id", ""))
+                level_text = "完整动作" if pet.get("action_pack_level") == "full" else ("基础动作" if pet.get("action_pack_level") == "basic" else "参考")
+                status = "当前" if pet.get("id") == current_id else ("可切换" if ready else "待生成动作图")
+                refs_count = len([ref for ref in pet.get("reference_images", []) if self.is_user_reference_image(ref) and self.pet_asset_path(ref) and self.pet_asset_path(ref).exists()])
+                actions_count = len(pet.get("supported_actions", [])) if isinstance(pet.get("supported_actions"), list) else 0
+                species_text = str(pet.get("species", "") or "宠物")
+                category_text = self.pet_category_label(pet)
+                meta_text = f"{category_text} · {species_text} · 照片 {refs_count} · 动作 {actions_count}"
+                if len(meta_text) > 38:
+                    meta_text = meta_text[:35].rstrip() + "..."
+                pet_preview_widget(row, pet, size=(58, 58), bg="#fff9ef" if not is_current else "#fff4df").grid(row=0, column=0, padx=(10, 8), pady=8, sticky="w")
+                text_box = tk.Frame(row, bg=row_bg)
+                text_box.grid(row=0, column=1, sticky="ew", padx=(4, 10), pady=8)
+                tk.Label(text_box, text=name, bg=row_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 11, "bold")).pack(fill="x")
+                meta = tk.Frame(text_box, bg=row_bg)
+                meta.pack(fill="x", pady=(4, 2))
+                status_fill = accent if is_current else (sage_soft if ready else "#fff1df")
+                status_fg = "#ffffff" if is_current else (sage if ready else accent_dark)
+                row_chip(meta, status, status_fill, status_fg).pack(side="left", padx=(0, 6))
+                row_chip(meta, level_text, "#fff8ee", accent_dark).pack(side="left", padx=(0, 6))
+                row_chip(meta, meta_text, "#fffdf7", text_muted).pack(side="left")
+                tk.Label(
+                    text_box,
+                    text=str(pet.get("notes", "") or "暂无描述。"),
+                    bg=row_bg,
+                    fg=text_muted,
+                    anchor="w",
+                    justify="left",
+                    wraplength=470,
+                    font=("Microsoft YaHei UI", 8),
+                ).pack(fill="x", pady=(2, 0))
+                actions_box = tk.Frame(text_box, bg=row_bg)
+                actions_box.pack(fill="x", pady=(7, 0))
+                if is_current:
+                    panel_button(actions_box, "当前", lambda pet_id=pet.get("id"): self.say(f"主人，现在就是{self.pet_by_id(pet_id).get('display_name', name)}。"), width=64, height=26, variant="primary").pack(side="left")
+                    panel_button(actions_box, "编辑资料", lambda pet_id=pet.get("id"): self.open_pet_profile_editor(pet_id, lambda: switch_page("形象")), width=82, height=26, variant="neutral").pack(side="left", padx=(8, 0))
+                elif ready:
+                    panel_button(actions_box, "切换", lambda pet_id=pet.get("id"): (self.switch_pet(pet_id), switch_page("形象")), width=64, height=26, variant="primary").pack(side="left")
+                    panel_button(actions_box, "编辑资料", lambda pet_id=pet.get("id"): self.open_pet_profile_editor(pet_id, lambda: switch_page("形象")), width=82, height=26, variant="neutral").pack(side="left", padx=(8, 0))
+                else:
+                    panel_button(actions_box, "待生成", lambda pet_id=pet.get("id"): self.say(f"{self.pet_by_id(pet_id).get('display_name', '这个小家伙')}还需要先生成动作图。"), width=76, height=26).pack(side="left")
+                    panel_button(actions_box, "编辑资料", lambda pet_id=pet.get("id"): self.open_pet_profile_editor(pet_id, lambda: switch_page("形象")), width=82, height=26, variant="neutral").pack(side="left", padx=(8, 0))
+
+            refs = make_card(parent, "用户上传现实照片")
+            ref_text = "这里只展示现实照片和后续补充参考，不混入主像素图、身份基准图、contact sheet 或精灵图。"
+            tk.Label(refs, text=ref_text, bg="#fffdf7", fg=text_muted, anchor="w", justify="left", wraplength=620, font=("Microsoft YaHei UI", 9)).pack(fill="x", padx=12, pady=(2, 10))
+            refs_grid = tk.Frame(refs, bg="#fffdf7")
+            refs_grid.pack(fill="x", padx=12, pady=(0, 10))
+            existing_refs = [ref for ref in current_pet.get("reference_images", []) if self.is_user_reference_image(ref) and self.pet_asset_path(ref) and self.pet_asset_path(ref).exists()]
+            for idx, ref in enumerate(existing_refs[:8]):
+                box = tk.Frame(refs_grid, bg="#fff4df", highlightthickness=1, highlightbackground="#ead7bd")
+                box.grid(row=idx // 4, column=idx % 4, sticky="ew", padx=(0 if idx % 4 == 0 else 6, 0), pady=(0, 6))
+                photo = keep_photo(self.image_thumbnail_photo(ref, size=(120, 74), pixel=False))
+                if photo:
+                    tk.Label(box, image=photo, bg="#fff4df").pack(padx=5, pady=(5, 2))
+                tk.Label(box, text=Path(str(ref)).name[:18], bg="#fff4df", fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=5, pady=(0, 3))
+                panel_button(
+                    box,
+                    "删除",
+                    lambda item=ref, pet_id=current_pet.get("id"): self.remove_reference_image_from_pet(pet_id, item, lambda: switch_page("形象")),
+                    width=58,
+                    height=24,
+                    variant="danger",
+                ).pack(pady=(0, 5))
+            if not existing_refs:
+                tk.Label(refs_grid, text="当前形象还没有归档图片。", bg="#fffdf7", fg=text_muted, font=("Microsoft YaHei UI", 9)).grid(row=0, column=0, sticky="w")
+            refs_actions = tk.Frame(refs, bg="#fffdf7")
+            refs_actions.pack(fill="x", padx=12, pady=(0, 12))
+            panel_button(refs_actions, "添加现实照片", lambda pet_id=current_pet.get("id"): self.add_reference_images_to_pet(pet_id, lambda: switch_page("形象")), width=104, height=28, variant="primary").pack(side="left")
+            panel_button(refs_actions, "新增宠物", lambda: self.import_basic_pet_assets(lambda: switch_page("形象")), width=82, height=28).pack(side="left", padx=8)
+
+        def page_pet_stories(parent):
+            self.pet_family = self.load_pet_family()
+            pets = self.pet_family.get("pets", [])
+            known_ids = {pet.get("id") for pet in pets}
+            current_pet_id = self.active_pet.get("id", self.settings.get("current_pet_id", "danhuang"))
+            selected_default = getattr(self, "story_selected_pet_id", current_pet_id)
+            if selected_default not in known_ids:
+                selected_default = current_pet_id
+            selected_id = tk.StringVar(value=selected_default)
+            ordered_pets = []
+            current_pet = self.pet_by_id(current_pet_id)
+            if current_pet.get("id") in known_ids:
+                ordered_pets.append(current_pet)
+            ordered_pets.extend([pet for pet in pets if pet.get("id") != current_pet_id])
+
+            picker_card = make_card(parent, "主人与宠物故事")
+            tk.Label(
+                picker_card,
+                text="这里记录你和每个宠物的故事、照片和思念日记。AI 聊天时会读取当前宠物的故事摘要，让回复更像它。",
+                bg=card_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=700,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            pet_buttons = tk.Frame(picker_card, bg=card_bg)
+            pet_buttons.pack(fill="x", padx=12, pady=(0, 12))
+            detail_holder = tk.Frame(parent, bg=panel_bg)
+            detail_holder.pack(fill="x")
+
+            def choose_pet(pet_id):
+                self.story_selected_pet_id = pet_id
+                selected_id.set(pet_id)
+                draw_pet_buttons()
+                render_detail()
+
+            def draw_pet_buttons():
+                for child in pet_buttons.winfo_children():
+                    child.destroy()
+                for pet in ordered_pets:
+                    label = pet.get("display_name", pet.get("id", "宠物"))
+                    selected = pet.get("id") == selected_id.get()
+                    panel_button(
+                        pet_buttons,
+                        label,
+                        lambda pid=pet.get("id"): choose_pet(pid),
+                        width=92,
+                        height=30,
+                        selected=selected,
+                    ).pack(side="left", padx=(0, 8), pady=2)
+
+            def open_story_editor(pet_id, existing=None, initial_type="story"):
+                pet = self.pet_by_id(pet_id)
+                entry = self.normalize_story_entry(existing or {})
+                if existing is None:
+                    initial_type = str(initial_type or "story")
+                    entry["type"] = initial_type if initial_type in {"story", "diary", "miss"} else "story"
+                is_edit = existing is not None
+                type_labels = {"故事": "story", "日记": "diary", "思念记录": "miss"}
+                reverse_type_labels = {value: label for label, value in type_labels.items()}
+                type_hints = {
+                    "story": "写一篇和它共同经历过的事。正文会自动段首缩进，图片会复制到当前宠物档案里。",
+                    "diary": "写今天想起它的日记。可以记录当下的心情、天气、梦见它的片段。",
+                    "miss": "写一段想念它的话。可以更私人、更安静，之后聊天会把它当作共同记忆。",
+                }
+                type_save_labels = {"story": "保存故事", "diary": "保存日记", "miss": "保存思念"}
+                story_type = entry.get("type", "story")
+                current_type_label = reverse_type_labels.get(story_type, "故事")
+                window = tk.Toplevel(panel)
+                window.withdraw()
+                window.title(("编辑" if is_edit else "新增") + current_type_label)
+                window.configure(bg="#fbf3e7")
+                window.geometry("1100x800")
+                window.minsize(980, 700)
+                window.resizable(True, True)
+                window.transient(panel)
+                shell = tk.Frame(window, bg="#fbf3e7", padx=24, pady=18)
+                shell.pack(fill="both", expand=True)
+                tk.Label(
+                    shell,
+                    text=f"{pet.get('display_name', '宠物')}的{current_type_label}",
+                    bg="#fbf3e7",
+                    fg=text_main,
+                    font=("Microsoft YaHei UI", 16, "bold"),
+                ).pack(anchor="w")
+                tk.Label(
+                    shell,
+                    text=type_hints.get(story_type, type_hints["story"]),
+                    bg="#fbf3e7",
+                    fg=text_muted,
+                    font=("Microsoft YaHei UI", 9),
+                ).pack(anchor="w", pady=(2, 12))
+
+                meta_bar = tk.Frame(shell, bg="#fbf3e7")
+                meta_bar.pack(fill="x")
+                form = tk.Frame(meta_bar, bg="#fbf3e7")
+                form.pack(side="left", fill="x", expand=True)
+                form.grid_columnconfigure(1, weight=1)
+                type_var = tk.StringVar(value=story_type)
+                title_var = tk.StringVar(value=entry.get("title", ""))
+                tk.Label(form, text="类型", bg="#fbf3e7", fg=text_main, font=("Microsoft YaHei UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=5, padx=(0, 10))
+                type_row = tk.Frame(form, bg="#fbf3e7")
+                type_row.grid(row=0, column=1, sticky="w", pady=5)
+                tk.Label(
+                    type_row,
+                    text=current_type_label,
+                    bg=accent,
+                    fg="#ffffff",
+                    padx=18,
+                    pady=7,
+                    font=("Microsoft YaHei UI", 9, "bold"),
+                ).pack(side="left")
+                tk.Label(form, text="标题", bg="#fbf3e7", fg=text_main, font=("Microsoft YaHei UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=5, padx=(0, 10))
+                title_entry = tk.Entry(form, textvariable=title_var, bg="#fffdf8", fg=text_main, relief="flat", highlightthickness=1, highlightbackground=card_border, highlightcolor=accent, font=("Microsoft YaHei UI", 10))
+                title_entry.grid(row=1, column=1, sticky="ew", pady=5, ipady=7)
+
+                stats_panel = tk.Frame(meta_bar, bg="#fffaf3", highlightthickness=1, highlightbackground="#ead7bd", width=132)
+                stats_panel.pack(side="right", fill="y", padx=(14, 0), pady=(5, 5))
+                stats_panel.pack_propagate(False)
+                word_count_label = tk.Label(stats_panel, text="0 字", bg="#fffaf3", fg=accent_dark, font=("Microsoft YaHei UI", 13, "bold"))
+                word_count_label.pack(anchor="center", pady=(12, 0))
+                tk.Label(stats_panel, text="实时字数", bg="#fffaf3", fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(anchor="center", pady=(2, 10))
+
+                editor_head = tk.Frame(shell, bg="#fbf3e7")
+                editor_head.pack(fill="x", pady=(10, 4))
+                tk.Label(editor_head, text="正文", bg="#fbf3e7", fg=text_main, font=("Microsoft YaHei UI", 9, "bold")).pack(side="left")
+                tk.Label(editor_head, text="Enter 新段落，Tab 段首缩进，Shift+Tab 取消缩进。", bg="#fbf3e7", fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(side="left", padx=(10, 0))
+
+                writing_shell = tk.Frame(shell, bg="#fbf3e7")
+                writing_shell.pack(fill="both", expand=True)
+                writing_main = tk.Frame(writing_shell, bg="#fbf3e7")
+                writing_main.pack(side="left", fill="both", expand=True, padx=(0, 14))
+                side_panel = tk.Frame(writing_shell, bg="#fffaf3", highlightthickness=1, highlightbackground="#ead7bd", width=250)
+                side_panel.pack(side="right", fill="y")
+                side_panel.pack_propagate(False)
+                story_editor_bg_settings = self.story_editor_ui_settings_for_pet(pet_id)
+
+                toolbar = tk.Frame(writing_main, bg="#fbf3e7")
+                toolbar.pack(fill="x", pady=(0, 8))
+
+                editor_wrap = tk.Frame(writing_main, bg="#fffefa", highlightthickness=1, highlightbackground="#e6cfaa")
+                editor_wrap.pack(fill="both", expand=True)
+                content_scrollbar = tk.Scrollbar(editor_wrap, orient="vertical", bd=0, width=12)
+                content_text = tk.Text(
+                    editor_wrap,
+                    height=11,
+                    bg="#fffefa",
+                    fg=text_main,
+                    relief="flat",
+                    wrap="word",
+                    yscrollcommand=content_scrollbar.set,
+                    font=("Microsoft YaHei UI", 12),
+                    padx=34,
+                    pady=24,
+                    undo=True,
+                    maxundo=80,
+                    tabs=("28p", "56p", "84p"),
+                    spacing1=2,
+                    spacing2=0,
+                    spacing3=4,
+                    insertbackground=accent_dark,
+                    insertwidth=2,
+                    selectbackground="#f4d7a7",
+                    selectforeground=text_main,
+                )
+                content_scrollbar.configure(command=content_text.yview)
+                content_text.pack(side="left", fill="both", expand=True)
+                content_scrollbar.pack(side="right", fill="y")
+                story_indent = "　　"
+
+                def apply_story_editor_background_style():
+                    background_image = str(story_editor_bg_settings.get("background_image", "") or "")
+                    image_path = self.pet_asset_path(background_image) if background_image else None
+                    has_background = image_path is not None and image_path.exists()
+                    if has_background:
+                        editor_wrap.configure(bg="#fbefd9", highlightbackground=accent)
+                        content_text.configure(bg="#fff8ed")
+                    else:
+                        editor_wrap.configure(bg="#fffefa", highlightbackground="#e6cfaa")
+                        content_text.configure(bg="#fffefa")
+
+                def should_story_indent(line):
+                    stripped = str(line or "").lstrip(" \t　")
+                    if not stripped:
+                        return False
+                    if stripped.startswith(("#", "-", "*", ">", "---")):
+                        return False
+                    return re.match(r"^\d+\.\s", stripped) is None
+
+                def add_story_indent(line):
+                    if not should_story_indent(line):
+                        return line
+                    return story_indent + str(line).lstrip(" \t　")
+
+                def remove_story_indent(line):
+                    text = str(line)
+                    if text.startswith(story_indent):
+                        return text[len(story_indent):]
+                    if text.startswith("    "):
+                        return text[4:]
+                    if text.startswith("  "):
+                        return text[2:]
+                    if text.startswith("\t"):
+                        return text[1:]
+                    return text
+
+                def normalize_story_paragraphs(text):
+                    return "\n".join(add_story_indent(line) for line in str(text or "").splitlines())
+
+                content_text.insert("1.0", normalize_story_paragraphs(entry.get("content", "")))
+
+                def selected_line_range():
+                    try:
+                        start = content_text.index("sel.first linestart")
+                        end = content_text.index("sel.last lineend")
+                    except tk.TclError:
+                        start = content_text.index("insert linestart")
+                        end = content_text.index("insert lineend")
+                    return start, end
+
+                def transform_selected_lines(transform):
+                    start, end = selected_line_range()
+                    text = content_text.get(start, end)
+                    lines = text.split("\n")
+                    transformed = [transform(line, index) for index, line in enumerate(lines)]
+                    content_text.delete(start, end)
+                    content_text.insert(start, "\n".join(transformed))
+                    content_text.focus_set()
+                    return "break"
+
+                def indent_lines():
+                    return transform_selected_lines(lambda line, _index: add_story_indent(line))
+
+                def outdent_lines():
+                    return transform_selected_lines(lambda line, _index: remove_story_indent(line))
+
+                def prefix_lines(prefix):
+                    return transform_selected_lines(lambda line, _index: line if line.startswith(prefix) else prefix + line)
+
+                def numbered_lines():
+                    return transform_selected_lines(lambda line, index: line if re.match(r"^\d+\.\s", line) else f"{index + 1}. {line}")
+
+                def insert_heading():
+                    line_start = content_text.index("insert linestart")
+                    line_text = content_text.get(line_start, f"{line_start} lineend")
+                    if not line_text.startswith("## "):
+                        content_text.insert(line_start, "## ")
+                    content_text.focus_set()
+
+                def wrap_selection(left, right=None, placeholder="重点"):
+                    right = right if right is not None else left
+                    try:
+                        start = content_text.index("sel.first")
+                        end = content_text.index("sel.last")
+                        value = content_text.get(start, end)
+                        content_text.delete(start, end)
+                        content_text.insert(start, left + value + right)
+                    except tk.TclError:
+                        content_text.insert("insert", left + placeholder + right)
+                    content_text.focus_set()
+                    return "break"
+
+                def insert_time():
+                    content_text.insert("insert", datetime.now().strftime("%Y-%m-%d %H:%M"))
+                    content_text.focus_set()
+
+                def insert_separator():
+                    content_text.insert("insert", "\n---\n")
+                    content_text.focus_set()
+
+                def editor_tool(text, command, variant="neutral", width=58):
+                    colors = {
+                        "primary": (accent, "#ffffff", accent_dark),
+                        "neutral": ("#fff7e9", text_main, "#fde8c7"),
+                        "ghost": ("#fff1df", text_muted, "#fde8c7"),
+                    }
+                    bg, fg, active_bg = colors.get(variant, colors["neutral"])
+                    button = tk.Button(
+                        toolbar,
+                        text=text,
+                        command=command,
+                        bg=bg,
+                        fg=fg,
+                        activebackground=active_bg,
+                        activeforeground=fg,
+                        relief="flat",
+                        bd=0,
+                        width=width // 8,
+                        padx=8,
+                        pady=7,
+                        cursor="hand2",
+                        font=("Microsoft YaHei UI", 9),
+                    )
+                    button.pack(side="left", padx=(6, 0), pady=6)
+                    return button
+
+                editor_tool("段首缩进", indent_lines, "primary", width=82)
+                editor_tool("取消缩进", outdent_lines, width=82)
+                editor_tool("标题", insert_heading)
+                editor_tool("重点", lambda: wrap_selection("**", "**", "重点"))
+                editor_tool("清单", lambda: prefix_lines("- "))
+                editor_tool("引用", lambda: prefix_lines("> "))
+                editor_tool("时间", insert_time, "ghost")
+                content_text.bind("<Tab>", lambda _event: indent_lines())
+                content_text.bind("<Shift-Tab>", lambda _event: outdent_lines())
+
+                def insert_story_newline(_event=None):
+                    current_line = content_text.get("insert linestart", "insert lineend")
+                    if current_line.strip(" \t　"):
+                        content_text.insert("insert", "\n" + story_indent)
+                    else:
+                        content_text.insert("insert", "\n")
+                    return "break"
+
+                content_text.bind("<Return>", insert_story_newline)
+                content_text.bind("<Control-b>", lambda _event: wrap_selection("**", "**", "重点"))
+                content_text.bind("<Control-B>", lambda _event: wrap_selection("**", "**", "重点"))
+                content_text.bind("<Control-s>", lambda _event: (save_story(), "break"))
+                content_text.bind("<Control-S>", lambda _event: (save_story(), "break"))
+
+                def update_writer_stats(_event=None):
+                    value = content_text.get("1.0", "end").strip()
+                    chars = len(re.sub(r"\s+", "", value))
+                    paragraphs = len([line for line in value.splitlines() if line.strip()])
+                    word_count_label.configure(text=f"{chars} 字")
+                    try:
+                        stats_panel.winfo_children()[1].configure(text=f"{paragraphs} 段")
+                    except (IndexError, tk.TclError):
+                        pass
+
+                content_text.bind("<KeyRelease>", update_writer_stats)
+
+                background_box = tk.Frame(side_panel, bg="#fffaf3", padx=10, pady=10)
+                background_box.pack(fill="x")
+                tk.Label(background_box, text="写作背景", bg="#fffaf3", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x")
+                background_status = tk.Label(background_box, text="", bg="#fffaf3", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8))
+                background_status.pack(fill="x")
+                background_preview = tk.Frame(background_box, bg="#fff7e9", highlightthickness=1, highlightbackground="#ead7bd", height=76)
+                background_preview.pack(fill="x", pady=(8, 8))
+                background_preview.pack_propagate(False)
+
+                def refresh_story_background_preview():
+                    for child in background_preview.winfo_children():
+                        child.destroy()
+                    window._story_bg_refs = []
+                    background_image = str(story_editor_bg_settings.get("background_image", "") or "")
+                    image_path = self.pet_asset_path(background_image) if background_image else None
+                    if image_path is not None and image_path.exists():
+                        photo = self.image_thumbnail_photo(background_image, size=(188, 70), pixel=False, bg=(255, 248, 237, 255))
+                        if photo:
+                            window._story_bg_refs.append(photo)
+                            tk.Label(background_preview, image=photo, bg="#fff7e9").pack(fill="both", expand=True)
+                        background_status.configure(text="已设置背景")
+                    else:
+                        tk.Label(
+                            background_preview,
+                            text="没有背景\n可选一张陪写",
+                            bg="#fff7e9",
+                            fg=text_muted,
+                            justify="center",
+                            font=("Microsoft YaHei UI", 8),
+                        ).pack(fill="both", expand=True)
+                        background_status.configure(text="未设置")
+                    apply_story_editor_background_style()
+
+                def choose_story_background():
+                    path = filedialog.askopenfilename(
+                        title="选择写作背景",
+                        initialdir=str(self.default_image_dir()),
+                        filetypes=[("Image", "*.png;*.webp;*.jpg;*.jpeg"), ("All files", "*.*")],
+                    )
+                    if not path:
+                        return
+                    self.remember_directory_setting("default_image_dir", path)
+                    try:
+                        story_editor_bg_settings["background_image"] = self.copy_story_editor_background_to_pet(pet_id, path)
+                        story_editor_bg_settings["background_opacity"] = max(0.18, float(story_editor_bg_settings.get("background_opacity", 0.18) or 0.18))
+                        self.save_story_editor_ui_settings_for_pet(pet_id, story_editor_bg_settings)
+                    except (OSError, ValueError) as exc:
+                        messagebox.showerror("背景设置失败", str(exc))
+                        return
+                    refresh_story_background_preview()
+
+                def clear_story_background():
+                    story_editor_bg_settings["background_image"] = ""
+                    self.save_story_editor_ui_settings_for_pet(pet_id, story_editor_bg_settings)
+                    refresh_story_background_preview()
+
+                background_actions = tk.Frame(background_box, bg="#fffaf3")
+                background_actions.pack(fill="x", pady=(0, 8))
+                panel_button(background_actions, "选择背景", choose_story_background, width=190, height=30, variant="primary").pack(anchor="w")
+                panel_button(background_actions, "清空背景", clear_story_background, width=190, height=30).pack(anchor="w", pady=(6, 0))
+
+                image_refs = list(entry.get("image_refs", []))
+                images_box = tk.Frame(side_panel, bg="#fffaf3", padx=10, pady=10)
+                images_box.pack(fill="both", expand=True)
+                tk.Label(images_box, text="图片素材", bg="#fffaf3", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x")
+                image_refs_label = tk.Label(images_box, text="", bg="#fffaf3", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8))
+                image_refs_label.pack(fill="x")
+                drop_area = tk.Frame(images_box, bg="#fff7e9", highlightthickness=1, highlightbackground="#ead7bd")
+                drop_area.pack(fill="x", pady=(8, 8))
+                drop_text = tk.Label(
+                    drop_area,
+                    text="拖入图片\n或点下方添加",
+                    bg="#fff7e9",
+                    fg=text_muted,
+                    font=("Microsoft YaHei UI", 9),
+                    padx=12,
+                    pady=10,
+                    justify="center",
+                )
+                drop_text.pack(fill="x")
+                tk.Button(
+                    images_box,
+                    text="添加图片",
+                    command=lambda: add_images(),
+                    bg=accent,
+                    fg="#ffffff",
+                    activebackground=accent_dark,
+                    activeforeground="#ffffff",
+                    relief="flat",
+                    bd=0,
+                    padx=10,
+                    pady=8,
+                    cursor="hand2",
+                    font=("Microsoft YaHei UI", 9),
+                ).pack(fill="x", pady=(0, 8))
+                thumbs_row = tk.Frame(images_box, bg="#fffaf3")
+                thumbs_row.pack(fill="both", expand=True, pady=(0, 8))
+
+                def refresh_image_label():
+                    image_refs_label.configure(text=f"已选图片 {len(image_refs)} 张" if image_refs else "还没有添加图片")
+                    for child in thumbs_row.winfo_children():
+                        child.destroy()
+                    window._story_image_refs = []
+                    if not image_refs:
+                        return
+                    for idx, ref in enumerate(image_refs[:6]):
+                        cell = tk.Frame(thumbs_row, bg="#fff7e9", highlightthickness=1, highlightbackground="#ead7bd")
+                        cell.grid(row=idx // 2, column=idx % 2, sticky="nsew", padx=(0 if idx % 2 == 0 else 6, 0), pady=(0, 6))
+                        photo = self.image_thumbnail_photo(ref, size=(54, 42), pixel=False)
+                        if photo:
+                            window._story_image_refs.append(photo)
+                            tk.Label(cell, image=photo, bg="#fff7e9").pack(padx=4, pady=(4, 1))
+                        tk.Button(
+                            cell,
+                            text="插入",
+                            command=lambda i=idx: insert_image_marker(i),
+                            bg="#fffdf8",
+                            fg="#30261d",
+                            activebackground="#fff1df",
+                            relief="flat",
+                            bd=0,
+                            font=("Microsoft YaHei UI", 8),
+                            cursor="hand2",
+                        ).pack(fill="x", padx=4, pady=(0, 2))
+                        tk.Button(
+                            cell,
+                            text="移除",
+                            command=lambda i=idx: remove_image(i),
+                            bg="#f8ddd3",
+                            fg="#5d3328",
+                            activebackground="#efc2b2",
+                            relief="flat",
+                            bd=0,
+                            font=("Microsoft YaHei UI", 8),
+                            cursor="hand2",
+                        ).pack(fill="x", padx=4, pady=(0, 4))
+                    if len(image_refs) > 6:
+                        tk.Label(thumbs_row, text=f"还有 {len(image_refs) - 6} 张", bg="#fffaf3", fg=text_muted, font=("Microsoft YaHei UI", 9, "bold")).grid(row=3, column=0, columnspan=2, sticky="w", pady=(2, 0))
+
+                def remove_image(index):
+                    if 0 <= index < len(image_refs):
+                        image_refs.pop(index)
+                        refresh_image_label()
+
+                def insert_image_marker(index):
+                    if 0 <= index < len(image_refs):
+                        name = Path(str(image_refs[index])).name
+                        content_text.insert("insert", f"\n[[图片:{name}]]\n")
+                        content_text.focus_set()
+
+                def add_image_paths(paths):
+                    valid = [
+                        path for path in paths
+                        if Path(str(path)).suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"} and Path(str(path)).exists()
+                    ]
+                    if not valid:
+                        messagebox.showwarning("没有可用图片", "请拖入或选择 png、webp、jpg、jpeg 图片。")
+                        return
+                    try:
+                        for path in valid:
+                            image_refs.append(self.copy_story_image_to_pet(pet_id, path))
+                        self.remember_directory_setting("default_image_dir", valid[0])
+                    except OSError as exc:
+                        messagebox.showerror("添加图片失败", str(exc))
+                        return
+                    refresh_image_label()
+
+                def add_images():
+                    paths = filedialog.askopenfilenames(
+                        title="选择故事图片",
+                        initialdir=str(self.default_image_dir()),
+                        filetypes=[("Image", "*.png;*.webp;*.jpg;*.jpeg"), ("All files", "*.*")],
+                    )
+                    if not paths:
+                        return
+                    add_image_paths(paths)
+
+                def handle_story_drop(paths):
+                    pointer_x, pointer_y = window.winfo_pointerx(), window.winfo_pointery()
+                    bx1, by1 = background_preview.winfo_rootx(), background_preview.winfo_rooty()
+                    bx2, by2 = bx1 + background_preview.winfo_width(), by1 + background_preview.winfo_height()
+                    if bx1 <= pointer_x <= bx2 and by1 <= pointer_y <= by2:
+                        valid = [path for path in paths if Path(str(path)).suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"} and Path(str(path)).exists()]
+                        if valid:
+                            try:
+                                story_editor_bg_settings["background_image"] = self.copy_story_editor_background_to_pet(pet_id, valid[0])
+                                story_editor_bg_settings["background_opacity"] = max(0.18, float(story_editor_bg_settings.get("background_opacity", 0.18) or 0.18))
+                                self.save_story_editor_ui_settings_for_pet(pet_id, story_editor_bg_settings)
+                                self.remember_directory_setting("default_image_dir", valid[0])
+                                refresh_story_background_preview()
+                            except OSError as exc:
+                                messagebox.showerror("背景设置失败", str(exc))
+                        return
+                    drop_area.configure(highlightbackground=accent)
+                    drop_text.configure(text="已接收图片，正在加入故事...")
+                    add_image_paths(paths)
+                    drop_area.configure(highlightbackground="#ead7bd")
+                    drop_text.configure(text="拖入图片\n或点下方添加")
+
+                self.register_file_drop(window, handle_story_drop)
+
+                refresh_story_background_preview()
+                refresh_image_label()
+                update_writer_stats()
+                actions = tk.Frame(shell, bg="#fff7ec")
+                actions.pack(fill="x", pady=(14, 0))
+
+                def save_story():
+                    title = title_var.get().strip()
+                    content = content_text.get("1.0", "end-1c").strip("\n\r ")
+                    if not title and not content.strip():
+                        messagebox.showwarning("内容为空", "请至少写一个标题或正文。")
+                        return
+                    state = self.load_pet_stories(pet_id)
+                    now = datetime.now().isoformat(timespec="seconds")
+                    item = {
+                        "id": entry.get("id"),
+                        "type": type_var.get(),
+                        "title": title,
+                        "content": content,
+                        "image_refs": image_refs,
+                        "created_at": entry.get("created_at") or now,
+                        "updated_at": now,
+                        "pinned": bool(entry.get("pinned", False)),
+                    }
+                    entries = [old for old in state.get("entries", []) if old.get("id") != item["id"]]
+                    entries.insert(0, item)
+                    state["entries"] = entries
+                    state["prompt_summary"] = self.generate_pet_story_summary(pet_id, state=state)
+                    state["summary_updated_at"] = datetime.now().isoformat(timespec="seconds")
+                    state["summary_source"] = "local_auto"
+                    self.save_pet_stories(pet_id, state)
+                    window.destroy()
+                    render_detail()
+
+                panel_button(actions, "添加图片", add_images, width=88, height=34).pack(side="left")
+                panel_button(actions, type_save_labels.get(type_var.get(), "保存故事"), save_story, width=96, height=34, variant="primary").pack(side="left", padx=8)
+                panel_button(actions, "取消", window.destroy, width=76, height=34).pack(side="right")
+                title_entry.focus_set()
+                window.update_idletasks()
+                width = window.winfo_width()
+                height = window.winfo_height()
+                monitor = self.monitor_for_position(panel.winfo_rootx(), panel.winfo_rooty())
+                x = panel.winfo_rootx() + max(0, (panel.winfo_width() - width) // 2)
+                y = panel.winfo_rooty() + max(0, (panel.winfo_height() - height) // 2)
+                x = clamp(x, monitor["left"], max(monitor["left"], monitor["right"] - width))
+                y = clamp(y, monitor["top"], max(monitor["top"], monitor["bottom"] - height))
+                self.place_window(window, x, y, width, height)
+                window.deiconify()
+                window.lift()
+                window.focus_force()
+
+            def delete_story(pet_id, entry_id):
+                if not messagebox.askyesno("删除故事", "确定删除这条故事记录吗？图片文件会保留在宠物档案目录里。"):
+                    return
+                state = self.load_pet_stories(pet_id)
+                state["entries"] = [item for item in state.get("entries", []) if item.get("id") != entry_id]
+                state["prompt_summary"] = self.generate_pet_story_summary(pet_id, state=state)
+                state["summary_updated_at"] = datetime.now().isoformat(timespec="seconds")
+                state["summary_source"] = "local_auto"
+                self.save_pet_stories(pet_id, state)
+                render_detail()
+
+            def render_detail():
+                for child in detail_holder.winfo_children():
+                    child.destroy()
+                pet_id = selected_id.get()
+                pet = self.pet_by_id(pet_id)
+                state = self.load_pet_stories(pet_id)
+                entries = state.get("entries", [])
+
+                summary_card = make_card(detail_holder, f"{pet.get('display_name', '宠物')} · 故事提示词")
+                top = tk.Frame(summary_card, bg=card_bg)
+                top.pack(fill="x", padx=12, pady=(0, 8))
+                tk.Label(
+                    top,
+                    text=f"{len(entries)} 条故事 / 日记 / 思念",
+                    bg=sage_soft,
+                    fg=sage,
+                    padx=10,
+                    pady=5,
+                    font=("Microsoft YaHei UI", 9, "bold"),
+                ).pack(side="left")
+                panel_button(top, "写思念", lambda pid=pet_id: open_story_editor(pid, initial_type="miss"), width=78, height=30).pack(side="right", padx=(8, 0))
+                panel_button(top, "写日记", lambda pid=pet_id: open_story_editor(pid, initial_type="diary"), width=78, height=30).pack(side="right", padx=(8, 0))
+                panel_button(top, "新增故事", lambda pid=pet_id: open_story_editor(pid, initial_type="story"), width=88, height=30, variant="primary").pack(side="right")
+                panel_button(top, "自动整理摘要", lambda pid=pet_id: auto_summary(pid), width=104, height=30).pack(side="right", padx=8)
+
+                summary_wrap = tk.Frame(summary_card, bg="#fffaf3", highlightthickness=1, highlightbackground=card_border)
+                summary_wrap.pack(fill="x", padx=12, pady=(0, 8))
+                summary_scrollbar = tk.Scrollbar(summary_wrap, orient="vertical", bd=0, width=10)
+                summary_text = tk.Text(
+                    summary_wrap,
+                    height=12,
+                    bg="#fffaf3",
+                    fg=text_main,
+                    relief="flat",
+                    wrap="word",
+                    yscrollcommand=summary_scrollbar.set,
+                    font=("Microsoft YaHei UI", 9),
+                    padx=10,
+                    pady=8,
+                )
+                summary_scrollbar.configure(command=summary_text.yview)
+                summary_text.pack(side="left", fill="both", expand=True)
+                summary_scrollbar.pack(side="right", fill="y")
+                summary_text.insert("1.0", state.get("prompt_summary", "") or self.generate_pet_story_summary(pet_id))
+
+                role_prompt_wrap = tk.Frame(summary_card, bg="#f1f7ed", highlightthickness=1, highlightbackground="#d7e5d0")
+                role_prompt_wrap.pack(fill="x", padx=12, pady=(0, 8))
+                role_prompt = str(state.get("role_prompt", "") or "").strip()
+                role_title = "角色提示词已生成" if role_prompt else "角色提示词未生成"
+                tk.Label(role_prompt_wrap, text=role_title, bg="#f1f7ed", fg=sage, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(fill="x", padx=10, pady=(7, 1))
+                role_preview = role_prompt[:260].rstrip() + ("..." if len(role_prompt) > 260 else "") if role_prompt else "先配置 AI，然后可以把故事、日记和宠物档案整理成更稳定的角色提示词。"
+                tk.Label(role_prompt_wrap, text=role_preview, bg="#f1f7ed", fg=text_muted, anchor="w", justify="left", wraplength=720, font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=10, pady=(0, 8))
+
+                def open_summary_reader():
+                    reader = tk.Toplevel(panel)
+                    reader.withdraw()
+                    reader.title(f"{pet.get('display_name', '宠物')}的故事摘要")
+                    reader.configure(bg="#fff7ec")
+                    reader.geometry("720x520")
+                    reader.transient(panel)
+                    shell_reader = tk.Frame(reader, bg="#fff7ec", padx=16, pady=14)
+                    shell_reader.pack(fill="both", expand=True)
+                    tk.Label(shell_reader, text="故事摘要全文", bg="#fff7ec", fg=text_main, font=("Microsoft YaHei UI", 13, "bold")).pack(anchor="w")
+                    reader_box = tk.Frame(shell_reader, bg="#fffdf8", highlightthickness=1, highlightbackground=card_border)
+                    reader_box.pack(fill="both", expand=True, pady=(10, 12))
+                    reader_scroll = tk.Scrollbar(reader_box, orient="vertical", bd=0, width=12)
+                    reader_text = tk.Text(reader_box, bg="#fffdf8", fg=text_main, relief="flat", wrap="word", yscrollcommand=reader_scroll.set, font=("Microsoft YaHei UI", 10), padx=12, pady=10)
+                    reader_scroll.configure(command=reader_text.yview)
+                    reader_text.pack(side="left", fill="both", expand=True)
+                    reader_scroll.pack(side="right", fill="y")
+                    reader_text.insert("1.0", summary_text.get("1.0", "end").strip())
+                    tk.Button(reader, text="关闭", command=reader.destroy, bg="#fff7e9", fg=text_main, activebackground="#fde8c7", relief="flat", bd=0, padx=18, pady=8, cursor="hand2").pack(anchor="e", padx=16, pady=(0, 14))
+                    reader.update_idletasks()
+                    self.center_window(reader)
+                    reader.deiconify()
+
+                def save_summary():
+                    next_state = self.load_pet_stories(pet_id)
+                    next_state["prompt_summary"] = summary_text.get("1.0", "end").strip()
+                    next_state["summary_updated_at"] = datetime.now().isoformat(timespec="seconds")
+                    next_state["summary_source"] = "manual"
+                    self.save_pet_stories(pet_id, next_state)
+                    self.say("主人，故事提示词保存好了。")
+
+                def auto_summary(pid):
+                    next_state = self.load_pet_stories(pid)
+                    if not next_state.get("entries"):
+                        next_state["prompt_summary"] = ""
+                        next_state["summary_updated_at"] = datetime.now().isoformat(timespec="seconds")
+                        next_state["summary_source"] = "local_auto"
+                        self.save_pet_stories(pid, next_state)
+                        render_detail()
+                        return
+                    if not self.ai_can_respond():
+                        next_state["prompt_summary"] = self.generate_pet_story_summary(pid, state=next_state)
+                        next_state["summary_updated_at"] = datetime.now().isoformat(timespec="seconds")
+                        next_state["summary_source"] = "local_auto"
+                        self.save_pet_stories(pid, next_state)
+                        render_detail()
+                        messagebox.showinfo("已本地整理", "还没有配置可用 AI，已先用本地规则整理摘要。配置 AI 后可以生成更像宠物的角色提示词。")
+                        return
+
+                    self.set_ai_status("正在整理宠物故事摘要...")
+
+                    def worker():
+                        try:
+                            provider_id, provider = self.active_ai_provider()
+                            seed = self.build_pet_role_prompt_seed(pid, next_state, max_chars=5200)
+                            prompt = (
+                                "请把下面资料整理成给宠物 AI 聊天使用的故事摘要。要求：\n"
+                                "1. 只保留真实记录，不编造新经历。\n"
+                                "2. 用自然中文，适合主人后续阅读和手动编辑。\n"
+                                "3. 分为“关系背景”“重要回忆”“性格细节”“聊天提醒”。\n"
+                                "4. 500-1000 字，信息密度高，不要像客服说明。\n\n"
+                                + seed
+                            )
+                            generated = self.call_ai_text_generation(
+                                provider_id,
+                                provider,
+                                "你是宠物故事摘要整理助手，只输出摘要正文。",
+                                prompt,
+                                max_tokens=1600,
+                                temperature=0.3,
+                            )
+                        except Exception as exc:
+                            fallback = self.generate_pet_story_summary(pid, state=next_state)
+
+                            def fail_done(error_text=str(exc), fallback_text=fallback):
+                                failed_state = self.load_pet_stories(pid)
+                                failed_state["prompt_summary"] = fallback_text
+                                failed_state["summary_updated_at"] = datetime.now().isoformat(timespec="seconds")
+                                failed_state["summary_source"] = "local_fallback"
+                                self.save_pet_stories(pid, failed_state)
+                                self.set_ai_status(f"摘要改用本地整理：{self.describe_ai_error(error_text)}")
+                                render_detail()
+
+                            self.root.after(0, fail_done)
+                            return
+
+                        def done():
+                            done_state = self.load_pet_stories(pid)
+                            done_state["prompt_summary"] = generated.strip()
+                            done_state["summary_updated_at"] = datetime.now().isoformat(timespec="seconds")
+                            done_state["summary_source"] = "ai"
+                            self.save_pet_stories(pid, done_state)
+                            self.set_ai_status("故事摘要已用 AI 整理完成。")
+                            render_detail()
+
+                        self.root.after(0, done)
+
+                    threading.Thread(target=worker, daemon=True).start()
+
+                def open_role_prompt_reader():
+                    current = self.load_pet_stories(pet_id)
+                    text_value = str(current.get("role_prompt", "") or "").strip() or self.local_pet_role_prompt(pet_id, current)
+                    reader = tk.Toplevel(panel)
+                    reader.withdraw()
+                    reader.title(f"{pet.get('display_name', '宠物')}角色提示词")
+                    reader.configure(bg="#fff7ec")
+                    reader.geometry("760x560")
+                    reader.resizable(True, True)
+                    reader.transient(panel)
+                    shell_reader = tk.Frame(reader, bg="#fff7ec", padx=16, pady=14)
+                    shell_reader.pack(fill="both", expand=True)
+                    tk.Label(shell_reader, text="角色提示词", bg="#fff7ec", fg=text_main, font=("Microsoft YaHei UI", 13, "bold")).pack(anchor="w")
+                    box_wrap = tk.Frame(shell_reader, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
+                    box_wrap.pack(fill="both", expand=True, pady=(10, 12))
+                    scroll = tk.Scrollbar(box_wrap, orient="vertical", bd=0, width=12)
+                    box = tk.Text(box_wrap, bg="#fffdf8", fg=text_main, relief="flat", wrap="word", yscrollcommand=scroll.set, font=("Microsoft YaHei UI", 10), padx=12, pady=10)
+                    scroll.configure(command=box.yview)
+                    box.pack(side="left", fill="both", expand=True)
+                    scroll.pack(side="right", fill="y")
+                    box.insert("1.0", text_value)
+                    actions_reader = tk.Frame(shell_reader, bg="#fff7ec")
+                    actions_reader.pack(fill="x")
+                    panel_button(actions_reader, "关闭", reader.destroy, width=76, height=30).pack(side="right")
+                    reader.update_idletasks()
+                    self.center_window(reader)
+                    reader.deiconify()
+
+                def generate_role_prompt(pid):
+                    if not self.ai_can_respond():
+                        messagebox.showinfo("需要先配置 AI", "生成角色提示词需要先到 AI 页保存 Key，并测试启用当前厂商。当前只能使用本地摘要。")
+                        return
+                    state_before = self.load_pet_stories(pid)
+                    if not state_before.get("entries"):
+                        messagebox.showinfo("还没有故事", "请先写一条故事、日记或思念，再生成角色提示词。")
+                        return
+                    self.set_ai_status("正在根据宠物故事生成角色提示词...")
+
+                    def worker():
+                        try:
+                            provider_id, provider = self.active_ai_provider()
+                            seed = self.build_pet_role_prompt_seed(pid, state_before)
+                            prompt = (
+                                "请把下面资料整理成桌宠 AI 的角色提示词。要求：\n"
+                                "1. 只写给模型看的角色设定，不要解释过程。\n"
+                                "2. 保留宠物名字、性格、和主人的真实故事细节。\n"
+                                "3. 明确不能编造未记录的共同经历，不能自称 AI 或语言模型。\n"
+                                "4. 输出 500-900 字中文，分为“身份”“性格”“共同记忆”“回复规则”。\n\n"
+                                + seed
+                            )
+                            generated = self.call_ai_text_generation(
+                                provider_id,
+                                provider,
+                                "你是宠物陪伴应用的角色提示词整理助手，只输出提示词正文。",
+                                prompt,
+                                max_tokens=1400,
+                                temperature=0.35,
+                            )
+                        except Exception as exc:
+                            self.root.after(0, lambda e=str(exc): messagebox.showerror("生成失败", self.describe_ai_error(e)))
+                            return
+
+                        def done():
+                            next_state = self.load_pet_stories(pid)
+                            next_state["role_prompt"] = generated.strip()
+                            next_state["role_prompt_updated_at"] = datetime.now().isoformat(timespec="seconds")
+                            self.save_pet_stories(pid, next_state)
+                            self.set_ai_status("角色提示词已生成，之后 AI 聊天会优先读取。")
+                            render_detail()
+
+                        self.root.after(0, done)
+
+                    threading.Thread(target=worker, daemon=True).start()
+
+                summary_actions = tk.Frame(summary_card, bg=card_bg)
+                summary_actions.pack(fill="x", padx=12, pady=(0, 12))
+                panel_button(summary_actions, "保存摘要", save_summary, width=88, height=30, variant="primary").pack(side="left")
+                panel_button(summary_actions, "重新整理", lambda pid=pet_id: auto_summary(pid), width=88, height=30).pack(side="left", padx=(8, 0))
+                panel_button(summary_actions, "查看全文摘要", open_summary_reader, width=108, height=30).pack(side="left", padx=(8, 0))
+                panel_button(summary_actions, "查看角色提示词", open_role_prompt_reader, width=120, height=30).pack(side="left", padx=(8, 0))
+                panel_button(summary_actions, "生成角色提示词", lambda pid=pet_id: generate_role_prompt(pid), width=120, height=30, variant="primary").pack(side="left", padx=(8, 0))
+                tk.Label(
+                    summary_actions,
+                    text="AI 聊天会按当前宠物读取角色提示词、摘要和最近故事。",
+                    bg=card_bg,
+                    fg=text_muted,
+                    font=("Microsoft YaHei UI", 8),
+                ).pack(side="left", padx=10)
+
+                list_card = make_card(detail_holder, "故事、日记与思念")
+                if not entries:
+                    empty = tk.Frame(list_card, bg="#fffaf3", highlightthickness=1, highlightbackground=card_border)
+                    empty.pack(fill="x", padx=12, pady=(0, 12))
+                    tk.Label(empty, text="还没有故事", bg="#fffaf3", fg=text_main, font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w", padx=12, pady=(10, 2))
+                    tk.Label(empty, text="先写一条故事、日记或思念，之后聊天时它会把这些当作共同背景。", bg="#fffaf3", fg=text_muted, font=("Microsoft YaHei UI", 9)).pack(anchor="w", padx=12, pady=(0, 10))
+                    return
+
+                by_day = {}
+                for item in entries:
+                    day = str(item.get("created_at", ""))[:10]
+                    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+                        day = "未知日期"
+                    by_day.setdefault(day, []).append(item)
+                days = sorted(by_day.keys(), reverse=True)
+                expanded = self.story_expanded_days_by_pet.setdefault(pet_id, set())
+                if not expanded and days:
+                    expanded.add(days[0])
+
+                def story_chip(parent_widget, text, fill="#fff8ee", fg=None):
+                    return tk.Label(
+                        parent_widget,
+                        text=text,
+                        bg=fill,
+                        fg=fg or text_muted,
+                        padx=8,
+                        pady=3,
+                        anchor="w",
+                        font=("Microsoft YaHei UI", 8, "bold"),
+                    )
+
+                def open_story_reader(item):
+                    entry = self.normalize_story_entry(item)
+                    reader = tk.Toplevel(panel)
+                    reader.withdraw()
+                    reader.title(entry.get("title") or self.story_type_label(entry.get("type")))
+                    reader.configure(bg="#fff7ec")
+                    reader.geometry("760x600")
+                    reader.resizable(True, True)
+                    reader.transient(panel)
+                    shell_reader = tk.Frame(reader, bg="#fff7ec", padx=16, pady=14)
+                    shell_reader.pack(fill="both", expand=True)
+                    title_text = entry.get("title") or self.story_type_label(entry.get("type"))
+                    tk.Label(shell_reader, text=title_text, bg="#fff7ec", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 14, "bold")).pack(fill="x")
+                    meta_row = tk.Frame(shell_reader, bg="#fff7ec")
+                    meta_row.pack(fill="x", pady=(5, 10))
+                    story_chip(meta_row, self.story_type_label(entry.get("type")), "#fff8ee", accent_dark).pack(side="left", padx=(0, 6))
+                    story_chip(meta_row, str(entry.get("created_at", ""))[:16] or "未知时间", "#f1f7ed", sage).pack(side="left", padx=(0, 6))
+                    story_chip(meta_row, f"图片 {len(entry.get('image_refs', []))} 张", "#fffdf7", text_muted).pack(side="left")
+                    reader_box = tk.Frame(shell_reader, bg="#fffdf8", highlightthickness=1, highlightbackground=card_border)
+                    reader_box.pack(fill="both", expand=True)
+                    reader_scroll = tk.Scrollbar(reader_box, orient="vertical", bd=0, width=12)
+                    reader_text = tk.Text(
+                        reader_box,
+                        bg="#fffdf8",
+                        fg=text_main,
+                        relief="flat",
+                        wrap="word",
+                        yscrollcommand=reader_scroll.set,
+                        font=("Microsoft YaHei UI", 10),
+                        padx=14,
+                        pady=12,
+                    )
+                    reader_scroll.configure(command=reader_text.yview)
+                    reader_text.pack(side="left", fill="both", expand=True)
+                    reader_scroll.pack(side="right", fill="y")
+                    reader_text.insert("1.0", entry.get("content", "") or "没有正文")
+                    reader_text.configure(state="disabled")
+                    images = tk.Frame(shell_reader, bg="#fff7ec")
+                    images.pack(fill="x", pady=(10, 0))
+                    reader._image_refs = []
+                    for ref in entry.get("image_refs", [])[:6]:
+                        photo = self.image_thumbnail_photo(ref, size=(86, 58), pixel=False)
+                        if photo:
+                            reader._image_refs.append(photo)
+                            tk.Label(images, image=photo, bg="#fff7ec").pack(side="left", padx=(0, 8))
+                    actions_reader = tk.Frame(shell_reader, bg="#fff7ec")
+                    actions_reader.pack(fill="x", pady=(12, 0))
+                    panel_button(actions_reader, "编辑", lambda pid=pet_id, it=item: (reader.destroy(), open_story_editor(pid, it)), width=76, height=30, variant="primary").pack(side="left")
+                    panel_button(actions_reader, "关闭", reader.destroy, width=76, height=30).pack(side="right")
+                    reader.update_idletasks()
+                    self.center_window(reader)
+                    reader.deiconify()
+
+                def toggle_day(day):
+                    if day in expanded:
+                        expanded.remove(day)
+                    else:
+                        expanded.add(day)
+                    render_detail()
+
+                for day in days:
+                    day_items = by_day.get(day, [])
+                    day_frame = tk.Frame(list_card, bg="#fffaf3", highlightthickness=1, highlightbackground=card_border)
+                    day_frame.pack(fill="x", padx=12, pady=(0, 8))
+                    head = tk.Frame(day_frame, bg="#fffaf3")
+                    head.pack(fill="x", padx=12, pady=(8, 6))
+                    is_expanded = day in expanded
+                    panel_button(head, ("收起 " if is_expanded else "展开 ") + f"{day} · {len(day_items)} 条", lambda d=day: toggle_day(d), width=150, height=28).pack(side="left")
+                    last = day_items[0] if day_items else {}
+                    tk.Label(head, text=(last.get("title") or "最近记录")[:36], bg="#fffaf3", fg=text_muted, anchor="e", font=("Microsoft YaHei UI", 8)).pack(side="right")
+                    if not is_expanded:
+                        continue
+                    for item in day_items:
+                        row = tk.Frame(day_frame, bg="#fffdf8", highlightthickness=1, highlightbackground="#f1dcc1")
+                        row.pack(fill="x", padx=12, pady=(0, 8))
+                        row.grid_columnconfigure(1, weight=1)
+                        side = tk.Frame(row, bg="#fffdf8")
+                        side.grid(row=0, column=0, rowspan=3, sticky="nw", padx=10, pady=8)
+                        story_chip(side, self.story_type_label(item.get("type")), "#fff8ee", accent_dark).pack(anchor="w", pady=(0, 5))
+                        story_chip(side, str(item.get("created_at", ""))[11:16] or "刚刚", "#f1f7ed", sage).pack(anchor="w", pady=(0, 5))
+                        story_chip(side, f"图片 {len(item.get('image_refs', []))}", "#fffdf7", text_muted).pack(anchor="w")
+                        title = item.get("title") or self.story_type_label(item.get("type"))
+                        tk.Label(row, text=title, bg="#fffdf8", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 10, "bold")).grid(row=0, column=1, sticky="ew", padx=8, pady=(8, 2))
+                        content = " ".join(str(item.get("content", "") or "").split())
+                        if len(content) > 160:
+                            content = content[:160].rstrip() + "..."
+                        tk.Label(row, text=content or "没有正文", bg="#fffdf8", fg=text_muted, anchor="w", justify="left", wraplength=520, font=("Microsoft YaHei UI", 9)).grid(row=1, column=1, sticky="ew", padx=8, pady=(0, 8))
+                        thumbs = tk.Frame(row, bg="#fffdf8")
+                        thumbs.grid(row=2, column=1, sticky="w", padx=8, pady=(0, 8))
+                        for ref in item.get("image_refs", [])[:4]:
+                            photo = self.image_thumbnail_photo(ref, size=(58, 46), pixel=False)
+                            if photo:
+                                panel._image_refs.append(photo)
+                                tk.Label(thumbs, image=photo, bg="#fffdf8").pack(side="left", padx=(0, 6))
+                        actions = tk.Frame(row, bg="#fffdf8")
+                        actions.grid(row=0, column=2, rowspan=3, sticky="ne", padx=10, pady=8)
+                        tk.Label(actions, text="操作", bg="#fffdf8", fg=text_muted, anchor="e", font=("Microsoft YaHei UI", 8)).pack(fill="x", pady=(0, 4))
+                        panel_button(actions, "查看全文", lambda it=item: open_story_reader(it), width=84, height=26, variant="primary").pack(fill="x", pady=(0, 5))
+                        panel_button(actions, "编辑", lambda pid=pet_id, it=item: open_story_editor(pid, it), width=84, height=26).pack(fill="x", pady=(0, 8))
+                        danger_zone = tk.Frame(actions, bg="#fff1df")
+                        danger_zone.pack(fill="x")
+                        panel_button(danger_zone, "删除", lambda pid=pet_id, eid=item.get("id"): delete_story(pid, eid), width=84, height=26, variant="danger").pack(fill="x")
+
+            draw_pet_buttons()
+            render_detail()
+
+        def page_pet_archive(parent):
+            self.pet_family = self.load_pet_family()
+            pets = self.pet_family.get("pets", [])
+            ready_pets = [pet for pet in pets if self.pet_ready(pet)]
+            known_ids = {pet.get("id") for pet in pets}
+            current_pet_id = self.active_pet.get("id", self.settings.get("current_pet_id", "danhuang"))
+            default_archive_id = getattr(self, "archive_selected_pet_id", current_pet_id)
+            if default_archive_id not in known_ids:
+                default_archive_id = current_pet_id
+            selected_id = tk.StringVar(value=default_archive_id)
+            ordered_pets = []
+            current_pet = self.pet_by_id(current_pet_id)
+            if current_pet.get("id") in known_ids:
+                ordered_pets.append(current_pet)
+            ordered_pets.extend([pet for pet in pets if pet.get("id") != current_pet_id])
+
+            picker_card = make_card(parent, "宠物档案")
+            tk.Label(
+                picker_card,
+                text="这里查看不同宠物独立的陪伴等级、聊天历史和记忆摘要；切换查看不会切换当前桌宠形象。",
+                bg=card_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=620,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            buttons = tk.Frame(picker_card, bg=card_bg)
+            buttons.pack(fill="x", padx=12, pady=(0, 12))
+
+            detail_holder = tk.Frame(parent, bg=panel_bg)
+            detail_holder.pack(fill="x")
+
+            def choose_pet(pet_id):
+                self.archive_selected_pet_id = pet_id
+                selected_id.set(pet_id)
+                draw_pet_buttons()
+                render_detail()
+
+            def draw_pet_buttons():
+                for child in buttons.winfo_children():
+                    child.destroy()
+                for pet in ordered_pets:
+                    label = pet.get("display_name", pet.get("id", ""))
+                    selected = pet.get("id") == selected_id.get()
+                    panel_button(
+                        buttons,
+                        label,
+                        lambda pid=pet.get("id"): choose_pet(pid),
+                        width=92,
+                        height=30,
+                        selected=selected,
+                        variant="neutral" if pet in ready_pets else "ghost",
+                    ).pack(side="left", padx=(0, 8), pady=2)
+
+            def render_detail():
+                for child in detail_holder.winfo_children():
+                    child.destroy()
+                pet = self.pet_by_id(selected_id.get())
+                state = self.companion_for_pet(pet.get("id"))
+                chat = self.chat_memory_for_pet(pet.get("id"))
+                summary = self.memory_summary_for_pet(pet.get("id"))
+                level, title, threshold = self.level_for_xp(state.get("xp", 0))
+                next_level = level + 1
+                next_threshold = self.level_threshold(next_level)
+
+                overview = make_card(detail_holder, f"{pet.get('display_name', pet.get('id'))} · 陪伴")
+                grid = tk.Frame(overview, bg=card_bg)
+                grid.pack(fill="x", padx=14, pady=(2, 10))
+                for col in range(4):
+                    grid.grid_columnconfigure(col, weight=1, uniform="archive_stats")
+                metric_cell(grid, 0, "等级", f"Lv{level}", title, sage_soft)
+                metric_cell(grid, 1, "经验", f"{state.get('xp', 0)} / {next_threshold}", f"到 Lv{next_level}")
+                metric_cell(grid, 2, "陪伴", f"{round(int(state.get('total_seconds', 0)) / 3600, 1)} 小时", f"{int(state.get('streak_days', 0))} 天连续")
+                metric_cell(grid, 3, "对话", f"{len(chat.get('messages', []))} 条", f"最近情绪 {summary.get('last_mood') or chat.get('last_mood') or '暂无'}")
+
+                pet_id = pet.get("id")
+                pet_label = pet.get("display_name", "宠物")
+
+                def compact_text(value, limit=96):
+                    if isinstance(value, list):
+                        value = "；".join(str(item or "").strip() for item in value if str(item or "").strip())
+                    elif isinstance(value, dict):
+                        value = "；".join(f"{key}: {val}" for key, val in value.items() if str(val or "").strip())
+                    text_value = " ".join(str(value or "").split())
+                    if not text_value:
+                        return "暂无"
+                    if len(text_value) > limit:
+                        return text_value[:limit].rstrip() + "..."
+                    return text_value
+
+                def safe_int(value, default=0):
+                    try:
+                        return int(value)
+                    except (TypeError, ValueError):
+                        return default
+
+                def archive_chip(parent_widget, text, fill="#fff8ee", fg=None):
+                    return tk.Label(
+                        parent_widget,
+                        text=text,
+                        bg=fill,
+                        fg=fg or text_muted,
+                        padx=8,
+                        pady=4,
+                        anchor="w",
+                        font=("Microsoft YaHei UI", 8, "bold"),
+                    )
+
+                def top_mood_text():
+                    mood_counts = summary.get("mood_counts") if isinstance(summary.get("mood_counts"), dict) else {}
+                    if not mood_counts and isinstance(chat.get("mood_counts"), dict):
+                        mood_counts = chat.get("mood_counts", {})
+                    items = []
+                    for mood, count in mood_counts.items():
+                        try:
+                            number = int(count)
+                        except (TypeError, ValueError):
+                            number = 0
+                        if mood and number > 0:
+                            items.append((str(mood), number))
+                    items.sort(key=lambda pair: pair[1], reverse=True)
+                    return "、".join(f"{mood} {count}" for mood, count in items[:2]) or "暂无"
+
+                def summary_values(key, limit=3):
+                    value = summary.get(key)
+                    if isinstance(value, list):
+                        return [compact_text(item, 120) for item in value if compact_text(item, 120) != "暂无"][:limit]
+                    text_value = compact_text(value, 180)
+                    return [] if text_value == "暂无" else [text_value]
+
+                def open_chat_reader(item):
+                    reader = tk.Toplevel(panel)
+                    reader.withdraw()
+                    reader.title(f"{pet_label}聊天详情")
+                    reader.configure(bg="#fff7ec")
+                    reader.geometry("720x520")
+                    reader.transient(panel)
+                    shell_reader = tk.Frame(reader, bg="#fff7ec", padx=16, pady=14)
+                    shell_reader.pack(fill="both", expand=True)
+                    tk.Label(shell_reader, text=f"{pet_label} · 聊天详情", bg="#fff7ec", fg=text_main, font=("Microsoft YaHei UI", 13, "bold")).pack(anchor="w")
+                    meta = tk.Frame(shell_reader, bg="#fff7ec")
+                    meta.pack(fill="x", pady=(8, 10))
+                    archive_chip(meta, str(item.get("time", ""))[:16] or "时间未知", "#fff8ee", accent_dark).pack(side="left", padx=(0, 6))
+                    archive_chip(meta, f"情绪 {item.get('mood') or '暂无'}", "#f1f7ed", sage).pack(side="left", padx=(0, 6))
+                    if item.get("memory_update"):
+                        archive_chip(meta, "有记忆更新", "#fff1df", accent_dark).pack(side="left")
+                    reader_box = tk.Frame(shell_reader, bg="#fffdf8", highlightthickness=1, highlightbackground=card_border)
+                    reader_box.pack(fill="both", expand=True, pady=(0, 12))
+                    reader_scroll = tk.Scrollbar(reader_box, orient="vertical", bd=0, width=12)
+                    reader_text = tk.Text(
+                        reader_box,
+                        bg="#fffdf8",
+                        fg=text_main,
+                        relief="flat",
+                        wrap="word",
+                        yscrollcommand=reader_scroll.set,
+                        font=("Microsoft YaHei UI", 10),
+                        padx=12,
+                        pady=10,
+                    )
+                    reader_scroll.configure(command=reader_text.yview)
+                    reader_text.pack(side="left", fill="both", expand=True)
+                    reader_scroll.pack(side="right", fill="y")
+                    lines = [
+                        "主人：",
+                        str(item.get("user", "") or "").strip() or "暂无",
+                        "",
+                        f"{pet_label}：",
+                        self.visible_chat_text(item.get("reply", "")) or "暂无",
+                    ]
+                    if item.get("memory_update"):
+                        lines.extend(["", "记忆更新：", str(item.get("memory_update", "") or "").strip()])
+                    reader_text.insert("1.0", "\n".join(lines))
+                    reader_text.configure(state="disabled")
+                    tk.Button(reader, text="关闭", command=reader.destroy, bg="#fff7e9", fg=text_main, activebackground="#fde8c7", relief="flat", bd=0, padx=18, pady=8, cursor="hand2").pack(anchor="e", padx=16, pady=(0, 14))
+                    reader.update_idletasks()
+                    self.center_window(reader)
+                    reader.deiconify()
+
+                memory_card = make_card(detail_holder, "长期记忆摘要")
+                memory_status = tk.Frame(memory_card, bg=card_bg)
+                memory_status.pack(fill="x", padx=12, pady=(0, 8))
+                archive_chip(memory_status, f"摘要更新 {safe_int(summary.get('message_count', 0))} 次", "#fff8ee", accent_dark).pack(side="left", padx=(0, 6))
+                archive_chip(memory_status, f"主要情绪 {top_mood_text()}", "#f1f7ed", sage).pack(side="left", padx=(0, 6))
+                archive_chip(memory_status, "宠物级数据隔离", sage_soft, sage).pack(side="left")
+                tk.Label(
+                    memory_card,
+                    text="这里只读取当前选中宠物自己的聊天和记忆摘要；查看档案不会切换桌面上的当前形象。",
+                    bg=card_bg,
+                    fg=text_muted,
+                    anchor="w",
+                    justify="left",
+                    wraplength=720,
+                    font=("Microsoft YaHei UI", 9),
+                ).pack(fill="x", padx=12, pady=(0, 8))
+                memory_grid = tk.Frame(memory_card, bg=card_bg)
+                memory_grid.pack(fill="x", padx=12, pady=(0, 12))
+                for column in range(2):
+                    memory_grid.grid_columnconfigure(column, weight=1, uniform="archive_memory")
+                memory_sections = [
+                    ("主人档案", summary_values("owner_profile", 1)),
+                    ("偏好", summary_values("preferences", 3)),
+                    ("重要回忆", summary_values("important_memories", 3)),
+                    ("常问内容", summary_values("common_questions", 3)),
+                    ("情绪模式", summary_values("emotional_patterns", 3)),
+                    ("备注", summary_values("notes", 3)),
+                ]
+                visible_sections = [(name, values) for name, values in memory_sections if values]
+                if visible_sections:
+                    for idx, (name, values) in enumerate(visible_sections[:6]):
+                        fill = "#fffaf3" if idx % 2 == 0 else "#fffdf7"
+                        cell = tk.Frame(memory_grid, bg=fill, highlightthickness=1, highlightbackground="#ead7bd")
+                        cell.grid(row=idx // 2, column=idx % 2, sticky="nsew", padx=(0 if idx % 2 == 0 else 8, 0), pady=(0, 8))
+                        tk.Label(cell, text=name, bg=fill, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(fill="x", padx=10, pady=(8, 2))
+                        tk.Label(
+                            cell,
+                            text="\n".join(f"· {value}" for value in values),
+                            bg=fill,
+                            fg=text_muted,
+                            anchor="w",
+                            justify="left",
+                            wraplength=320,
+                            font=("Microsoft YaHei UI", 8),
+                        ).pack(fill="x", padx=10, pady=(0, 8))
+                else:
+                    empty_memory = tk.Frame(memory_grid, bg="#fffaf3", highlightthickness=1, highlightbackground="#ead7bd")
+                    empty_memory.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+                    tk.Label(empty_memory, text="还没有长期记忆摘要", bg="#fffaf3", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x", padx=12, pady=(10, 2))
+                    tk.Label(empty_memory, text="继续和它聊天后，这里会逐步沉淀偏好、重要回忆和常问内容。", bg="#fffaf3", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).pack(fill="x", padx=12, pady=(0, 10))
+
+                history = make_card(detail_holder, "最近聊天")
+                messages = [item for item in chat.get("messages", []) if isinstance(item, dict)]
+                messages.sort(key=lambda item: str(item.get("time", "") or ""), reverse=True)
+                if not messages:
+                    empty = tk.Frame(history, bg="#fffaf3", highlightthickness=1, highlightbackground="#ead7bd")
+                    empty.pack(fill="x", padx=12, pady=(0, 12))
+                    tk.Label(empty, text="还没有聊天记录", bg="#fffaf3", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x", padx=12, pady=(10, 2))
+                    tk.Label(empty, text=f"打开陪聊，和{pet.get('display_name', '这个小家伙')}说几句后，这里会显示最近摘要。", bg="#fffaf3", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).pack(fill="x", padx=12, pady=(0, 10))
+                    return
+                months = []
+                for item in messages:
+                    month = str(item.get("time", ""))[:7]
+                    if re.fullmatch(r"\d{4}-\d{2}", month) and month not in months:
+                        months.append(month)
+                months = sorted(months, reverse=True)
+                if not months:
+                    months = ["未知月份"]
+                selected_month = self.archive_selected_month_by_pet.get(pet_id, months[0])
+                if selected_month not in months:
+                    selected_month = months[0]
+                    self.archive_selected_month_by_pet[pet_id] = selected_month
+                month_var = tk.StringVar(value=selected_month)
+                filter_row = tk.Frame(history, bg=card_bg)
+                filter_row.pack(fill="x", padx=12, pady=(0, 10))
+                tk.Label(filter_row, text="月份", bg=card_bg, fg=text_muted, font=("Microsoft YaHei UI", 9)).pack(side="left", padx=(0, 8))
+                select_box(filter_row, month_var, months, width=116, height=30).pack(side="left")
+
+                def apply_month():
+                    self.archive_selected_month_by_pet[pet_id] = month_var.get()
+                    render_detail()
+
+                panel_button(filter_row, "查看", apply_month, width=58, height=30, variant="primary").pack(side="left", padx=8)
+
+                month_messages = [
+                    item for item in messages
+                    if (str(item.get("time", ""))[:7] == selected_month or selected_month == "未知月份")
+                ]
+                by_day = {}
+                for item in month_messages:
+                    day = str(item.get("time", ""))[:10]
+                    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+                        day = "未知日期"
+                    by_day.setdefault(day, []).append(item)
+                days = sorted(by_day.keys(), reverse=True)
+                expand_key = f"{pet_id}:{selected_month}"
+                expanded_days = self.archive_expanded_days_by_pet.setdefault(expand_key, set())
+                if not expanded_days and days:
+                    expanded_days.add(days[0])
+
+                def chat_row(parent_widget, item, index, bg):
+                    row = tk.Frame(parent_widget, bg=bg, highlightthickness=1, highlightbackground="#ead7bd")
+                    row.pack(fill="x", padx=12, pady=(0, 8))
+                    row.grid_columnconfigure(1, weight=1)
+                    time_box = tk.Frame(row, bg="#fff8ee")
+                    time_box.grid(row=0, column=0, sticky="nsw", padx=8, pady=8)
+                    tk.Label(time_box, text=str(item.get("time", ""))[11:16] or "刚刚", bg="#fff8ee", fg=accent_dark, font=("Microsoft YaHei UI", 9, "bold")).pack(padx=8, pady=(7, 1))
+                    tk.Label(time_box, text=f"{index + 1} 条", bg="#fff8ee", fg=text_muted, font=("Microsoft YaHei UI", 8)).pack(padx=8, pady=(0, 7))
+                    body = tk.Frame(row, bg=bg)
+                    body.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=8)
+                    meta = tk.Frame(body, bg=bg)
+                    meta.pack(fill="x", pady=(0, 5))
+                    mood = str(item.get("mood", "") or "").strip()
+                    archive_chip(meta, "主人", "#fff0d7", accent_dark).pack(side="left", padx=(0, 5))
+                    archive_chip(meta, pet_label[:6], "#edf5e9", sage).pack(side="left", padx=(0, 5))
+                    if mood:
+                        archive_chip(meta, f"情绪 {mood}", sage_soft, sage).pack(side="left", padx=(0, 5))
+                    if item.get("memory_update"):
+                        archive_chip(meta, "有记忆更新", "#fff1df", accent_dark).pack(side="left")
+                    tk.Label(
+                        body,
+                        text=f"你：{compact_text(item.get('user', ''), 110)}",
+                        bg=bg,
+                        fg=text_main,
+                        anchor="w",
+                        justify="left",
+                        wraplength=460,
+                        font=("Microsoft YaHei UI", 9),
+                    ).pack(fill="x")
+                    tk.Label(
+                        body,
+                        text=f"{pet_label}：{compact_text(self.visible_chat_text(item.get('reply', '')), 130)}",
+                        bg=bg,
+                        fg=text_muted,
+                        anchor="w",
+                        justify="left",
+                        wraplength=460,
+                        font=("Microsoft YaHei UI", 9),
+                    ).pack(fill="x", pady=(3, 0))
+                    action_box = tk.Frame(row, bg=bg)
+                    action_box.grid(row=0, column=2, sticky="ne", padx=(0, 8), pady=8)
+                    panel_button(action_box, "查看详情", lambda it=item: open_chat_reader(it), width=78, height=28, variant="neutral").pack()
+
+                def toggle_day(day):
+                    if day in expanded_days:
+                        expanded_days.remove(day)
+                    else:
+                        expanded_days.add(day)
+                    render_detail()
+
+                for day_index, day in enumerate(days):
+                    day_messages = by_day.get(day, [])
+                    expanded = day in expanded_days
+                    row_bg = "#fffaf3" if day_index % 2 == 0 else "#fffdf7"
+                    group = tk.Frame(history, bg=row_bg, highlightthickness=1, highlightbackground="#ead7bd")
+                    group.pack(fill="x", padx=12, pady=(0, 8))
+                    header_row = tk.Frame(group, bg=row_bg)
+                    header_row.pack(fill="x", padx=12, pady=(9, 6))
+                    last = day_messages[0] if day_messages else {}
+                    summary_value = last.get("reply") if last.get("reply") else last.get("user")
+                    if last.get("reply"):
+                        summary_value = self.visible_chat_text(summary_value)
+                    day_summary = compact_text(summary_value, 44)
+                    tk.Button(
+                        header_row,
+                        text=("收起 " if expanded else "展开 ") + f"{day}  ·  {len(day_messages)} 条",
+                        command=lambda d=day: toggle_day(d),
+                        bg=row_bg,
+                        fg=accent_dark,
+                        activebackground="#fff1df",
+                        activeforeground=accent_dark,
+                        relief="flat",
+                        bd=0,
+                        cursor="hand2",
+                        anchor="w",
+                        font=("Microsoft YaHei UI", 9, "bold"),
+                    ).pack(side="left")
+                    if day_summary != "暂无":
+                        tk.Label(header_row, text=day_summary, bg=row_bg, fg=text_muted, anchor="e", font=("Microsoft YaHei UI", 8)).pack(side="right")
+                    if expanded:
+                        for msg_index, item in enumerate(day_messages):
+                            chat_row(group, item, msg_index, row_bg)
+
+            draw_pet_buttons()
+            render_detail()
+
+        def page_action_preview(parent):
+            available_standard = [
+                state for state in BASE_ACTIONS + EXTENDED_ACTIONS
+                if self.action_supported(state) and state in self.frames
+            ]
+            custom_states = [
+                asset["id"] for asset in self.pet_extension_assets()
+                if is_custom_action_id(asset.get("id")) and asset.get("id") in self.frames
+            ]
+            preview_states = available_standard + custom_states
+            missing_recommended = [
+                state for state in EXTENDED_ACTIONS
+                if not (self.action_supported(state) and state in self.frames)
+            ]
+            selected_extensions = set(self.selected_quick_menu_extension_actions())
+
+            plan_card = make_card(parent, "动作规划")
+            tk.Label(
+                plan_card,
+                text="基础动作固定保留；扩展动作可以加入或移出右键。推荐待补已内置动作细节；自定义扩展动作需要你补充动作名、起始姿态、动作过程、结束姿态和情绪，再复制提示词去生图。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=640,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            plan_grid = tk.Frame(plan_card, bg="#fffdf7")
+            plan_grid.pack(fill="x", padx=12, pady=(0, 12))
+            for column in range(4):
+                plan_grid.grid_columnconfigure(column, weight=1, uniform="action_plan")
+
+            def plan_item(column, title, value, note):
+                item = tk.Frame(plan_grid, bg="#fff5e4", highlightthickness=1, highlightbackground="#ecd4ad")
+                item.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else 6, 0))
+                tk.Label(item, text=title, bg="#fff5e4", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=10, pady=(7, 0))
+                tk.Label(item, text=value, bg="#fff5e4", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 14, "bold")).pack(fill="x", padx=10, pady=(0, 0))
+                tk.Label(item, text=note, bg="#fff5e4", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=10, pady=(0, 8))
+
+            plan_item(0, "基础动作", str(len(self.quick_menu_base_actions())), "右键固定")
+            plan_item(1, "可选扩展", str(len([s for s in preview_states if s not in QUICK_MENU_BASE_ACTIONS])), "可加入右键")
+            plan_item(2, "推荐待补", str(len(missing_recommended)), "上传后可选")
+            plan_item(3, "自定义", str(len(custom_states)), "用户动作")
+
+            card = make_card(parent, "动作预览")
+            info = tk.Label(
+                card,
+                text="这里只看动作是否能播放、帧数和素材来源；是否放进右键栏在下方单独管理。",
+                bg="#fffdf7",
+                fg="#6f6048",
+                anchor="w",
+                font=("Microsoft YaHei UI", 9),
+            )
+            info.pack(fill="x", padx=12, pady=(2, 8))
+            grid = tk.Frame(card, bg="#fffdf7")
+            grid.pack(fill="x", padx=12, pady=(0, 12))
+            for column in range(2):
+                grid.grid_columnconfigure(column, weight=1, uniform="action_preview")
+
+            def preview_chip(parent_widget, text, fill="#fff8ee", fg=None):
+                return tk.Label(
+                    parent_widget,
+                    text=text,
+                    bg=fill,
+                    fg=fg or text_muted,
+                    padx=7,
+                    pady=3,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8, "bold"),
+                )
+
+            def preview_source_text(state):
+                asset = self.extension_asset_for_action(state)
+                if asset:
+                    return "自定义动作" if is_custom_action_id(state) else "上传动作条"
+                if state in QUICK_MENU_BASE_ACTIONS or state in BASE_ACTIONS or state in BASIC_ATLAS_ACTIONS:
+                    return "基础动作"
+                return "内置扩展"
+
+            for idx, state in enumerate(preview_states):
+                label = self.action_label(state)
+                if state == "running":
+                    label = "原地跑"
+                command = lambda s=state: self.play_action(s, award=False, loops=2 if s in {"running", "rolling", "chase-butterfly"} else 1)
+                cell = tk.Frame(grid, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+                cell.grid(row=idx // 2, column=idx % 2, sticky="ew", padx=(0 if idx % 2 == 0 else 8, 0), pady=(0, 8))
+                cell.grid_columnconfigure(1, weight=1)
+                panel_button(cell, label, command, width=86, height=30, variant="neutral").grid(row=0, column=0, rowspan=2, sticky="w", padx=10, pady=10)
+                frame_count = len(self.frames.get(state, [])) if isinstance(self.frames.get(state), list) else 0
+                meta = tk.Frame(cell, bg="#fff8ee")
+                meta.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=(9, 2))
+                preview_chip(meta, f"{frame_count} 帧", "#fffdf7", text_main).pack(side="left", padx=(0, 5))
+                preview_chip(meta, preview_source_text(state), "#f1f7ed", sage).pack(side="left", padx=(0, 5))
+                if state in QUICK_MENU_BASE_ACTIONS:
+                    quick_text = "右键固定"
+                    quick_fill = sage_soft
+                    quick_fg = sage
+                elif state in selected_extensions:
+                    quick_text = "已加入右键"
+                    quick_fill = accent
+                    quick_fg = "#ffffff"
+                else:
+                    quick_text = "未加入右键"
+                    quick_fill = "#fffdf7"
+                    quick_fg = text_muted
+                preview_chip(meta, quick_text, quick_fill, quick_fg).pack(side="left")
+                qa_text = "可播放"
+                if state == "chase-butterfly":
+                    qa_text = "蝴蝶独立显示"
+                elif is_custom_action_id(state):
+                    qa_text = "自定义，需人工看连贯性"
+                tk.Label(
+                    cell,
+                    text=qa_text,
+                    bg="#fff8ee",
+                    fg=text_muted,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 8),
+                ).grid(row=1, column=1, sticky="ew", padx=(0, 10), pady=(0, 9))
+            if not preview_states:
+                tk.Label(
+                    grid,
+                    text="当前形象还没有可预览动作。",
+                    bg="#fffdf7",
+                    fg=text_muted,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 9),
+                ).grid(row=0, column=0, sticky="w", padx=4, pady=4)
+
+            quick_card = make_card(parent, "右键动作列表")
+            tk.Label(
+                quick_card,
+                text="深色表示已在右键中显示。基础动作固定保留；扩展动作可加入或移出；推荐待补需要先上传动作条。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 8))
+
+            def action_chip(parent_grid, text, command, row, column, selected=False, disabled=False):
+                bg = accent if selected else ("#f1e4d0" if disabled else "#fff7e9")
+                fg = "#ffffff" if selected else ("#9a8a77" if disabled else text_main)
+                active = accent_dark if selected else "#fde8c7"
+                button_widget = tk.Button(
+                    parent_grid,
+                    text=text,
+                    command=command if not disabled else (lambda: None),
+                    bg=bg,
+                    fg=fg,
+                    activebackground=active,
+                    activeforeground=fg,
+                    relief="flat",
+                    bd=0,
+                    cursor="hand2" if not disabled else "arrow",
+                    font=("Microsoft YaHei UI", 9),
+                    padx=8,
+                    pady=6,
+                )
+                button_widget.grid(row=row, column=column, sticky="ew", padx=4, pady=4)
+                return button_widget
+
+            base_title = tk.Label(quick_card, text="基础动作栏", bg="#fffdf7", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold"))
+            base_title.pack(fill="x", padx=12, pady=(0, 4))
+            base_grid = tk.Frame(quick_card, bg="#fffdf7")
+            base_grid.pack(fill="x", padx=12, pady=(0, 10))
+            for column in range(4):
+                base_grid.grid_columnconfigure(column, weight=1, uniform="quick_base")
+            for idx, state in enumerate(QUICK_MENU_BASE_ACTIONS):
+                supported = self.quick_menu_action_available(state)
+                label = ACTION_LABELS.get(state, state)
+                if state == "running":
+                    command = self.run_short_distance
+                else:
+                    command = lambda s=state: self.play_action(s, award=False)
+                action_chip(
+                    base_grid,
+                    label,
+                    command,
+                    idx // 4,
+                    idx % 4,
+                    selected=supported,
+                    disabled=not supported,
+                )
+
+            extension_title = tk.Label(quick_card, text="扩展动作栏", bg="#fffdf7", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold"))
+            extension_title.pack(fill="x", padx=12, pady=(0, 4))
+            extension_grid = tk.Frame(quick_card, bg="#fffdf7")
+            extension_grid.pack(fill="x", padx=12, pady=(0, 8))
+            for column in range(4):
+                extension_grid.grid_columnconfigure(column, weight=1, uniform="quick_ext")
+            extension_candidates = [
+                state for state in preview_states
+                if state not in QUICK_MENU_BASE_ACTIONS
+            ]
+
+            def toggle_extension_action(state):
+                selected_now = state in self.selected_quick_menu_extension_actions()
+                if self.set_quick_menu_action_enabled(state, not selected_now):
+                    switch_page("动作")
+
+            for idx, state in enumerate(extension_candidates):
+                selected = state in selected_extensions
+                action_chip(
+                    extension_grid,
+                    self.action_label(state),
+                    lambda s=state: toggle_extension_action(s),
+                    idx // 4,
+                    idx % 4,
+                    selected=selected,
+                    disabled=False,
+                )
+            if not extension_candidates:
+                tk.Label(
+                    extension_grid,
+                    text="当前没有可选扩展动作，可以先上传推荐动作或自定义动作。",
+                    bg="#fffdf7",
+                    fg=text_muted,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 9),
+                ).grid(row=0, column=0, columnspan=4, sticky="w", padx=4, pady=4)
+
+            upload_row = tk.Frame(quick_card, bg="#fffdf7")
+            upload_row.pack(fill="x", padx=12, pady=(0, 10))
+            panel_button(upload_row, "上传自定义动作", lambda: self.import_extension_action_asset() and switch_page("动作"), width=122, height=28, variant="primary").pack(side="left")
+            tk.Label(
+                upload_row,
+                text="动作条格式：横向 sprite strip，每帧 192x208，最多 8 帧，透明或 #00FFFF 背景。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                font=("Microsoft YaHei UI", 8),
+            ).pack(side="left", padx=10)
+
+            uploaded_extension_assets = [
+                asset for asset in self.pet_extension_assets()
+                if asset.get("id") and asset.get("id") not in QUICK_MENU_BASE_ACTIONS
+            ]
+            if uploaded_extension_assets:
+                clear_title = tk.Label(
+                    quick_card,
+                    text="清空已上传动作",
+                    bg="#fffdf7",
+                    fg=text_main,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 9, "bold"),
+                )
+                clear_title.pack(fill="x", padx=12, pady=(0, 4))
+                clear_grid = tk.Frame(quick_card, bg="#fffdf7")
+                clear_grid.pack(fill="x", padx=12, pady=(0, 12))
+                for column in range(4):
+                    clear_grid.grid_columnconfigure(column, weight=1, uniform="clear_actions")
+                for idx, asset in enumerate(uploaded_extension_assets):
+                    state = asset.get("id")
+                    label = asset.get("label") or self.action_label(state)
+                    action_chip(
+                        clear_grid,
+                        f"清空 {label}",
+                        lambda s=state: self.remove_extension_action_asset(s, lambda: switch_page("动作")),
+                        idx // 4,
+                        idx % 4,
+                        selected=False,
+                        disabled=False,
+                    )
+
+            if missing_recommended:
+                def copy_recommended_action_prompt(state):
+                    pet = self.active_pet if isinstance(self.active_pet, dict) else {}
+                    self.copy_text_to_clipboard(
+                        self.single_action_repair_prompt(
+                            state,
+                            pet.get("display_name", ""),
+                            pet.get("species", ""),
+                            pet.get("notes", ""),
+                            pet.get("category", ""),
+                        ),
+                        f"{self.action_label(state)}动作提示词",
+                    )
+
+                recommended_title = tk.Label(
+                    quick_card,
+                    text="内置推荐待补",
+                    bg="#fffdf7",
+                    fg=text_main,
+                    anchor="w",
+                    font=("Microsoft YaHei UI", 9, "bold"),
+                )
+                recommended_title.pack(fill="x", padx=12, pady=(0, 4))
+                recommended_grid = tk.Frame(quick_card, bg="#fffdf7")
+                recommended_grid.pack(fill="x", padx=12, pady=(0, 12))
+                for column in range(2):
+                    recommended_grid.grid_columnconfigure(column, weight=1, uniform="quick_missing")
+                for idx, state in enumerate(missing_recommended):
+                    cell = tk.Frame(recommended_grid, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+                    cell.grid(row=idx // 2, column=idx % 2, sticky="ew", padx=(0 if idx % 2 == 0 else 8, 0), pady=(0, 8))
+                    tk.Label(cell, text=self.action_label(state), bg="#fff8ee", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(fill="x", padx=10, pady=(8, 2))
+                    tk.Label(
+                        cell,
+                        text=self.action_detail_prompt(state),
+                        bg="#fff8ee",
+                        fg=text_muted,
+                        anchor="w",
+                        justify="left",
+                        wraplength=360,
+                        font=("Microsoft YaHei UI", 8),
+                    ).pack(fill="x", padx=10)
+                    row = tk.Frame(cell, bg="#fff8ee")
+                    row.pack(fill="x", padx=10, pady=(6, 8))
+                    panel_button(row, "复制提示词", lambda s=state: copy_recommended_action_prompt(s), width=88, height=28).pack(side="left")
+                    panel_button(row, "上传动作条", lambda s=state: self.import_extension_action_asset(s) and switch_page("动作"), width=88, height=28, variant="primary").pack(side="left", padx=8)
+
+            speed_card = make_card(parent, "预览速度")
+            add_slider(speed_card, "动作速度", "animation_speed", 0.35, 1.50, 0.05, lambda v: f"{int(v * 100)}%")
+
+        def page_settings(parent):
+            paths_card = make_card(parent, "默认目录")
+            tk.Label(
+                paths_card,
+                text="把导出、上传和图片选择的默认打开位置集中放在这里，后续弹窗会优先使用这些目录。",
+                bg=card_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=650,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            path_grid = tk.Frame(paths_card, bg=card_bg)
+            path_grid.pack(fill="x", padx=12, pady=(0, 12))
+            path_grid.grid_columnconfigure(1, weight=1)
+
+            def path_row(row, label, key, fallback):
+                tk.Label(path_grid, text=label, bg=card_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=0, sticky="w", padx=(0, 10), pady=5)
+                var = tk.StringVar(value=str(self.settings.get(key, "") or fallback))
+                entry = tk.Entry(path_grid, textvariable=var, bg="#fffaf3", fg=text_main, relief="flat", highlightthickness=1, highlightbackground="#ead1a9", highlightcolor=accent, font=("Microsoft YaHei UI", 9))
+                entry.grid(row=row, column=1, sticky="ew", pady=5, ipady=6)
+
+                def choose():
+                    path = filedialog.askdirectory(initialdir=str(Path(var.get() or fallback)))
+                    if path:
+                        var.set(path)
+
+                def save():
+                    self.remember_directory_setting(key, var.get())
+                    var.set(str(self.settings.get(key, "") or fallback))
+                    self.say("主人，默认目录保存好了。")
+
+                panel_button(path_grid, "选择", choose, width=58, height=28).grid(row=row, column=2, sticky="e", padx=(8, 0), pady=5)
+                panel_button(path_grid, "保存", save, width=58, height=28, variant="primary").grid(row=row, column=3, sticky="e", padx=(6, 0), pady=5)
+
+            path_row(0, "导出目录", "default_export_dir", self.pet_dir / "exports")
+            path_row(1, "上传目录", "default_upload_dir", self.pet_dir)
+            path_row(2, "图片目录", "default_image_dir", self.pet_dir)
+
+            github_card = make_card(parent, "GitHub macOS 构建")
+            tk.Label(
+                github_card,
+                text="用于 Windows 触发 GitHub Actions 生成 macOS .app。目标仓库填 `owner/repo`；workflow 模板必须提交到该仓库；Token 建议只给当前仓库 Contents/Actions 读写权限，并只保存在本机或环境变量。",
+                bg=card_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=650,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            github_grid = tk.Frame(github_card, bg=card_bg)
+            github_grid.pack(fill="x", padx=12, pady=(0, 10))
+            github_grid.grid_columnconfigure(1, weight=1)
+            vars_map = {
+                "github_repo": tk.StringVar(value=str(self.settings.get("github_repo", "") or "")),
+                "github_branch": tk.StringVar(value=str(self.settings.get("github_branch", "") or "main")),
+                "github_workflow": tk.StringVar(value=str(self.settings.get("github_workflow", "") or "build-macos-app.yml")),
+                "github_token_env_key": tk.StringVar(value=self.github_token_env_key()),
+            }
+
+            def github_entry(row, label, key):
+                tk.Label(github_grid, text=label, bg=card_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=0, sticky="w", padx=(0, 10), pady=5)
+                tk.Entry(github_grid, textvariable=vars_map[key], bg="#fffaf3", fg=text_main, relief="flat", highlightthickness=1, highlightbackground="#ead1a9", highlightcolor=accent, font=("Microsoft YaHei UI", 9)).grid(row=row, column=1, sticky="ew", pady=5, ipady=6)
+
+            github_entry(0, "仓库 owner/repo", "github_repo")
+            github_entry(1, "分支", "github_branch")
+            github_entry(2, "Workflow 文件", "github_workflow")
+            github_entry(3, "Token 环境变量", "github_token_env_key")
+            token_row = tk.Frame(github_card, bg=card_bg)
+            token_row.pack(fill="x", padx=12, pady=(0, 12))
+            token_var = tk.StringVar()
+            tk.Label(token_row, text=f"Token 状态：{self.github_build_token()[1]}", bg=card_bg, fg=sage, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left")
+            tk.Entry(token_row, textvariable=token_var, show="*", bg="#fffaf3", fg=text_main, relief="flat", highlightthickness=1, highlightbackground="#ead1a9", highlightcolor=accent, font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True, padx=8, ipady=6)
+
+            def save_github_settings():
+                self.settings["github_repo"] = self.normalize_github_repo(vars_map["github_repo"].get())
+                self.settings["github_branch"] = vars_map["github_branch"].get().strip() or "main"
+                self.settings["github_workflow"] = vars_map["github_workflow"].get().strip() or "build-macos-app.yml"
+                self.settings["github_token_env_key"] = vars_map["github_token_env_key"].get().strip() or "DANHUANG_GITHUB_TOKEN"
+                if token_var.get().strip():
+                    self.save_github_build_token(token_var.get())
+                    token_var.set("")
+                else:
+                    self.save_settings()
+                self.say("主人，GitHub 构建设置保存好了。")
+                switch_page("设置")
+
+            panel_button(token_row, "保存 GitHub 设置", save_github_settings, width=126, height=30, variant="primary").pack(side="left")
+            panel_button(token_row, "写入 workflow 模板", lambda: messagebox.showinfo("已写入", f"已写入：\n{self.ensure_github_workflow_template()}"), width=126, height=30).pack(side="left", padx=(8, 0))
+
+        def page_safety(parent):
+            boundary = make_card(parent, "分发安全边界")
+            tk.Label(
+                boundary,
+                text="对外发包默认是干净分发包；个人备份和公开安装包是两条不同路径。真实 Key、DPAPI 密文、聊天、待办、提醒历史和本机路径默认不进公开包。",
+                bg="#fffdf7",
+                fg=text_main,
+                anchor="w",
+                justify="left",
+                wraplength=650,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            boundary_grid = tk.Frame(boundary, bg="#fffdf7")
+            boundary_grid.pack(fill="x", padx=12, pady=(0, 12))
+            for column in range(3):
+                boundary_grid.grid_columnconfigure(column, weight=1, uniform="safety_boundary")
+
+            def boundary_cell(column, title, body, fill, fg):
+                item = tk.Frame(boundary_grid, bg=fill, highlightthickness=1, highlightbackground="#ead7bd")
+                item.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 8, 0))
+                tk.Label(item, text=title, bg=fill, fg=fg, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(fill="x", padx=10, pady=(8, 2))
+                tk.Label(item, text=body, bg=fill, fg=text_muted, anchor="nw", justify="left", wraplength=190, font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=10, pady=(0, 8))
+
+            boundary_cell(0, "默认排除", "待办、提醒历史、聊天、记忆、故事和本机路径不随公开包带出。", "#fff8ee", accent_dark)
+            boundary_cell(1, "弹窗可选", "待办、故事/日记、AI 厂商配置需要导出时逐项勾选。", "#f1f7ed", sage)
+            boundary_cell(2, "永不导出", "真实 API Key、GitHub Token、DPAPI 加密内容和日志不写进分发包。", "#fff1df", "#5d3328")
+
+            card = make_card(parent, "个人备份")
+            tk.Label(
+                card,
+                text="这里用于本机或本人迁移：配置导出只包含设置和陪伴状态；恢复配置会写回当前桌宠。不要把个人备份当作公开安装包发给别人。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=650,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            row = tk.Frame(card, bg="#fffdf7")
+            row.pack(fill="x", padx=12, pady=(0, 12))
+            panel_button(row, "导出配置", self.export_configuration, width=92, variant="primary").pack(side="left")
+            panel_button(row, "恢复配置", self.restore_configuration, width=92).pack(side="left", padx=8)
+            panel_button(row, "备份精灵图", self.backup_spritesheet, width=104).pack(side="left")
+
+            package_card = make_card(parent, "安装包导出")
+            tk.Label(
+                package_card,
+                text="从当前最新程序和资源生成分发包。Windows 生成本地安装资源；macOS 先导出源码包，再由 GitHub Actions 的 macOS runner 构建 .app。导出弹窗会再次列出宠物和可选数据。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=650,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            package_row = tk.Frame(package_card, bg="#fffdf7")
+            package_row.pack(fill="x", padx=12, pady=(0, 12))
+            panel_button(package_row, "导出 Windows 安装包", lambda: self.open_installer_export_dialog("windows"), width=146, height=30, variant="primary").pack(side="left")
+            panel_button(package_row, "生成 macOS 可运行包", lambda: self.open_installer_export_dialog("macos"), width=156, height=30).pack(side="left", padx=8)
+            app_button = tk.Button(
+                package_row,
+                text="手机 App 导出（待手机适配）",
+                state="disabled",
+                relief="flat",
+                bg="#eee4d6",
+                fg="#9a8a76",
+                disabledforeground="#9a8a76",
+                padx=10,
+                pady=4,
+                font=("Microsoft YaHei UI", 9),
+            )
+            app_button.pack(side="left")
+            package_rules = tk.Frame(package_card, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+            package_rules.pack(fill="x", padx=12, pady=(0, 12))
+            tk.Label(
+                package_rules,
+                text="公开分发规则",
+                bg="#fff8ee",
+                fg=text_main,
+                anchor="w",
+                font=("Microsoft YaHei UI", 9, "bold"),
+            ).pack(fill="x", padx=10, pady=(8, 2))
+            tk.Label(
+                package_rules,
+                text="默认只带程序、默认设置模板、宠物资源和使用说明；目标电脑首次启动从空待办、空聊天、空 Key 开始。需要带个人数据时必须在弹窗中显式勾选。",
+                bg="#fff8ee",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=630,
+                font=("Microsoft YaHei UI", 8),
+            ).pack(fill="x", padx=10, pady=(0, 8))
+
+            export_status = tk.Frame(package_card, bg="#eef6ea", highlightthickness=1, highlightbackground="#d7e5d0")
+            export_status.pack(fill="x", padx=12, pady=(0, 12))
+            tk.Label(
+                export_status,
+                text="导出状态和路径",
+                bg="#eef6ea",
+                fg=sage,
+                anchor="w",
+                font=("Microsoft YaHei UI", 9, "bold"),
+            ).pack(fill="x", padx=10, pady=(8, 2))
+            export_dir = self.default_export_dir()
+            error_log = Path(__file__).resolve().parent / "desktop-pet-error.log"
+            tk.Label(
+                export_status,
+                text=f"默认导出目录：{export_dir}\n导出弹窗会在完成后保留压缩包路径和入口脚本路径；失败时会显示日志位置和恢复建议。\n失败日志：{error_log}",
+                bg="#eef6ea",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=630,
+                font=("Microsoft YaHei UI", 8),
+            ).pack(fill="x", padx=10, pady=(0, 8))
+
+            package_hint = tk.Frame(package_card, bg="#fffdf7")
+            package_hint.pack(fill="x", padx=12, pady=(0, 12))
+            tk.Label(
+                package_hint,
+                text="macOS 可运行包需要先配置目标仓库：写入 workflow 模板并提交到 GitHub，填写 owner/repo、分支和 Token。未配置时仍可导出源码构建包，但 Mac 用户需要在 Mac 上构建或源码运行。",
+                bg="#fffdf7",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=650,
+                font=("Microsoft YaHei UI", 8),
+            ).pack(fill="x")
+
+            paths = make_card(parent, "当前文件")
+            text = (
+                f"设置: {self.settings_path.name}\n"
+                f"陪伴: {self.companion_path.name}\n"
+                f"AI厂商: {self.ai_providers_path.name}\n"
+                f"待办: {self.todos_path.name}\n"
+                "精灵图: spritesheet.webp"
+            )
+            tk.Label(paths, text=text, bg="#fffdf7", fg="#2f2b24", justify="left", anchor="w", font=("Microsoft YaHei UI", 9)).pack(fill="x", padx=12, pady=(2, 12))
+
+        def page_actions(parent):
+            pet_name = self.active_pet_name()
+
+            overview = make_card(parent, "操作中心")
+            tk.Label(
+                overview,
+                text="临时动作和窗口快捷操作放在这里；右键菜单里的默认动作仍在“动作”页管理。",
+                bg=card_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=650,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+
+            def section(parent_widget, title, note=None):
+                frame = tk.Frame(parent_widget, bg=card_bg)
+                frame.pack(fill="x", padx=12, pady=(0, 10))
+                head = tk.Frame(frame, bg=card_bg)
+                head.pack(fill="x", pady=(0, 5))
+                tk.Label(head, text=title, bg=card_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 10, "bold")).pack(side="left")
+                if note:
+                    tk.Label(head, text=note, bg=card_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8)).pack(side="left", padx=(10, 0))
+                grid = tk.Frame(frame, bg=card_bg)
+                grid.pack(fill="x")
+                for column in range(4):
+                    grid.grid_columnconfigure(column, weight=1, uniform=title)
+                return grid
+
+            def place_buttons(grid, items, width=118):
+                if not items:
+                    tk.Label(grid, text="暂无可用项。", bg=card_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).grid(row=0, column=0, sticky="w", padx=4, pady=4)
+                    return
+                for idx, item in enumerate(items):
+                    text, command = item[:2]
+                    variant = item[2] if len(item) > 2 else "neutral"
+                    selected = item[3] if len(item) > 3 else False
+                    panel_button(grid, text, command, width=width, height=30, variant=variant, selected=selected).grid(row=idx // 4, column=idx % 4, sticky="ew", padx=4, pady=4)
+
+            common_grid = section(overview, "常用操作", "聊天、提醒和配置入口")
+            place_buttons(
+                common_grid,
+                [
+                    (f"和{pet_name}聊", self.open_chat_panel, "primary"),
+                    ("待办提醒", lambda: switch_page("提醒")),
+                    ("AI 配置", lambda: switch_page("AI")),
+                    ("切换形象", lambda: switch_page("形象")),
+                    ("摸摸它", self.say_random),
+                    ("隐藏气泡", self.hide_bubble),
+                    ("查看档案", lambda: switch_page("档案")),
+                    ("管理动作", lambda: switch_page("动作")),
+                ],
+            )
+
+            base_grid = section(overview, "基础动作", "当前宠物真实支持的固定动作")
+            base_items = []
+            for state in self.quick_menu_base_actions():
+                command = self.run_short_distance if state == "running" else (lambda s=state: self.play_action(s, loops=1))
+                base_items.append((self.action_label(state), command, "selected", True))
+            place_buttons(base_grid, base_items)
+
+            extension_grid = section(overview, "扩展动作", "只显示已加入右键栏的扩展动作")
+            extension_items = []
+            for state in self.selected_quick_menu_extension_actions():
+                loops = 2 if state in {"rolling", "chase-butterfly"} else 1
+                extension_items.append((self.action_label(state), lambda s=state, n=loops: self.play_action(s, loops=n), "neutral"))
+            if not extension_items:
+                extension_items = [("去动作页添加", lambda: switch_page("动作"), "primary")]
+            place_buttons(extension_grid, extension_items)
+
+            window_grid = section(overview, "窗口操作", "位置、巡游和面板行为")
+            place_buttons(
+                window_grid,
+                [
+                    ("开始巡游", lambda: self.start_roam(forced=True), "primary"),
+                    ("归位", self.move_to_default_position),
+                    ("保存设置", lambda: (self.save_settings(), self.say("主人，设置保存好了。"))),
+                    ("关闭面板", close_panel),
+                ],
+            )
+
+        pages.update({
+            "首页": page_companion,
+            "形象": page_family,
+            "档案": page_pet_archive,
+            "故事": page_pet_stories,
+            "行为": page_behavior,
+            "对话": page_dialog,
+            "AI": page_ai,
+            "提醒": page_reminders,
+            "动作": page_action_preview,
+            "操作": page_actions,
+            "设置": page_settings,
+            "安全": page_safety,
+        })
+        if self.settings["panel_advanced"]:
+            pages.update({
+                "巡逻": page_roam,
+                "外观": page_appearance,
+            })
+
+        nav_groups = [
+            ("日常", ["首页", "对话", "提醒", "动作"]),
+            ("宠物资产", ["形象", "档案", "故事"]),
+            ("行为设置", ["行为", "操作"]),
+            ("设置与安全", ["设置", "安全"]),
+        ]
+        if self.settings["panel_advanced"]:
+            nav_groups.append(("高级", ["巡逻", "外观"]))
+
+        for section, names in nav_groups:
+            visible_names = [name for name in names if name in pages]
+            if not visible_names:
+                continue
+            nav_section(section)
+            for name in visible_names:
+                nav_button(name)
+
+        def close_panel():
+            close_dropdown()
+            try:
+                panel.unbind_all("<MouseWheel>")
+            except tk.TclError:
+                pass
+            self.control_panel_switch_page = None
+            self.control_panel_refresh_sidebar = None
+            self.control_panel_refresh_current_page = None
+            self.control_panel_current_page = None
+            self.panel = None
+            try:
+                panel.destroy()
+            except tk.TclError:
+                pass
+
+        def save_and_close():
+            self.save_settings()
+            self.save_companion()
+            self.next_idle_action_at = self.next_idle_time()
+            self.next_talk_at = self.next_talk_time()
+            self.next_roam_at = self.next_roam_time()
+            close_panel()
+            self.show_panel_toast("设置已保存", "外观、聊天、提醒和窗口设置已写入 E 盘运行配置。", "success")
+
+        def reset_defaults():
+            self.settings.update(DEFAULT_SETTINGS)
+            self.save_settings()
+            self.reload_frames()
+            switch_page("行为")
+
+        def toggle_panel_mode():
+            self.settings["panel_advanced"] = not self.settings["panel_advanced"]
+            self.save_settings()
+            close_panel()
+            self.open_control_panel()
+
+        panel_button(footer, "保存", save_and_close, width=88, variant="primary").pack(side="left", padx=(16, 8), pady=9)
+        panel_button(footer, "恢复默认", reset_defaults, width=88).pack(side="left", pady=9)
+        panel_button(footer, "高级" if not self.settings["panel_advanced"] else "基础", toggle_panel_mode, width=76).pack(side="left", padx=8, pady=9)
+        panel_button(footer, "关闭", close_panel, width=88).pack(side="right", padx=16, pady=9)
+
+        switch_page(initial_page)
+        self.center_window(panel)
+        panel.protocol("WM_DELETE_WINDOW", close_panel)
+
+
+def acquire_instance_lock() -> bool:
+    global INSTANCE_LOCK_HANDLE
+    lock_path = Path(__file__).resolve().parent / INSTANCE_LOCK_FILE
+    handle = lock_path.open("a+b")
+    try:
+        handle.seek(0)
+        if sys.platform == "win32":
+            msvcrt_module = importlib.import_module("msvcrt")
+            msvcrt_module.locking(handle.fileno(), msvcrt_module.LK_NBLCK, 1)
+        else:
+            fcntl_module = importlib.import_module("fcntl")
+            fcntl_module.flock(handle.fileno(), fcntl_module.LOCK_EX | fcntl_module.LOCK_NB)
+    except OSError:
+        handle.close()
+        return False
+    INSTANCE_LOCK_HANDLE = handle
+    return True
+
+
+def wait_for_instance_lock(timeout_seconds=0.0) -> bool:
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        if acquire_instance_lock():
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+
+
+def kernel32_api():
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateEventW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.CreateEventW.restype = wintypes.HANDLE
+    kernel32.SetEvent.argtypes = [wintypes.HANDLE]
+    kernel32.SetEvent.restype = wintypes.BOOL
+    kernel32.ResetEvent.argtypes = [wintypes.HANDLE]
+    kernel32.ResetEvent.restype = wintypes.BOOL
+    kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.WaitForSingleObject.restype = wintypes.DWORD
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    return kernel32
+
+
+def open_shutdown_event():
+    if sys.platform != "win32":
+        return None
+    return kernel32_api().CreateEventW(None, True, False, SHUTDOWN_EVENT_NAME)
+
+
+def reset_shutdown_event():
+    handle = open_shutdown_event()
+    if handle:
+        kernel32_api().ResetEvent(handle)
+        close_handle(handle)
+
+
+def signal_shutdown_event():
+    handle = open_shutdown_event()
+    if handle:
+        kernel32_api().SetEvent(handle)
+        close_handle(handle)
+
+
+def shutdown_event_requested(handle) -> bool:
+    if not handle:
+        return False
+    return kernel32_api().WaitForSingleObject(handle, 0) == 0
+
+
+def close_handle(handle):
+    if handle and sys.platform == "win32":
+        kernel32_api().CloseHandle(handle)
+
+
+def report_callback_exception(exc_type, exc_value, exc_traceback):
+    log_path = Path(__file__).resolve().parent / "desktop-pet-error.log"
+    with log_path.open("a", encoding="utf-8") as log:
+        log.write(f"\n[{datetime.now().isoformat(timespec='seconds')}]\n")
+        traceback.print_exception(exc_type, exc_value, exc_traceback, file=log)
+
+
+def main():
+    configure_windows_dpi_awareness()
+    replace_existing = "--replace" in sys.argv
+    if replace_existing:
+        signal_shutdown_event()
+    if not wait_for_instance_lock(4.0 if replace_existing else 0.0):
+        return
+    reset_shutdown_event()
+    spritesheet_path = Path(__file__).resolve().parent / "spritesheet.webp"
+    if not spritesheet_path.exists():
+        print(f"Missing spritesheet: {spritesheet_path}", file=sys.stderr)
+        sys.exit(1)
+    root = tk.Tk()
+    root.report_callback_exception = report_callback_exception
+    root.title("蛋黄")
+    DanhuangPet(root, spritesheet_path)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,43 @@
+# 代码审查：气泡和窗口模型运行接入
+
+日期：2026-06-18
+
+## Summary
+
+本次审查范围：
+
+- `src-prototype/legacy-monolith/run-danhuang-desktop-pet.py`
+- `data-dev/current-runtime/danhuang/run-danhuang-desktop-pet.py`
+- `src-prototype/modular/tests/test_runtime_integration_phase3.py`
+- `CHANGELOG.md`
+- `docs/product/IMPLEMENTATION_TRACKER.md`
+- `docs/product/PROTOTYPE_MODULARIZATION_PLAN.md`
+- `docs/product/DANHUANG_UI_DESIGN_BRIEF.md`
+
+变更目标是把 E 盘两份 Tk 单文件继续接入 Phase 3 UI 状态模型：右键菜单接入保持不变，新增气泡 view model、气泡定位模型和基础窗口尺寸模型的运行消费面。
+
+## Findings
+
+### Critical
+
+未发现阻断问题。
+
+### Improvements
+
+未发现必须在本轮回改的问题。当前实现保持了旧 Tk 渲染和定位回退：modular 模型不可用或计算失败时，单文件会继续走原逻辑。
+
+### Nitpicks
+
+未记录。
+
+## Review Notes
+
+- 两份 E 盘单文件 SHA256 一致，避免 legacy monolith 和 current-runtime 行为漂移。
+- `say()` 只消费模型输出的样式、文字颜色、文本宽度和显示时长；Canvas 实测排版、图片绘制和逐字显示仍保留旧路径，降低视觉回归风险。
+- `position_bubble()` 优先消费纯模型定位，但保留原屏幕内夹取和上下翻转逻辑作为兜底。
+- `base_pet_size()` 只切换到纯模型的基础尺寸；`pet_size()`、`render_pet_size()` 和当前图片尺寸链路未改，避免破坏真实 sprite 渲染和视觉缩放。
+- 新增 `test_runtime_integration_phase3.py` 覆盖两份运行入口能否导入右键菜单、气泡和窗口模型。
+
+## Conclusion
+
+Approved。建议下一步继续把右键面板常用入口/窗口操作、气泡绘制预览和透明窗口属性从单文件中拆出，但每一步继续保留运行回退和导入级测试。

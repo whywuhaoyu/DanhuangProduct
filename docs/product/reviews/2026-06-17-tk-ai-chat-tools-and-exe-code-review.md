@@ -1,0 +1,43 @@
+# 2026-06-17 Tk AI Chat Tools And EXE Code Review
+
+## Summary
+
+本轮审查范围：
+
+- `src-prototype/legacy-monolith/run-danhuang-desktop-pet.py`
+- `data-dev/current-runtime/danhuang/run-danhuang-desktop-pet.py`
+- `packages/danhuang-desktop-pet-windows-20260617-174226/`
+- `packages/danhuang-desktop-pet-windows-20260617-174226-exe.zip`
+- 产品文档和 WPF 承接文档
+
+## Findings
+
+### Critical
+
+- 未发现阻断发布的问题。
+
+### Improvements
+
+- DuckDuckGo lite 查询解析存在一次 0 结果的瞬时返回，复查和重跑后可稳定解析 `result-link`。当前实现已通过函数级验证，但后续建议增加备用搜索源或更宽松 HTML 解析，避免单一页面结构波动影响体验。
+- 当前 exe 已完成 5 秒启动烟测，但还不是干净 Windows 用户的完整安装验收。公开分发前仍需跑首次安装、控制面板、聊天、联网查询、AI 配置、卸载残留检查。
+
+### Nitpicks
+
+- `run-danhuang-desktop-pet.py` 仍是单文件大体量实现。本轮只做局部工具层和打包补强；后续 Phase 2 应继续抽 `core/ai_providers.py`、聊天工具和 installer builder。
+
+## Verification
+
+- `python -m py_compile src-prototype/legacy-monolith/run-danhuang-desktop-pet.py`
+- `python -m py_compile data-dev/current-runtime/danhuang/run-danhuang-desktop-pet.py`
+- 运行 JSON 解析通过：settings、pet-family、companion-state、ai-providers、todos、reminder-history。
+- 函数级验证通过：本地时间直答、`联网查一下` 查询词清洗、DuckDuckGo lite 搜索解析。
+- PyInstaller 构建通过：`DanhuangDesktopPet.exe` 已生成并写入应用图标。
+- 包内隐私校验通过：API Key、聊天、待办、提醒历史、陪伴经验、参考照片、其他宠物均未进入本轮干净包。
+- 敏感字段扫描无命中：`dpapi:`、`AQAAANCM`、本机用户路径、E 盘工程路径。
+- 包内文本/源码检查未发现 UTF-8 BOM。
+- exe 5 秒启动烟测通过，结束后无残留 `DanhuangDesktopPet` 进程，未生成包内 `desktop-pet-error.log`。
+- E 盘运行镜像已重启，`pythonw.exe` 指向 `data-dev/current-runtime/danhuang/run-danhuang-desktop-pet.py`。
+
+## Conclusion
+
+Approved with residual manual QA: 需要用户实际试用聊天窗“时间 / 查资料”、AI 已配置场景，以及安装包在干净 Windows 用户环境的完整安装验收。

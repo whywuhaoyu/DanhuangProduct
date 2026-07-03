@@ -1,0 +1,43 @@
+# 代码审查：WPF Spike 可见性修复
+
+## Summary
+
+用户反馈“没看到窗口”后，确认从自动化 shell 直接启动的 WPF 进程会短暂出现后被回收。为保证当前 Spike 能被用户看到，本轮对 WPF 窗口增加前台显示和早期关闭保护，并改用一次性计划任务做交互桌面启动验证。
+
+审查范围：
+
+- `src-windows-wpf/Danhuang.WpfSpike/MainWindow.xaml`
+- `src-windows-wpf/Danhuang.WpfSpike/MainWindow.xaml.cs`
+- `README.md`
+- `src-windows-wpf/README.md`
+- `docs/product/wpf-tech-spike/WPF_TECH_SPIKE_SPEC.md`
+
+## Findings
+
+### Critical
+
+无。
+
+### Improvements
+
+无阻塞项。当前关闭保护只拦截非窗口内“关闭”按钮触发的早期关闭；用户仍可通过窗口内“关闭”按钮正常退出，适合当前 Spike 验证阶段。
+
+### Nitpicks
+
+无。
+
+## Review Notes
+
+- `ShowActivated` 和 `ShowInTaskbar` 提升窗口可发现性，避免透明无边框窗口无法从任务栏定位。
+- Loaded 后主动 `Activate()` 并切换 `Topmost`，用于把 Spike 提到前台；不改变后续置顶按钮的交互语义。
+- `OnClosing()` 通过 `_closeRequestedByButton` 区分用户显式关闭和外部早期关闭，降低自动化 shell 启动时窗口闪退风险。
+- 一次性计划任务用于交互启动验证，任务启动后已删除，不新增开机启动项或持久后台任务。
+
+## Verification
+
+- `C:\Program Files\dotnet\dotnet.exe build .\DanhuangProduct.sln`：0 warnings, 0 errors。
+- 一次性计划任务启动后，`Danhuang.WpfSpike.exe` 保持运行，窗口枚举确认可见窗口标题为“蛋黄 WPF 技术验证”。
+
+## Conclusion
+
+Approved。当前仍是 WPF 技术验证窗口，不代表完整产品版；下一步需要接入真实 sprite atlas、右键/托盘菜单和多屏 DPI 验证。
