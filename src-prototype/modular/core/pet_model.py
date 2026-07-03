@@ -265,6 +265,65 @@ PET_CATEGORY_ALIASES = {
     "custom": "other",
 }
 
+DEFAULT_CATEGORY_ACTION_PROFILE = {
+    "identity_focus": "锁定用户上传主像素图的轮廓、比例、颜色、材质和标志性特征。",
+    "motion_rules": "动作保持同一体量和同一脚底/接触/漂浮基线，适合桌面循环播放。",
+    "avoid_rules": "不要把形象重画成猫狗或另一种生物；不要新增文字、地面、阴影、速度线或背景装饰。",
+    "quality_rules": "相邻帧不能突然换脸、换色、变大变小、换朝向或跨格。",
+}
+
+PET_CATEGORY_ACTION_PROFILES = {
+    "canine": {
+        "identity_focus": "锁定犬类脸型、耳朵、口鼻、尾巴、毛色分区和腿长。",
+        "motion_rules": "四足短步或稳步小跑，抬前爪、摇尾、嗅闻和趴卧为主。",
+        "avoid_rules": "不要画成人手、翅膀、水波、机械关节或夸张飞跃；跑步不用速度线。",
+        "quality_rules": "脚底基线、耳朵方向、尾巴位置和毛色分区跨帧一致。",
+    },
+    "feline": {
+        "identity_focus": "锁定猫脸、胡须、耳朵、尾巴、花纹和柔软身形。",
+        "motion_rules": "轻步、抬爪、洗脸、舔爪、伸懒腰和尾巴轻摆为主。",
+        "avoid_rules": "不要画成小狗式摇尾奔跑；不要把抬爪画成人手。",
+        "quality_rules": "胡须、耳位、尾巴弧线和花纹分区保持稳定。",
+    },
+    "bird": {
+        "identity_focus": "锁定喙、双足、翅膀、羽色和头部轮廓。",
+        "motion_rules": "跳步、点头走、拍翅、展翅、啄一下和歪头为主。",
+        "avoid_rules": "不要画四条腿、狗尾巴或猫爪；不要新增树枝、笼子、天空或背景。",
+        "quality_rules": "翅膀开合、双足落点和身体高度保持稳定。",
+    },
+    "aquatic": {
+        "identity_focus": "锁定鱼鳍、尾鳍、触须、透明伞体或水生轮廓，不要画腿脚。",
+        "motion_rules": "漂浮、游动、摆鳍、摆尾、触手摆动、上浮下沉和转身为主。",
+        "avoid_rules": "不要画四肢跑步、站立脚、地面、水缸、水草、气泡背景或其他鱼群。",
+        "quality_rules": "鳍、尾和触须摆动连贯，漂浮中心不要跨格。",
+    },
+    "human": {
+        "identity_focus": "锁定人物脸型、发型、服装、肤色和职业/纪念特征。",
+        "motion_rules": "两足站立、走路、招手、点头、轻跳、坐下和思考为主。",
+        "avoid_rules": "不要画成宠物四足、尾巴、耳朵或爪子；不要新增文字牌或背景人物。",
+        "quality_rules": "头身比、脸部方向、服装色块和手臂长度稳定。",
+    },
+    "robot": {
+        "identity_focus": "锁定外壳几何、屏幕表情、机械臂、关节、按钮、轮子或灯光位置。",
+        "motion_rules": "亮屏、滑行、机械臂挥动、点头、扫描、充电、抬升或轻跳为主。",
+        "avoid_rules": "不要画成四足动物、毛发、猫狗耳朵或真实人类肢体。",
+        "quality_rules": "边角、屏幕比例、灯光颜色和机械关节位置跨帧一致。",
+    },
+    "object": {
+        "identity_focus": "锁定物件材质、外轮廓、功能部位和表情位置。",
+        "motion_rules": "轻晃、挪动、摆动、翻页、冒气、弹跳、眨眼和小幅表情变化为主。",
+        "avoid_rules": "不要自动长出完整动物身体；不要新增桌面、餐盘、文字标签、阴影或背景。",
+        "quality_rules": "把手、封面、工具头、家具腿等结构不能丢，挪动时体量和材质稳定。",
+    },
+    "plant": {
+        "identity_focus": "锁定花盆、叶片、花瓣、菌盖、树干或多肉叶形。",
+        "motion_rules": "叶片轻摆、花朵点头、发芽、轻晃、缩放和小幅弹跳为主。",
+        "avoid_rules": "不要画成动物跑步；不要新增土堆、阳光、水滴、草地或背景装饰。",
+        "quality_rules": "根部/花盆接触点稳定，叶片数量和花瓣颜色不要跨帧变化。",
+    },
+    "custom": DEFAULT_CATEGORY_ACTION_PROFILE,
+}
+
 
 def clamp(value: Any, minimum: float, maximum: float) -> float:
     try:
@@ -332,6 +391,28 @@ def pet_category_fields(category_id: Any, detail: Any = "") -> dict[str, str]:
     if custom_detail:
         fields["category_detail"] = custom_detail
     return fields
+
+
+def pet_category_action_profile(category_id: Any) -> dict[str, str]:
+    normalized_id = normalize_pet_category_id(category_id) or "other"
+    fields = PET_CATEGORY_LOOKUP.get(normalized_id, PET_CATEGORY_LOOKUP["other"])
+    profile = dict(DEFAULT_CATEGORY_ACTION_PROFILE)
+    profile.update(PET_CATEGORY_ACTION_PROFILES.get(fields.get("category", "custom"), {}))
+    if normalized_id == "short_leg_dog":
+        profile.update({
+            "identity_focus": "短腿犬要锁定低身体、短腿、圆口鼻、耳朵和尾巴。",
+            "motion_rules": "以短步小跑、低幅跳、抬前爪和趴着陪伴为主。",
+        })
+    elif normalized_id == "jellyfish":
+        profile.update({
+            "motion_rules": "水母靠伞体收缩、触须轻摆和上下漂动表现动作，不画鱼尾、鱼鳍或腿脚。",
+            "quality_rules": "半透明轮廓要干净，触须数量和伞体大小跨帧稳定。",
+        })
+    elif normalized_id == "box_robot":
+        profile.update({
+            "identity_focus": "盒子机器人要锁定圆角盒状机身、屏幕表情、机械臂和灯光。",
+        })
+    return profile
 
 
 def normalize_pet_category_metadata(pet: dict[str, Any]) -> dict[str, Any]:

@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.44")
+                    self.assertEqual(module.APP_VERSION, "0.11.45")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)

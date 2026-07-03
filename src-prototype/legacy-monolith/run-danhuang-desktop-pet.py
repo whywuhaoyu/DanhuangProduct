@@ -118,7 +118,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.44"
+APP_VERSION = "0.11.45"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -386,6 +386,312 @@ PET_CATEGORY_ALIASES = {
     "plant": "potted_plant",
     "custom": "other",
 }
+
+DEFAULT_CATEGORY_ACTION_PROFILE = {
+    "identity_focus": "先锁定用户上传主像素图的轮廓、比例、脸型、颜色分区和标志性材质，再设计动作。",
+    "motion_rules": "所有动作保持同一体量和同一脚底/接触基线，动作幅度小而连贯，适合桌面循环播放。",
+    "avoid_rules": "不要把形象重画成猫狗或另一种生物；不要新增文字、道具、地面、阴影、速度线、背景装饰或多余角色。",
+    "quality_rules": "每帧只保留同一个主体；透明边缘干净；相邻帧不能突然换脸、换色、变大变小、换朝向或跨格。",
+}
+
+CATEGORY_ACTION_PROFILES = {
+    "canine": {
+        "identity_focus": "锁定犬类脸型、耳朵、口鼻、尾巴、毛色分区和腿长，不要因为动作把短腿犬拉成长腿犬。",
+        "motion_rules": "四足动作以短步/稳步小跑、抬前爪、摇尾、低头嗅闻和趴卧为主；厚毛或垂耳只做小幅随动。",
+        "avoid_rules": "不要画成人手、翅膀、水波、机械关节或夸张飞跃；跑步靠四肢步态，不用速度线。",
+        "quality_rules": "脚底基线固定，头身比例、耳朵方向、尾巴位置和毛色分区跨帧一致。",
+    },
+    "feline": {
+        "identity_focus": "锁定猫脸、胡须、耳朵、尾巴、花纹和身体柔软轮廓，橘猫要保留橘色花纹节奏。",
+        "motion_rules": "猫类动作以轻步、抬爪、洗脸、舔爪、伸懒腰和尾巴轻摆为主，弹跳也要柔和。",
+        "avoid_rules": "不要画成小狗式摇尾奔跑；不要把抬爪画成人手；不要增加鱼、线团或猫抓板。",
+        "quality_rules": "胡须、耳位、尾巴弧线和花纹分区保持稳定，身体可伸展但不能拉成陌生长条。",
+    },
+    "rabbit": {
+        "identity_focus": "锁定长耳、圆身、后腿和蹲坐体态，垂耳兔要保持耳朵自然下垂。",
+        "motion_rules": "兔类动作以蹲坐、小幅蹦跳、抱前爪、竖耳/垂耳轻动和缩成一团为主。",
+        "avoid_rules": "不要画成犬猫四足跑；不要新增胡萝卜、草地或笼子；不要把耳朵变短。",
+        "quality_rules": "耳朵长度、头身比、后腿位置和落点基线一致。",
+    },
+    "small_mammal": {
+        "identity_focus": "锁定小体型、圆身、短爪、尾巴或背刺等特征，不要放大到大型宠物比例。",
+        "motion_rules": "小型哺乳动物以短步快走、抱爪、探头、嗅闻、团身和轻跳为主。",
+        "avoid_rules": "不要套用犬类抬爪打招呼；不要画出不属于该物种的长尾、长耳或翅膀。",
+        "quality_rules": "保持小而清晰，轮廓不要糊成一团；动作变化集中在前爪、头部和身体小幅起伏。",
+    },
+    "large_mammal": {
+        "identity_focus": "锁定大型哺乳动物的身高、蹄/掌、角/鼻/尾等识别点，动作要稳重。",
+        "motion_rules": "大型动物以稳步走、低头、踏步、甩尾、扇耳或慢坐卧为主，少做高跳。",
+        "avoid_rules": "不要画成小狗式短促弹跳；不要加入草地、栏杆、马具或额外背景。",
+        "quality_rules": "视觉体量不能忽大忽小，长腿和躯干比例跨帧稳定。",
+    },
+    "bird": {
+        "identity_focus": "锁定喙、双足、翅膀、羽色和头部轮廓；企鹅、鹦鹉等要保留各自体态。",
+        "motion_rules": "鸟类动作以跳步、点头走、拍翅、展翅、啄一下和歪头为主，不做四足跑。",
+        "avoid_rules": "不要画四条腿、狗尾巴或猫爪；不要新增树枝、笼子、天空或飞行背景。",
+        "quality_rules": "翅膀开合要对称稳定，双足落点和身体高度不要突然漂移。",
+    },
+    "reptile_amphibian": {
+        "identity_focus": "锁定鳞片/皮肤、龟壳、长尾、无足或蹲伏体态等物种特征。",
+        "motion_rules": "爬行/两栖以慢爬、探头、缩壳、摆尾、吐信、蹦跳或鼓腮为主。",
+        "avoid_rules": "蛇不要长出脚，龟不要丢壳，蛙不要变成小狗；不要新增石头、水池或草地。",
+        "quality_rules": "贴地基线稳定，长身体或壳体轮廓不能每帧重画成新形状。",
+    },
+    "aquatic": {
+        "identity_focus": "锁定鱼鳍、尾鳍、触须、透明伞体或水生轮廓，不要画腿脚。",
+        "motion_rules": "水生动作以漂浮、游动、摆鳍、摆尾、触手摆动、上浮下沉和转身为主。",
+        "avoid_rules": "不要画四肢跑步、站立脚、地面、水缸、水草、气泡背景或其他鱼群；吐泡泡动作也只允许极少小泡点。",
+        "quality_rules": "身体中心可缓慢漂移但不要跨格；鳍、尾和触须的摆动要连贯，透明边缘要干净。",
+    },
+    "arthropod": {
+        "identity_focus": "锁定翅膀、甲壳、多足、触角、钳或尾节，保持小体型清晰。",
+        "motion_rules": "节肢类以停驻、爬行、振翅、横移、挥触角/钳和轻飞为主。",
+        "avoid_rules": "不要简化成四足犬猫；不要新增花朵、蛛网、蜂巢或地面。",
+        "quality_rules": "多足/翅膀帧间节奏一致，不要让主体糊成阴影。",
+    },
+    "human": {
+        "identity_focus": "锁定人物脸型、发型、服装、肤色和职业/纪念特征，动作只改姿态不改身份。",
+        "motion_rules": "人物动作以站立、走路、招手、点头、轻跳、坐下和思考为主，按两足角色处理。",
+        "avoid_rules": "不要画成宠物四足、尾巴、耳朵或爪子；不要新增文字牌、办公桌、背景或多余人物。",
+        "quality_rules": "头身比、脸部方向、服装色块和手臂长度稳定，表情变化要克制。",
+    },
+    "fantasy": {
+        "identity_focus": "锁定幻想角色的角、翅膀、尾巴、软体轮廓、发光部位或漂浮外形。",
+        "motion_rules": "幻想角色可用轻跑、漂浮、扑翼、摆尾、弹跳、发光和缩放，但动作要低幅度。",
+        "avoid_rules": "不要用特效盖住主体；不要新增魔法阵、文字、烟雾或背景；不要每帧变成不同怪物。",
+        "quality_rules": "魔法元素只做局部小幅变化，主体轮廓和颜色必须稳定。",
+    },
+    "robot": {
+        "identity_focus": "锁定外壳几何、屏幕表情、机械臂、关节、按钮、轮子或灯光位置。",
+        "motion_rules": "机器人以亮屏、滑行、机械臂挥动、点头、扫描、充电、抬升或轻跳为主。",
+        "avoid_rules": "不要画成四足动物、毛发、猫狗耳朵或真实人类肢体；不要加入 UI 文字、代码屏或复杂背景。",
+        "quality_rules": "边角、屏幕比例、灯光颜色和机械关节位置跨帧一致，滑行也要保留接触基线。",
+    },
+    "object": {
+        "identity_focus": "锁定物件材质、外轮廓、功能部位和表情位置，拟人化要轻。",
+        "motion_rules": "物件动作以轻晃、挪动、摆动、翻页、冒气、弹跳、眨眼和小幅表情变化为主。",
+        "avoid_rules": "不要自动长出完整动物身体；不要新增桌面、餐盘、文字标签、阴影或背景。",
+        "quality_rules": "把手、封面、工具头、家具腿等结构不能丢，挪动时体量和材质稳定。",
+    },
+    "plant": {
+        "identity_focus": "锁定花盆、叶片、花瓣、菌盖、树干或多肉叶形，动作幅度要小。",
+        "motion_rules": "植物以叶片轻摆、花朵点头、发芽、轻晃、缩放和小幅弹跳为主。",
+        "avoid_rules": "不要画成动物跑步；不要新增土堆、阳光、水滴、草地或背景装饰。",
+        "quality_rules": "根部/花盆接触点稳定，叶片数量和花瓣颜色不要跨帧变化。",
+    },
+    "custom": DEFAULT_CATEGORY_ACTION_PROFILE,
+}
+
+CATEGORY_BASIC_ACTION_DETAILS = {
+    "canine": {
+        "idle": "待机：6 帧循环。犬类保持坐立或站坐，头部轻呼吸，耳朵和尾巴只小幅摆动，脚底基线固定。",
+        "running-right": "向右跑：8 帧循环。四足朝右短步或稳步小跑，前后腿交替清楚，头和尾巴轻随动，不要速度线。",
+        "running-left": "向左跑：8 帧循环。与向右跑镜像一致，耳朵、尾巴、毛色分区和脸型必须保持同一只犬。",
+        "waving": "挥爪：4 帧。原地抬一只前爪向主人打招呼，另一侧身体稳定，不要画成人手。",
+        "jumping": "跳一下：5 帧。原地小跳，蓄力、离地、落回同一脚底基线；短腿犬跳幅更小。",
+        "running": "跑一小段：6 帧。四足短距离小跑，视觉体量和基础跑步一致。",
+        "sniffing": "闻一闻：8 帧。低头向前/向下嗅闻，鼻子和头部小幅移动，身体留在原地。",
+    },
+    "feline": {
+        "idle": "待机：6 帧循环。猫类坐着或蹲坐，尾巴轻摆、耳朵微动、眨眼，胡须和花纹稳定。",
+        "running-right": "向右轻步：8 帧循环。四足轻步走或小跑，身体柔软但不拉长，尾巴保持自然弧线。",
+        "running-left": "向左轻步：8 帧循环。镜像轻步，花纹、胡须、耳位和尾巴弧线与向右动作一致。",
+        "waving": "抬爪：4 帧。猫坐姿或站姿抬一只前爪，像轻轻招呼或洗脸前动作，不要画成人手。",
+        "jumping": "轻跳：5 帧。猫式原地轻跃，落点回到原位，身体可压缩回弹但不能换脸。",
+        "running": "跑一小段：6 帧。轻快猫步，靠四肢与尾巴节奏表达，不要速度线。",
+        "stretching": "伸懒腰：8 帧。前爪前伸、背部拉长再恢复，花纹和体量保持稳定。",
+        "sniffing": "闻一闻：8 帧。低头轻闻，胡须和鼻尖小幅前探，不要画食物或气味线。",
+    },
+    "rabbit": {
+        "idle": "待机：6 帧循环。兔类蹲坐或抱前爪，长耳轻动，后腿和圆身稳定。",
+        "running-right": "向右蹦跳：8 帧循环。用后腿小幅蹦跳前进，身体低而圆，不要四足犬跑。",
+        "running-left": "向左蹦跳：8 帧循环。镜像蹦跳，耳朵长度和下垂/竖立方向保持一致。",
+        "waving": "抬前爪：4 帧。原地抬一只前爪或抱爪探头，动作小，不要画成人手。",
+        "jumping": "小跳：5 帧。原地轻跳，落点回到同一基线，耳朵自然随动。",
+    },
+    "small_mammal": {
+        "idle": "待机：6 帧循环。小型哺乳动物抱爪、趴坐或团身，头部轻动，主体保持小而清晰。",
+        "running-right": "向右快走：8 帧循环。短步快走或小跳，脚步很短，不能变成犬类奔跑。",
+        "running-left": "向左快走：8 帧循环。镜像短步快走，圆身体和尾巴/背刺特征保持稳定。",
+        "waving": "探头/抬爪：4 帧。抬前爪、探头或抱爪轻动，动作集中在头和前爪。",
+        "jumping": "小跳：5 帧。轻轻弹起再落回，避免夸张拉伸。",
+    },
+    "large_mammal": {
+        "idle": "待机：6 帧循环。大型动物站立或坐伏，呼吸起伏小，角、鼻、蹄或尾巴清晰。",
+        "running-right": "向右稳步：8 帧循环。稳步走或慢跑，长腿/蹄类步态清楚，体量不能忽大忽小。",
+        "running-left": "向左稳步：8 帧循环。镜像稳步，头身比例和蹄/掌落点一致。",
+        "waving": "抬前蹄/挥掌：4 帧。按物种抬前蹄、挥掌、甩鼻或扇耳，不要画成人手。",
+        "jumping": "踏步/轻跳：5 帧。低幅度踏步或轻跳，避免夸张弹起。",
+    },
+    "bird": {
+        "idle": "待机：6 帧循环。鸟类双足站立，眨眼、点头或轻收翅，羽色和喙稳定。",
+        "running-right": "向右跳步/点头走：8 帧循环。双足跳步或摇摆走，不画四足奔跑。",
+        "running-left": "向左跳步/点头走：8 帧循环。镜像双足移动，翅膀和尾羽位置稳定。",
+        "waving": "拍翅/展翅：4 帧。用翅膀轻拍或展开打招呼，不要画前爪或人手。",
+        "jumping": "小跳：5 帧。双足原地小跳或短翅轻拍，落点回原位。",
+        "running": "移动一小段：6 帧。双足跳步、点头走或企鹅摇摆走，不使用四足跑。",
+    },
+    "reptile_amphibian": {
+        "idle": "待机：6 帧循环。贴地趴伏、盘起或蹲坐，鳞片/壳/皮肤轮廓稳定。",
+        "running-right": "向右慢爬/游走：8 帧循环。按物种慢爬、盘身游走或蹦跳，不强行四足跑。",
+        "running-left": "向左慢爬/游走：8 帧循环。镜像移动，龟壳、长尾或无足体态不能改变。",
+        "waving": "探头/吐信/挥前爪：4 帧。用探头、吐信、缩壳或小幅前爪动作表达招呼。",
+        "jumping": "短促前探/小跳：5 帧。蛙可小跳，龟/蛇/蜥蜴以缩放或前探代替高跳。",
+    },
+    "aquatic": {
+        "idle": "待机：6 帧循环。水生形象在格内轻轻漂浮，鳍、尾、触须或伞体小幅摆动，不画腿脚。",
+        "running-right": "向右游动/漂动：8 帧循环。靠鱼鳍、尾鳍、触手或身体收缩向右移动，不画四肢跑步。",
+        "running-left": "向左游动/漂动：8 帧循环。镜像游动，水生轮廓、鳍尾位置和透明边缘保持一致。",
+        "waving": "摆鳍/挥触手：4 帧。用鳍、尾鳍、触手或伞缘摆动打招呼，不要画爪子或人手。",
+        "jumping": "上浮一下：5 帧。轻轻上浮再回到原位；鲸/海豚可低幅轻跃，但不加水花背景。",
+        "running": "游一小段：6 帧。短距离漂动或游动，身体中心缓慢移动，不跨格。",
+    },
+    "arthropod": {
+        "idle": "待机：6 帧循环。停驻或悬停，翅膀/触角/多足小幅动，主体清晰。",
+        "running-right": "向右爬/轻飞：8 帧循环。按物种爬行、横移、振翅或轻飞，不套犬猫跑步。",
+        "running-left": "向左爬/轻飞：8 帧循环。镜像移动，多足/翅膀节奏稳定。",
+        "waving": "挥触角/振翅/挥钳：4 帧。用触角、翅膀、钳或前足表达招呼。",
+        "jumping": "小跃起：5 帧。小幅跳起或上浮，不画夸张飞行背景。",
+    },
+    "human": {
+        "idle": "待机：6 帧循环。人物站立或轻坐，呼吸、眨眼或轻点头，脸型、发型和服装稳定。",
+        "running-right": "向右走：8 帧循环。两足侧向走路，手臂自然摆动，不画四足跑。",
+        "running-left": "向左走：8 帧循环。镜像走路，发型、服装、脸部方向和头身比一致。",
+        "waving": "招手：4 帧。抬一只手轻轻招手，身体只小幅跟随，不改变服装或脸。",
+        "jumping": "轻跳/点头：5 帧。原地轻跳或点头，落回同一脚底基线。",
+        "running": "走一小段：6 帧。两足短步走，不使用宠物四足奔跑动作。",
+    },
+    "fantasy": {
+        "idle": "待机：6 帧循环。幻想形象保持核心轮廓，可轻漂浮、轻呼吸或局部发光。",
+        "running-right": "向右移动：8 帧循环。按形态轻跑、漂动、弹跳或摆尾，不让主体变形为另一只怪物。",
+        "running-left": "向左移动：8 帧循环。镜像移动，角、翅膀、尾巴、发光部位和颜色一致。",
+        "waving": "挥手/挥爪/扑翼：4 帧。用现有肢体、翅膀或软体凸起打招呼，动作小。",
+        "jumping": "弹跳/上浮：5 帧。轻弹或上浮再回原位，特效不要遮住主体。",
+    },
+    "robot": {
+        "idle": "待机：6 帧循环。机器人亮屏、眨灯或机械臂轻动，外壳几何和屏幕表情稳定。",
+        "running-right": "向右滑行/走：8 帧循环。盒子机器人滑行，人形机器人两足走，载具行驶；不要四足跑。",
+        "running-left": "向左滑行/走：8 帧循环。镜像移动，屏幕、按钮、机械臂和外壳边角一致。",
+        "waving": "挥机械臂/闪屏：4 帧。用机械臂、灯光或屏幕表情打招呼，不画毛爪或真人手。",
+        "jumping": "弹跳/抬升：5 帧。低幅抬升、悬停或弹跳，落回同一接触基线。",
+        "running": "移动一小段：6 帧。滑行、行驶或两足走，保留机械结构和材质。",
+    },
+    "object": {
+        "idle": "待机：6 帧循环。物件原地轻晃或眨眼，材质、把手、封面、工具头等结构固定。",
+        "running-right": "向右挪动：8 帧循环。轻轻挪动、滑动或小跳前移，不长出完整动物身体。",
+        "running-left": "向左挪动：8 帧循环。镜像挪动，物件外形和功能部位保持一致。",
+        "waving": "摆动/翻页/冒气：4 帧。按物件特性用把手、书页、工具头、蒸汽或局部小手打招呼。",
+        "jumping": "弹跳：5 帧。低幅弹跳或压缩回弹，不新增桌面和阴影。",
+        "running": "挪一小段：6 帧。短距离滑动或挪动，体量和材质不变。",
+    },
+    "plant": {
+        "idle": "待机：6 帧循环。植物根部或花盆稳定，叶片、花瓣或菌盖轻摆。",
+        "running-right": "向右挪动：8 帧循环。整体轻挪或花盆滑动，叶片随动，不画腿脚跑步。",
+        "running-left": "向左挪动：8 帧循环。镜像轻挪，根部/花盆接触点稳定。",
+        "waving": "摆叶/摆花：4 帧。用叶片、花朵或菌盖轻摆打招呼，不画动物爪子。",
+        "jumping": "弹跳/发芽：5 帧。轻轻弹起或叶片发芽感，回到原位。",
+    },
+    "custom": {
+        "idle": "待机：6 帧循环。保留用户描述的主体形态，只做轻呼吸、眨眼或局部小动。",
+        "running-right": "向右移动：8 帧循环。根据主体结构选择走、滑、飞、游或漂动，不强行套猫狗跑步。",
+        "running-left": "向左移动：8 帧循环。镜像移动，外观身份保持一致。",
+        "waving": "打招呼：4 帧。使用主体已有合理部位打招呼，不能临时长出不合理手脚。",
+        "jumping": "跳一下：5 帧。低幅动作，回到同一基线或漂浮中心。",
+    },
+}
+
+SUBTYPE_ACTION_PROFILE_OVERRIDES = {
+    "short_leg_dog": {
+        "identity_focus": "短腿犬要锁定低身体、短腿、圆口鼻、耳朵和尾巴；不能在跑跳中被拉成长腿犬。",
+        "motion_rules": "以短步小跑、低幅跳、抬前爪和趴着陪伴为主，动作可爱但不夸张。",
+    },
+    "long_hair_dog": {
+        "motion_rules": "长毛犬动作更慢，厚毛只做轻微惯性摆动，不能把蓬松体积压扁或忽大忽小。",
+        "quality_rules": "毛量轮廓、圆脸和胸背带/花色跨帧一致，避免每帧重新生成一团不同毛球。",
+    },
+    "orange_cat": {
+        "identity_focus": "橘猫要锁定橘色虎斑、圆脸、胡须和尾巴，不能在动作中变成普通黄狗或无花纹猫。",
+    },
+    "penguin": {
+        "motion_rules": "企鹅采用直立摇摆步和短翅拍动，不做普通小鸟跳飞或四足跑。",
+    },
+    "jellyfish": {
+        "motion_rules": "水母靠伞体收缩、触须轻摆和上下漂动表现动作，不画鱼尾、鱼鳍或腿脚。",
+        "quality_rules": "半透明轮廓要干净，触须数量和伞体大小跨帧稳定。",
+    },
+    "snake": {
+        "avoid_rules": "蛇绝不能长出脚、爪、翅膀或人手；动作靠盘身、前探、吐信和身体波形。",
+    },
+    "box_robot": {
+        "identity_focus": "盒子机器人要锁定圆角盒状机身、屏幕表情、机械臂和灯光，不要画成宠物或真人。",
+    },
+    "cup": {
+        "avoid_rules": "杯子不能长出完整动物身体；可轻晃、冒气、眨眼或用把手小幅摆动。",
+    },
+}
+
+SUBTYPE_BASIC_ACTION_OVERRIDES = {
+    "short_leg_dog": {
+        "running-right": "向右短步跑：8 帧循环。短腿小狗用很短的步幅向右小跑，身体低、脸和耳朵稳定，不要拉成长腿。",
+        "running-left": "向左短步跑：8 帧循环。与向右短步跑镜像一致，腿长、垂耳和尾巴位置稳定。",
+        "jumping": "小跳：5 帧。短腿小狗只做低幅原地小跳，落回同一基线，不能飞出格子。",
+    },
+    "long_hair_dog": {
+        "idle": "待机：6 帧循环。长毛犬坐立或趴坐，厚毛轻微呼吸起伏，圆脸和毛量保持一致。",
+        "running-right": "向右小跑：8 帧循环。厚毛犬慢一点小跑，毛边轻随动，体积不能忽大忽小。",
+        "running-left": "向左小跑：8 帧循环。镜像慢跑，毛量轮廓和脸型不能重画。",
+    },
+    "orange_cat": {
+        "waving": "抬爪：4 帧。橘猫坐姿抬前爪轻招呼，虎斑花纹和胡须保持稳定，不画成人手。",
+    },
+    "jellyfish": {
+        "waving": "触须摆动：4 帧。水母用触须轻摆或伞缘收缩打招呼，不画爪子、人手或鱼鳍。",
+        "jumping": "上浮一下：5 帧。伞体轻收缩后上浮再回到原漂浮中心，不加水花背景。",
+    },
+    "box_robot": {
+        "waving": "挥机械臂：4 帧。盒子机器人用机械臂或屏幕表情打招呼，机身保持盒状，不画毛爪。",
+        "jumping": "弹跳/抬升：5 帧。机身低幅弹起或悬停，屏幕比例和灯光颜色稳定。",
+    },
+    "cup": {
+        "waving": "把手摆动/冒气：4 帧。杯子用把手、杯口热气或表情小动打招呼，不长出完整手脚。",
+    },
+}
+
+CATEGORY_QUICK_ACTION_LABELS = {
+    "canine": {"waving": "抬爪", "running": "跑一小段", "jumping": "小跳", "waiting": "等一下"},
+    "feline": {"waving": "抬爪", "running": "轻步一段", "jumping": "轻跳", "waiting": "等一下"},
+    "rabbit": {"waving": "抬前爪", "running": "蹦一小段", "jumping": "小跳", "waiting": "蹲一会"},
+    "small_mammal": {"waving": "探头", "running": "快走一段", "jumping": "小跳", "waiting": "抱爪等"},
+    "large_mammal": {"waving": "抬前蹄", "running": "稳步一段", "jumping": "踏步", "waiting": "站一会"},
+    "bird": {"waving": "拍翅", "running": "跳步一段", "jumping": "小跳", "waiting": "站一会"},
+    "reptile_amphibian": {"waving": "探头", "running": "慢爬一段", "jumping": "短促前探", "waiting": "停一会"},
+    "aquatic": {"waving": "摆鳍", "running": "游一小段", "jumping": "上浮一下", "waiting": "漂一会"},
+    "arthropod": {"waving": "挥触角", "running": "移动一段", "jumping": "小跃起", "waiting": "停驻"},
+    "human": {"waving": "招手", "running": "走一小段", "jumping": "轻跳", "waiting": "等一下"},
+    "fantasy": {"waving": "打招呼", "running": "移动一段", "jumping": "弹跳", "waiting": "停一会"},
+    "robot": {"waving": "挥机械臂", "running": "滑一小段", "jumping": "抬升一下", "waiting": "待机"},
+    "object": {"waving": "摆动", "running": "挪一小段", "jumping": "弹跳", "waiting": "停一会"},
+    "plant": {"waving": "摆叶", "running": "挪一小段", "jumping": "轻弹一下", "waiting": "静静待着"},
+    "custom": {"waving": "打招呼", "running": "移动一段", "jumping": "跳一下", "waiting": "等一下"},
+}
+
+
+def enrich_pet_category_presets():
+    for category_id, preset in PET_CATEGORY_PRESETS.items():
+        category = preset.get("category", "custom")
+        profile = dict(DEFAULT_CATEGORY_ACTION_PROFILE)
+        profile.update(CATEGORY_ACTION_PROFILES.get(category, {}))
+        profile.update(SUBTYPE_ACTION_PROFILE_OVERRIDES.get(category_id, {}))
+        preset.update(profile)
+
+        action_details = {}
+        action_details.update(CATEGORY_BASIC_ACTION_DETAILS.get("custom", {}))
+        action_details.update(CATEGORY_BASIC_ACTION_DETAILS.get(category, {}))
+        action_details.update(SUBTYPE_BASIC_ACTION_OVERRIDES.get(category_id, {}))
+        preset["action_details"] = action_details
+
+
+enrich_pet_category_presets()
 
 AI_PROVIDER_PRESETS = {
     "openai": {
@@ -1747,14 +2053,43 @@ class DanhuangPet:
         preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
         return "、".join(preset.get("base_labels", []))
 
+    def pet_category_action_label(self, category_id, state):
+        category_id = self.normalize_pet_category_id(category_id) or "other"
+        preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        if state in BASIC_ATLAS_ACTIONS:
+            labels = preset.get("base_labels", [])
+            try:
+                index = BASIC_ATLAS_ACTIONS.index(state)
+            except ValueError:
+                index = -1
+            if 0 <= index < len(labels):
+                return str(labels[index])
+        category = preset.get("category", "custom")
+        labels = CATEGORY_QUICK_ACTION_LABELS.get(category, CATEGORY_QUICK_ACTION_LABELS["custom"])
+        if state in labels:
+            return labels[state]
+        return ACTION_LABELS.get(state, state)
+
+    def pet_category_action_profile(self, category_id):
+        category_id = self.normalize_pet_category_id(category_id) or "other"
+        preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        return {
+            "identity_focus": preset.get("identity_focus", DEFAULT_CATEGORY_ACTION_PROFILE["identity_focus"]),
+            "motion_rules": preset.get("motion_rules", DEFAULT_CATEGORY_ACTION_PROFILE["motion_rules"]),
+            "avoid_rules": preset.get("avoid_rules", DEFAULT_CATEGORY_ACTION_PROFILE["avoid_rules"]),
+            "quality_rules": preset.get("quality_rules", DEFAULT_CATEGORY_ACTION_PROFILE["quality_rules"]),
+        }
+
     def pet_category_profile_summary(self, category_id):
         category_id = self.normalize_pet_category_id(category_id) or "other"
         preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
         recommended = "、".join(preset.get("recommended", []))
+        profile = self.pet_category_action_profile(category_id)
         return (
             f"{preset['group']} / {preset['category_label']} / {preset['label']}：{preset['examples']}。"
             f"体态：{preset.get('body_profile', '')}。动作：{preset.get('movement', '')}。"
             f"基础动作：{self.pet_category_action_summary(category_id)}。推荐：{recommended}。"
+            f"身份重点：{profile['identity_focus']} 禁用：{profile['avoid_rules']}"
         )
 
     def default_pet_family(self):
@@ -2070,6 +2405,20 @@ class DanhuangPet:
         asset = self.extension_asset_for_action(state)
         if asset and asset.get("label"):
             return asset["label"]
+        if state in BASIC_ATLAS_ACTIONS:
+            try:
+                pet = self.active_pet if isinstance(self.active_pet, dict) else {}
+                return self.pet_category_action_label(self.pet_category(pet), state)
+            except Exception:
+                pass
+        try:
+            pet = self.active_pet if isinstance(self.active_pet, dict) else {}
+            category_id = self.pet_category(pet)
+            label = self.pet_category_action_label(category_id, state)
+            if label:
+                return label
+        except Exception:
+            pass
         return ACTION_LABELS.get(state, state)
 
     def active_pet_name(self):
@@ -6067,12 +6416,15 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
         def refresh_hint(preset):
             recommended = "、".join(preset.get("recommended", []))
+            profile = self.pet_category_action_profile(category_var.get())
             hint.configure(
                 text=(
                     f"{preset['group']} / {preset['category_label']} / {preset['label']}：{preset['examples']}\n"
                     f"体态：{preset.get('body_profile', '')}\n"
                     f"动作：{preset.get('movement', '')}\n"
-                    f"基础动作：{self.pet_category_action_summary(category_var.get())}；推荐扩展：{recommended}"
+                    f"基础动作：{self.pet_category_action_summary(category_var.get())}；推荐扩展：{recommended}\n"
+                    f"动作规则：{profile['motion_rules']}\n"
+                    f"禁用：{profile['avoid_rules']}"
                 )
             )
 
@@ -6367,8 +6719,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         species = str(species or "宠物").strip()
         notes = str(notes or "").strip()
         category_detail = str(category_detail or "").strip()
-        category_id = self.infer_pet_category(species, category, notes=notes, display_name=name)
+        category_id = self.infer_pet_category(species, category, notes=f"{category_detail} {notes}", display_name=name)
         category_preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        profile = self.pet_category_action_profile(category_id)
         recommended = "、".join(category_preset.get("recommended", []))
         return (
             f"宠物名称：{name}\n"
@@ -6377,6 +6730,10 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             f"细分特征：{category_detail or category_preset['body_profile']}\n"
             f"体态画像：{category_preset['body_profile']}\n"
             f"分类动作方向：{category_preset['movement']}\n"
+            f"分类身份重点：{profile['identity_focus']}\n"
+            f"分类运动规则：{profile['motion_rules']}\n"
+            f"分类禁用规则：{profile['avoid_rules']}\n"
+            f"分类质量检查：{profile['quality_rules']}\n"
             f"推荐扩展动作：{recommended}\n"
             f"用户描述：{notes or '请以用户上传的照片为唯一身份依据。'}\n"
             "身份锁定：必须保留当前分类下的关键身份特征，包括脸型/头部结构、眼神、轮廓、身体比例、配饰、毛色/肤色/羽色/鳞片/材质和标志性花纹。"
@@ -6397,30 +6754,42 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 - 不要写实照片风、3D、厚涂、海报背景。
 - 不要文字、阴影、地面、气泡、装饰、边框。
 - 不要改变品种、毛色分区、脸部特征和体型比例。
+- 不要违反上面的分类禁用规则；例如水生形象不画腿脚，人物不画四足跑，机器人不画毛发和猫狗耳朵。
 """
 
-    def action_special_prompt_notes(self, action_or_label):
+    def action_special_prompt_notes(self, action_or_label, category_id=None):
         value = str(action_or_label or "").lower()
         if "chase-butterfly" in value or "蝴蝶" in value:
+            category_id = self.normalize_pet_category_id(category_id) or "other"
+            preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+            profile = self.pet_category_action_profile(category_id)
             return (
                 "\n追蝴蝶专项要求：\n"
                 "- 只画宠物本体，不要画蝴蝶、昆虫、花、草地、速度线、灰尘或装饰碎片。\n"
                 "- 桌宠程序会单独用 butterfly.png 在宠物前方显示蝴蝶；动作条里如果再画蝴蝶，播放会出现两个目标并且很怪。\n"
-                "- 宠物应保持跑步/小跑追逐姿态，身体朝右；程序会自动移动窗口并在反向时使用左跑 fallback。\n"
-                "- 脚底基线必须和主像素图/向右跑动作一致，不能让宠物漂浮在格子中间。\n"
-                "- 视觉体积必须和正常跑步动作一致，不要每帧忽大忽小，不要把宠物缩小来给蝴蝶留位置。\n"
+                f"- 动作必须按当前分类表现：{preset['group']} / {preset['category_label']} / {preset['label']}，{profile['motion_rules']}\n"
+                "- 脚底/接触点/漂浮中心基线必须和主像素图及分类移动动作一致，不能让主体漂浮到格子中间或跨格。\n"
+                "- 视觉体积必须和分类移动动作一致，不要每帧忽大忽小，不要把主体缩小来给蝴蝶留位置。\n"
             )
         return ""
 
-    def action_detail_prompt(self, action_or_label):
+    def action_detail_prompt(self, action_or_label, category_id=None):
         value = str(action_or_label or "").strip()
         lowered = value.lower()
+        category_id = self.normalize_pet_category_id(category_id) or ""
+        category_details = {}
+        if category_id:
+            category_details = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"]).get("action_details", {})
+            if lowered in category_details:
+                return category_details[lowered]
         if lowered in BASIC_ACTION_PROMPTS:
             return BASIC_ACTION_PROMPTS[lowered]
         if lowered in ACTION_PROMPT_DETAILS:
             return ACTION_PROMPT_DETAILS[lowered]
         for action, label in ACTION_LABELS.items():
-            if value == label or label in value:
+            if value == action or value == label or label in value:
+                if action in category_details:
+                    return category_details[action]
                 return ACTION_PROMPT_DETAILS.get(action) or BASIC_ACTION_PROMPTS.get(action, f"{label}：动作自然连贯。")
         return "请先补充这个扩展动作的具体动作需求：起始姿态、动作过程、结束姿态、是否循环、希望表达的情绪。动作要小而连贯，身份特征不能丢。"
 
@@ -6431,7 +6800,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             "2. 做基础动作时，把主像素图上传给生图 AI，再复制“五个基础动作提示词”。\n"
             "3. 做单个动作修复或扩展动作时，同样先上传主像素图，再复制对应动作提示词。\n"
             "4. 生成结果必须是横向 sprite strip：每帧 192x208，高度 208，宽度 = 帧数 x 192。\n"
-            "5. 上传前检查：同一只宠物、同一毛色、同一脸型、同一脚底基线、没有文字/网格/阴影/速度线。\n"
+            "5. 上传前检查：同一只宠物、同一毛色、同一脸型、同一脚底/接触/漂浮基线、没有文字/网格/阴影/速度线。\n"
             "6. 追蝴蝶这类动作只画宠物本体；蝴蝶由桌宠程序单独显示，不要画进动作条。\n"
             "7. 自定义扩展动作不能只写“做一个动作”。请补充：动作名、起始姿态、动作过程、结束姿态、是否循环、情绪和禁用元素。\n"
             "8. 如果生图工具总是输出 3:1 或 1024x1024 大图，请在工具里选择自定义画布尺寸：8 帧动作用 1536x208，6 帧动作用 1152x208，5 帧动作用 960x208，4 帧动作用 768x208。"
@@ -6439,8 +6808,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
     def basic_action_prompt(self, state=None, name="", species="", notes="", category="", category_detail=""):
         states = [state] if state else BASIC_ATLAS_ACTIONS
-        category_id = self.infer_pet_category(species, category)
+        category_id = self.infer_pet_category(species, category, notes=f"{category_detail} {notes}", display_name=name)
         category_preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        profile = self.pet_category_action_profile(category_id)
         lines = [
             "请以我上传的主像素图作为唯一身份基准，生成 Codex 桌宠横向 sprite strip。",
             "重要：动作图必须基于这张主像素图生成。不要只看文字描述重新画一只新宠物；如果主像素图没上传，请先生成或上传主像素图再做动作。",
@@ -6448,6 +6818,8 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             self.pet_prompt_identity_context(name, species, notes, category=category, category_detail=category_detail),
             "",
             f"当前分类动作语义：{category_preset['movement']}。体态画像：{category_preset.get('body_profile', '')}。这套基础动作的按钮名称保持兼容旧槽位，但动作表现要按分类理解：{self.pet_category_action_summary(category_id)}。",
+            f"分类运动规则：{profile['motion_rules']}",
+            f"分类禁用规则：{profile['avoid_rules']}",
             "",
             "统一规格：",
             f"- 每帧单元格固定 {CELL_W}x{CELL_H} 像素。",
@@ -6457,32 +6829,36 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             "- 背景透明；如果工具不支持透明背景，就使用纯色 #00FFFF。",
             "- 每格只有同一只宠物，必须独立居中，不能跨格、不能重叠、不能裁切。",
             "- 不要网格线、编号、文字、阴影、速度线、地面、气泡、装饰。",
-            "- 所有帧大小、视觉体积、脚底基线、颜色、描边粗细和脸部比例要一致。",
-            "- 每一帧的脚底基线尽量落在同一高度；跳跃帧可以短暂上移，但落地帧要回到原基线。",
+            "- 所有帧大小、视觉体积、脚底/接触/漂浮基线、颜色、描边粗细和脸部比例要一致。",
+            "- 每一帧的脚底/接触/漂浮中心尽量落在同一高度；跳跃或上浮帧可以短暂上移，但落地/回落帧要回到原基线。",
             "",
             "动作要求：",
         ]
         for action in states:
-            label = ACTION_LABELS.get(action, action)
+            label = self.pet_category_action_label(category_id, action)
             frame_count = ROWS.get(action, (0, CUSTOM_ACTION_MAX_FRAMES))[1]
-            prompt = BASIC_ACTION_PROMPTS.get(action, f"{label}：动作自然连贯。")
+            prompt = self.action_detail_prompt(action, category_id)
             lines.append(f"- {label}：{frame_count} 帧。{prompt}")
         lines.extend([
             "",
             "动作质量：",
             "- 动作宁可小，也不要夸张变形。",
-            "- 只改变姿态、四肢、耳朵、尾巴、眼睛和身体小幅起伏，不改变身份。",
+            f"- 只改变当前分类合理的部位和姿态：{profile['motion_rules']}",
+            f"- 禁止项：{profile['avoid_rules']}",
+            f"- 质量检查：{profile['quality_rules']}",
             "- 同一动作的相邻帧要能顺滑连起来，不要突然换脸、换毛色、换体型或换方向。",
             "- 透明边缘要干净，不要残留绿色、白边、半透明旧影或棋盘格。",
-            "- 跑步靠四肢和身体姿态表现，不要速度线。",
-            "- 跳跃不要地面阴影，挥爪不要波浪线。",
+            "- 移动、跳跃和打招呼都要按分类结构表达，不要强行套用犬猫四肢跑、挥爪或摇尾。",
+            "- 跳跃不要地面阴影，打招呼不要波浪线、文字或表情符号。",
         ])
         return "\n".join(lines)
 
     def single_action_repair_prompt(self, state, name="", species="", notes="", category="", category_detail=""):
-        label = ACTION_LABELS.get(state, state)
         frame_count = ROWS.get(state, (0, CUSTOM_ACTION_MAX_FRAMES))[1]
-        special_notes = self.action_special_prompt_notes(state or label)
+        category_id = self.infer_pet_category(species, category, notes=f"{category_detail} {notes}", display_name=name)
+        label = self.pet_category_action_label(category_id, state)
+        profile = self.pet_category_action_profile(category_id)
+        special_notes = self.action_special_prompt_notes(state or label, category_id)
         return f"""请只重做这一行动作，不要重做角色。
 
 {self.pet_prompt_identity_context(name, species, notes, category=category, category_detail=category_detail)}
@@ -6492,13 +6868,16 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 要重做的动作：
 - 动作名：{label}
 - 帧数：{frame_count} 帧
-- 动作细节：{self.action_detail_prompt(state or label)}
+- 动作细节：{self.action_detail_prompt(state or label, category_id)}
+- 分类运动规则：{profile['motion_rules']}
+- 分类禁用规则：{profile['avoid_rules']}
+- 分类质量检查：{profile['quality_rules']}
 - 输出：单行横向 sprite strip，精确尺寸 = {frame_count * CELL_W}x{CELL_H}px，宽度 = {frame_count} x {CELL_W}px，高度 = {CELL_H}px。
 - 必须使用自定义画布尺寸 {frame_count * CELL_W}x{CELL_H}，不要输出 1024x1024、16:9、3:1、普通插画或大画布。
 - 背景透明；如果工具不支持透明背景，就使用纯色 #00FFFF。
 - 每帧独立居中，不能跨格、不能重影、不能裁切。
 - 动作变化只发生在当前分类合理的身体部位、表情和轻微姿态变化上；不要为了动作把角色重画成另一种生物。
-- 大小、颜色、脸部特征、脚底基线、描边粗细必须和主像素图一致。
+- 大小、颜色、脸部特征、脚底/接触/漂浮基线、描边粗细必须和主像素图一致。
 - 相邻帧要连贯，不要突然换脸、换方向、变大变小或颜色漂移。
 {special_notes}
 
@@ -6508,7 +6887,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
     def extension_action_prompt(self, label="", name="", species="", notes="", category="", frames=CUSTOM_ACTION_MAX_FRAMES, category_detail=""):
         label = str(label or "自定义动作").strip()
         frames = int(clamp(frames or CUSTOM_ACTION_MAX_FRAMES, 1, CUSTOM_ACTION_MAX_FRAMES))
-        special_notes = self.action_special_prompt_notes(label)
+        category_id = self.infer_pet_category(species, category, notes=f"{category_detail} {notes}", display_name=name)
+        profile = self.pet_category_action_profile(category_id)
+        special_notes = self.action_special_prompt_notes(label, category_id)
         return f"""请以我上传的主像素图作为唯一身份基准，生成 Codex 桌宠扩展动作横向 sprite strip。
 
 {self.pet_prompt_identity_context(name, species, notes, category=category, category_detail=category_detail)}
@@ -6518,12 +6899,15 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 推荐使用顺序：
 1. 先把当前宠物主像素图上传给生图 AI，并说明它是唯一身份基准。
 2. 再粘贴下面的动作提示词。
-3. 输出后先检查每帧尺寸、脚底基线、颜色和脸型，再回到桌宠上传。
+3. 输出后先检查每帧尺寸、脚底/接触/漂浮基线、颜色和脸型，再回到桌宠上传。
 
 扩展动作：
 - 动作名称：{label}
 - 用户需要补充的动作需求：请把“{label}”具体写清楚，例如起始姿态、动作过程、结束姿态、是否循环、情绪和禁止出现的物体；如果没有补充，就按温和、低幅度、适合桌宠循环播放来生成。
-- 动作细节：{self.action_detail_prompt(label)}
+- 动作细节：{self.action_detail_prompt(label, category_id)}
+- 分类运动规则：{profile['motion_rules']}
+- 分类禁用规则：{profile['avoid_rules']}
+- 分类质量检查：{profile['quality_rules']}
 - 帧数：{frames} 帧以内，建议 6-8 帧，动作要连贯。
 - 精确输出尺寸：{frames * CELL_W}x{CELL_H}px。必须设置自定义画布，不要输出 1024x1024、16:9、3:1、普通插画或大画布。
 - 每帧固定 {CELL_W}x{CELL_H} 像素，整条高度 {CELL_H}px。
@@ -6531,7 +6915,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 - 背景透明；如果工具不支持透明背景，就使用纯色 #00FFFF。
 - 每帧只有同一只宠物，不能跨格、不能重影、不能裁切。
 - 保持当前分类下的关键身份特征一致，例如脸型/头部结构、眼神、轮廓、身体比例、配饰、毛色/肤色/羽色/鳞片/材质等。
-- 保持脚底基线、视觉体积、颜色饱和度和描边粗细一致；动作可以动，身份不能变。
+- 保持脚底/接触/漂浮基线、视觉体积、颜色饱和度和描边粗细一致；动作可以动，身份不能变。
 - 不要文字、编号、网格、阴影、地面、速度线、气泡或装饰。
 {special_notes}
 """
@@ -6897,15 +7281,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         refs_grid.pack(fill="x")
 
         def category_action_label(state):
-            preset = PET_CATEGORY_PRESETS.get(category_var.get(), PET_CATEGORY_PRESETS["other"])
-            labels = preset.get("base_labels", [])
-            try:
-                index = BASIC_ATLAS_ACTIONS.index(state)
-            except ValueError:
-                index = -1
-            if 0 <= index < len(labels):
-                return labels[index]
-            return ACTION_LABELS.get(state, state)
+            return self.pet_category_action_label(category_var.get(), state)
 
         prompt_box = tk.Frame(right, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
         prompt_box.pack(fill="both", expand=True, pady=(4, 8))
@@ -8909,7 +9285,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             row = section_label("基础动作", row)
             basic_actions = self.quick_menu_base_actions()
             for index, state in enumerate(basic_actions):
-                button(ACTION_LABELS.get(state, state), action_command_for_state(state), row + index // 2, index % 2)
+                button(self.action_label(state), action_command_for_state(state), row + index // 2, index % 2)
             row += max(1, (len(basic_actions) + 1) // 2)
 
             row = section_label("扩展动作", row)
@@ -15853,7 +16229,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             guide_card = make_card(parent, "生图提示词使用方法")
             tk.Label(
                 guide_card,
-                text="动作提示词不是单独用的：先把当前宠物主像素图上传给生图 AI，再复制动作提示词。上传前重点看 5 件事：帧数是否正确、每帧是否 192x208、脚底基线是否稳定、脸型毛色是否一致、有没有把蝴蝶/阴影/速度线这类多余物体画进动作条。",
+                text="动作提示词不是单独用的：先把当前宠物主像素图上传给生图 AI，再复制动作提示词。上传前重点看 5 件事：帧数是否正确、每帧是否 192x208、脚底/接触/漂浮基线是否稳定、脸型毛色是否一致、有没有把蝴蝶/阴影/速度线这类多余物体画进动作条。",
                 bg="#fffdf7",
                 fg=text_muted,
                 anchor="w",
@@ -19114,7 +19490,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 base_grid.grid_columnconfigure(column, weight=1, uniform="quick_base")
             for idx, state in enumerate(QUICK_MENU_BASE_ACTIONS):
                 supported = self.quick_menu_action_available(state)
-                label = ACTION_LABELS.get(state, state)
+                label = self.action_label(state)
                 if state == "running":
                     command = self.run_short_distance
                 else:
@@ -19238,12 +19614,13 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 for column in range(2):
                     recommended_grid.grid_columnconfigure(column, weight=1, uniform="quick_missing")
                 for idx, state in enumerate(missing_recommended):
+                    category_id = self.pet_category(self.active_pet if isinstance(self.active_pet, dict) else {})
                     cell = tk.Frame(recommended_grid, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
                     cell.grid(row=idx // 2, column=idx % 2, sticky="ew", padx=(0 if idx % 2 == 0 else 8, 0), pady=(0, 8))
                     tk.Label(cell, text=self.action_label(state), bg="#fff8ee", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(fill="x", padx=10, pady=(8, 2))
                     tk.Label(
                         cell,
-                        text=self.action_detail_prompt(state),
+                        text=self.action_detail_prompt(state, category_id),
                         bg="#fff8ee",
                         fg=text_muted,
                         anchor="w",

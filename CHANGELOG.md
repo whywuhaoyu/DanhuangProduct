@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.45-tk-pet-category-action-prompts - 2026-07-03
+
+- Tk 分类预设新增动作画像：`identity_focus`、`motion_rules`、`avoid_rules`、`quality_rules`，用于统一 UI 摘要和 AI 生图提示词。
+- 基础动作、单行动作修复和扩展动作提示词改为按分类读取动作细节，鸟类按跳步/拍翅，水生按游动/摆鳍，人物按两足走路/招手，机器人按滑行/机械臂，物件和植物按挪动/摆动处理。
+- 右键快捷动作和动作页基础动作栏开始使用当前宠物分类的短标签，例如水生为“游一小段”、人物为“走一小段”、机器人为“滑一小段”。
+- 模块化核心补充 `pet_category_action_profile()`，并增加测试覆盖非猫狗分类不再套用猫狗动作语义。
+- 产品文档补充分类动作画像、提示词规则和验收标准；本次仍不改宠物 ID、动作槽位和现有 spritesheet 顺序。
+- 已生成 Windows 免 Python exe 包：`packages/danhuang-desktop-pet-windows-20260703-165013/` 和 `packages/danhuang-desktop-pet-windows-20260703-165013-exe.zip`，zip SHA256：`3F45FB0E588DD761F0C9CFC47CE68C0D8A6E7D7FAE3D1175E9A748A62BB11AA5`。
+- `packages/` 已清理旧包，只保留最新 `20260703-165013` 文件夹和 zip。
+
 ## 0.11.44-tk-pet-category-taxonomy - 2026-07-03
 
 - Tk 宠物分类从扁平 `dog/cat/human/robot/other` 升级为「一级大类 / 二级类型 / 三级细分 / 细节描述」。
