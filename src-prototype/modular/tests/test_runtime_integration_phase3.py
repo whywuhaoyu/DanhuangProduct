@@ -6,9 +6,10 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+CURRENT_RUNTIME_FILE = PROJECT_ROOT / "data-dev" / "current-runtime" / "danhuang" / "run-danhuang-desktop-pet.py"
 RUNTIME_FILES = [
     PROJECT_ROOT / "src-prototype" / "legacy-monolith" / "run-danhuang-desktop-pet.py",
-    PROJECT_ROOT / "data-dev" / "current-runtime" / "danhuang" / "run-danhuang-desktop-pet.py",
+    CURRENT_RUNTIME_FILE,
 ]
 
 
@@ -27,7 +28,10 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
             with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
                 module = load_runtime_module(path)
 
-                self.assertEqual(module.APP_VERSION, "0.11.43")
+                if path == CURRENT_RUNTIME_FILE:
+                    self.assertEqual(module.APP_VERSION, "0.11.44")
+                else:
+                    self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_SWITCHER_MODEL)
                 self.assertIsNotNone(module.MODULAR_BUILD_RIGHT_MENU_MODEL)

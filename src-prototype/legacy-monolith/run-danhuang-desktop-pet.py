@@ -118,7 +118,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.43"
+APP_VERSION = "0.11.44"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -236,119 +236,155 @@ CHAT_ROLE_SKILLS = {
     },
 }
 
+PET_CATEGORY_GROUPS = {
+    "real_animal": {"label": "真实动物", "summary": "按真实生物体态决定动作，不默认套猫狗。"},
+    "human_character": {"label": "人物角色", "summary": "真人纪念、Q 版人物、职业角色和虚拟人。"},
+    "fantasy_character": {"label": "幻想生物", "summary": "允许魔法、漂浮和非现实动作，但身份要稳定。"},
+    "mechanical_object": {"label": "机械物件", "summary": "机器人、设备、玩偶和拟物对象，强调材质和结构。"},
+    "plant_nature": {"label": "植物自然", "summary": "植物、蘑菇和自然物，动作幅度要小。"},
+    "other": {"label": "其他", "summary": "暂时无法归类的混合或自定义形象。"},
+}
+
+PET_CATEGORY_TYPES = {
+    "canine": {"group_id": "real_animal", "label": "犬科"},
+    "feline": {"group_id": "real_animal", "label": "猫科"},
+    "rabbit": {"group_id": "real_animal", "label": "兔类"},
+    "small_mammal": {"group_id": "real_animal", "label": "小型哺乳"},
+    "large_mammal": {"group_id": "real_animal", "label": "大型哺乳"},
+    "bird": {"group_id": "real_animal", "label": "鸟类"},
+    "reptile_amphibian": {"group_id": "real_animal", "label": "爬行/两栖"},
+    "aquatic": {"group_id": "real_animal", "label": "水生"},
+    "arthropod": {"group_id": "real_animal", "label": "节肢"},
+    "human": {"group_id": "human_character", "label": "人物"},
+    "fantasy": {"group_id": "fantasy_character", "label": "幻想"},
+    "robot": {"group_id": "mechanical_object", "label": "机器人"},
+    "object": {"group_id": "mechanical_object", "label": "拟物/物件"},
+    "plant": {"group_id": "plant_nature", "label": "植物"},
+    "custom": {"group_id": "other", "label": "自定义"},
+}
+
+
+def category_preset(group_id, category, label, examples, body_profile, movement, base_labels, recommended):
+    group = PET_CATEGORY_GROUPS.get(group_id, PET_CATEGORY_GROUPS["other"])
+    category_info = PET_CATEGORY_TYPES.get(category, PET_CATEGORY_TYPES["custom"])
+    return {
+        "group_id": group_id,
+        "group": group["label"],
+        "category": category,
+        "category_label": category_info["label"],
+        "label": label,
+        "examples": examples,
+        "body_profile": body_profile,
+        "movement": movement,
+        "base_labels": base_labels,
+        "recommended": recommended,
+    }
+
+
 PET_CATEGORY_PRESETS = {
-    "dog": {
-        "group": "哺乳动物",
-        "label": "犬类",
-        "examples": "狗、狼、狐狸、松狮、柯基、柴犬",
-        "movement": "四足小跑、摇尾、嗅闻、趴卧",
-        "base_labels": ["待机/坐立", "向右小跑", "向左小跑", "挥爪/抬爪", "原地小跳"],
-        "recommended": ["闻一闻", "追逐", "趴下", "伸懒腰", "打盹"],
-    },
-    "cat": {
-        "group": "哺乳动物",
-        "label": "猫类",
-        "examples": "猫、橘猫、狸花、布偶、豹猫",
-        "movement": "轻步走、尾巴摆动、舔爪、洗脸、伸懒腰",
-        "base_labels": ["待机/坐着", "向右轻步", "向左轻步", "抬爪打招呼", "轻跳"],
-        "recommended": ["舔爪", "洗脸", "舔毛", "伸懒腰", "打盹"],
-    },
-    "rabbit": {
-        "group": "哺乳动物",
-        "label": "兔类",
-        "examples": "兔子、垂耳兔、龙猫兔",
-        "movement": "蹦跳、竖耳/垂耳轻动、抱爪、缩成一团",
-        "base_labels": ["待机/蹲坐", "向右蹦跳", "向左蹦跳", "抬前爪", "小跳"],
-        "recommended": ["闻一闻", "打盹", "缩成一团", "伸展"],
-    },
-    "small_mammal": {
-        "group": "哺乳动物",
-        "label": "小型哺乳",
-        "examples": "仓鼠、豚鼠、龙猫、刺猬、雪貂",
-        "movement": "短步快跑、抱东西、嗅闻、团身休息",
-        "base_labels": ["待机/抱爪", "向右快走", "向左快走", "抬爪/探头", "小跳"],
-        "recommended": ["闻一闻", "打盹", "钻出来", "抱东西"],
-    },
-    "large_mammal": {
-        "group": "哺乳动物",
-        "label": "大型哺乳",
-        "examples": "马、鹿、羊、牛、熊猫、熊",
-        "movement": "稳步走、低头、抬头、原地踏步",
-        "base_labels": ["待机/站立", "向右稳步", "向左稳步", "抬前肢/点头", "小跳/踏步"],
-        "recommended": ["低头闻", "趴卧", "伸展", "慢走"],
-    },
-    "bird": {
-        "group": "鸟类",
-        "label": "鸟类",
-        "examples": "鹦鹉、鸽子、鸡、鸭、企鹅、小鸟",
-        "movement": "跳步、拍翅、歪头、啄一下",
-        "base_labels": ["待机/站立", "向右跳步", "向左跳步", "拍翅/挥翅", "小跳"],
-        "recommended": ["拍翅", "啄一下", "歪头", "打盹"],
-    },
-    "reptile": {
-        "group": "爬行动物",
-        "label": "爬行动物",
-        "examples": "龟、蜥蜴、蛇、守宫",
-        "movement": "慢爬、探头、吐信、缩壳或盘起",
-        "base_labels": ["待机/趴伏", "向右慢爬", "向左慢爬", "探头/抬爪", "短促前探"],
-        "recommended": ["探头", "缩壳/盘起", "晒太阳", "慢爬"],
-    },
-    "aquatic": {
-        "group": "水生生物",
-        "label": "水生生物",
-        "examples": "鱼、乌龟、章鱼、水母、海马",
-        "movement": "漂浮、摆尾、游动、伸缩触手",
-        "base_labels": ["待机/漂浮", "向右游动", "向左游动", "摆鳍/触手", "上浮一下"],
-        "recommended": ["摆尾", "吐泡泡", "漂浮", "转身"],
-    },
-    "insect": {
-        "group": "昆虫/节肢",
-        "label": "昆虫/节肢",
-        "examples": "蝴蝶、甲虫、蜜蜂、蜘蛛、螃蟹",
-        "movement": "爬行、振翅、触角摆动、横向移动",
-        "base_labels": ["待机/停驻", "向右爬/飞", "向左爬/飞", "挥翅/触角", "小跃起"],
-        "recommended": ["振翅", "爬行", "停驻", "横移"],
-    },
-    "human": {
-        "group": "人物",
-        "label": "人物",
-        "examples": "真人、虚拟人、Q版人物、家人角色、助手角色",
-        "movement": "站立、走路、招手、点头、轻跳",
-        "base_labels": ["待机/站立", "向右走", "向左走", "招手", "轻跳/点头"],
-        "recommended": ["点头", "坐下", "思考", "挥手", "打招呼"],
-    },
-    "fantasy": {
-        "group": "幻想生物",
-        "label": "幻想生物",
-        "examples": "龙、精灵、史莱姆、独角兽、小怪兽",
-        "movement": "漂浮、跳动、扑翼、摆尾、变形",
-        "base_labels": ["待机/漂浮", "向右移动", "向左移动", "挥手/扑翼", "弹跳"],
-        "recommended": ["漂浮", "发光", "扑翼", "缩放弹跳"],
-    },
-    "robot": {
-        "group": "机械/物件",
-        "label": "机器人",
-        "examples": "机器人、AI 盒子、机甲、小设备",
-        "movement": "滑行、履带移动、机械臂挥动、屏幕闪烁",
-        "base_labels": ["待机/亮屏", "向右滑行", "向左滑行", "挥机械臂", "弹跳/抬升"],
-        "recommended": ["亮屏", "充电", "扫描", "小幅变形"],
-    },
-    "object": {
-        "group": "机械/物件",
-        "label": "拟物/物件",
-        "examples": "植物、杯子、玩偶、食物、桌面物件",
-        "movement": "轻微摇晃、弹跳、伸展、表情变化",
-        "base_labels": ["待机/轻晃", "向右挪动", "向左挪动", "挥手/摇摆", "弹跳"],
-        "recommended": ["摇晃", "发芽", "眨眼", "伸展"],
-    },
-    "other": {
-        "group": "其他",
-        "label": "其他/待定",
-        "examples": "暂未分类的新形象",
-        "movement": "先按稳定桌宠基础动作处理，再根据形态补扩展动作",
-        "base_labels": ["待机", "向右移动", "向左移动", "打招呼", "跳一下"],
-        "recommended": ["待补动作", "休息", "互动"],
-    },
+    "small_dog": category_preset("real_animal", "canine", "小型犬", "小狗、白棕小狗、家庭陪伴犬", "四足、小体型、尾巴和耳朵是主要识别点", "轻快小跑、摇尾、嗅闻、靠近、趴卧", ["待机/坐立", "向右小跑", "向左小跑", "抬爪打招呼", "原地小跳"], ["闻一闻", "趴下", "伸懒腰", "打盹"]),
+    "medium_dog": category_preset("real_animal", "canine", "中型犬", "柴犬、边牧、拉布拉多幼犬", "四足、中等体型、躯干运动更明显", "稳定小跑、摇尾、抬头、陪走", ["待机/站坐", "向右小跑", "向左小跑", "抬爪/挥爪", "小跳"], ["闻一闻", "跑一段", "趴下", "甩尾"]),
+    "large_dog": category_preset("real_animal", "canine", "大型犬", "金毛、拉布拉多、萨摩耶、大型陪伴犬", "四足、大体型、动作要稳，避免过度弹跳", "稳步走、低头、摇尾、趴卧", ["待机/站立", "向右稳步", "向左稳步", "抬前爪", "轻跳/踏步"], ["趴下", "低头闻", "伸懒腰", "慢走"]),
+    "short_leg_dog": category_preset("real_animal", "canine", "短腿犬", "蛋黄、柯基、短腿小狗", "四足、短腿、身体低、脸和耳朵特征更重要", "短步小跑、摇尾、嗅闻、趴着陪伴", ["待机/坐立", "向右短步跑", "向左短步跑", "抬爪", "小跳"], ["闻一闻", "趴下", "伸懒腰", "打盹"]),
+    "long_hair_dog": category_preset("real_animal", "canine", "长毛犬", "松狮、博美、萨摩耶、长毛小狗", "四足、厚毛、圆脸或蓬松轮廓，体积不能忽大忽小", "慢一点的小跑、厚毛轻晃、趴卧、打盹", ["待机/坐立", "向右小跑", "向左小跑", "抬爪", "轻跳"], ["打哈欠", "吐舌头", "打盹", "伸懒腰"]),
+    "short_hair_dog": category_preset("real_animal", "canine", "短毛犬", "黑白短毛狗、白棕短毛狗", "四足、短毛、花色分区清晰", "轻快小跑、摇尾、抬爪、贴近", ["待机/坐立", "向右小跑", "向左小跑", "抬爪", "小跳"], ["闻一闻", "趴下", "摇尾", "陪走"]),
+    "spitz_dog": category_preset("real_animal", "canine", "尖耳犬", "柴犬、博美、尖耳小狗", "四足、尖耳、尾巴姿态明显", "精神站立、轻快跑、竖耳轻动", ["待机/站坐", "向右小跑", "向左小跑", "抬爪", "轻跳"], ["歪头", "闻一闻", "摇尾", "原地踏步"]),
+    "drop_ear_dog": category_preset("real_animal", "canine", "垂耳犬", "垂耳小狗、长耳陪伴犬", "四足、垂耳，耳朵晃动要自然", "短步跑、垂耳轻晃、摇尾、趴卧", ["待机/坐立", "向右小跑", "向左小跑", "抬爪", "小跳"], ["闻一闻", "趴下", "伸懒腰", "打盹"]),
+    "wolf_fox": category_preset("real_animal", "canine", "狼/狐类", "小狐狸、狼犬、拟人狐", "四足或半拟人，长尾和尖耳是重点", "轻跑、甩尾、警觉停顿、探头", ["待机/站立", "向右轻跑", "向左轻跑", "抬爪/挥手", "跃起"], ["甩尾", "探头", "警觉", "趴下"]),
+    "house_cat": category_preset("real_animal", "feline", "家猫", "狸花、奶牛猫、布偶、家猫", "四足、柔软身形、尾巴和胡须明显", "轻步走、尾巴摆动、舔爪、洗脸", ["待机/坐着", "向右轻步", "向左轻步", "抬爪", "轻跳"], ["舔爪", "洗脸", "舔毛", "伸懒腰"]),
+    "orange_cat": category_preset("real_animal", "feline", "橘猫", "橘宝、橘色虎斑猫", "四足、橘色花纹、圆脸和胡须稳定", "轻步走、舔爪、洗脸、伸懒腰", ["待机/坐着", "向右轻步", "向左轻步", "抬爪", "轻跳"], ["舔爪", "舔毛", "洗脸", "打盹"]),
+    "long_hair_cat": category_preset("real_animal", "feline", "长毛猫", "布偶、长毛猫、波斯猫", "四足、长毛蓬松，尾巴和毛量要稳定", "慢步、尾巴轻摆、坐卧、梳理毛发", ["待机/坐着", "向右慢步", "向左慢步", "抬爪", "轻跳"], ["舔毛", "打盹", "伸懒腰", "坐下"]),
+    "short_hair_cat": category_preset("real_animal", "feline", "短毛猫", "英短、美短、狸花短毛猫", "四足、短毛花色清晰，动作轻", "轻步走、抬爪、摆尾、跃起", ["待机/坐着", "向右轻步", "向左轻步", "抬爪", "轻跳"], ["洗脸", "舔爪", "伸懒腰", "扑一下"]),
+    "kitten": category_preset("real_animal", "feline", "幼猫", "小猫、奶猫", "四足、小体型、头身比偏大", "短步、轻跳、探头、缩成一团", ["待机/蹲坐", "向右短步", "向左短步", "抬爪", "小跳"], ["探头", "打盹", "抱爪", "扑一下"]),
+    "big_cat": category_preset("real_animal", "feline", "大型猫科", "虎、豹、狮子幼崽", "四足、大猫轮廓，动作稳，不要家猫化过度", "稳步走、低伏、甩尾、警觉停顿", ["待机/伏坐", "向右稳步", "向左稳步", "抬前爪", "跃起"], ["伏低", "甩尾", "低吼表情", "打盹"]),
+    "upright_rabbit": category_preset("real_animal", "rabbit", "立耳兔", "立耳兔、白兔", "四足蹲坐、长耳竖立、后腿弹跳", "蹦跳、竖耳轻动、抱爪、缩成一团", ["待机/蹲坐", "向右蹦跳", "向左蹦跳", "抬前爪", "小跳"], ["抱爪", "闻一闻", "缩成一团", "打盹"]),
+    "lop_rabbit": category_preset("real_animal", "rabbit", "垂耳兔", "垂耳兔、长耳兔", "四足蹲坐、垂耳随动作轻晃", "小幅蹦跳、垂耳晃动、抱爪休息", ["待机/蹲坐", "向右蹦跳", "向左蹦跳", "抬前爪", "小跳"], ["抱爪", "垂耳晃动", "缩成一团", "打盹"]),
+    "dwarf_rabbit": category_preset("real_animal", "rabbit", "侏儒兔", "小兔、侏儒兔", "小体型、短步、头身比偏大", "短促蹦跳、探头、抱爪", ["待机/蹲坐", "向右短跳", "向左短跳", "抬前爪", "小跳"], ["探头", "抱爪", "缩成一团", "打盹"]),
+    "hamster": category_preset("real_animal", "small_mammal", "仓鼠", "仓鼠、小鼠", "小体型、圆身、前爪抱物", "短步快跑、抱东西、嗅闻、团身休息", ["待机/抱爪", "向右快走", "向左快走", "探头/抬爪", "小跳"], ["抱东西", "钻出来", "闻一闻", "打盹"]),
+    "guinea_pig": category_preset("real_animal", "small_mammal", "豚鼠", "豚鼠、荷兰猪", "低矮圆身、短腿、动作幅度小", "短步移动、探头、趴卧", ["待机/趴坐", "向右短步", "向左短步", "探头", "小跳"], ["探头", "吃东西", "趴着", "打盹"]),
+    "chinchilla": category_preset("real_animal", "small_mammal", "龙猫", "龙猫、栗鼠", "圆身、大耳、长尾，动作轻快", "短跳、抱爪、探头、尾巴轻摆", ["待机/抱爪", "向右短跳", "向左短跳", "抬爪", "轻跳"], ["抱爪", "探头", "抖耳", "打盹"]),
+    "hedgehog": category_preset("real_animal", "small_mammal", "刺猬", "刺猬、小刺猬", "低矮圆身、背刺轮廓清晰", "慢走、缩成一团、探头", ["待机/趴伏", "向右慢走", "向左慢走", "探头", "缩一下"], ["缩成一团", "探头", "慢走", "打盹"]),
+    "ferret": category_preset("real_animal", "small_mammal", "雪貂", "雪貂、鼬类", "长身短腿、动作灵活", "贴地快走、探头、扭身", ["待机/趴坐", "向右快走", "向左快走", "探头", "弹跳"], ["钻出来", "探头", "伸展", "打盹"]),
+    "squirrel": category_preset("real_animal", "small_mammal", "松鼠", "松鼠、花栗鼠", "小体型、大尾巴、抱东西明显", "短跳、抱坚果、尾巴摆动", ["待机/抱物", "向右短跳", "向左短跳", "抬爪", "小跳"], ["抱东西", "甩尾", "探头", "打盹"]),
+    "horse": category_preset("real_animal", "large_mammal", "马", "马、小马", "四足高身、长腿，动作稳", "稳步走、抬头、踏步", ["待机/站立", "向右稳步", "向左稳步", "抬前蹄", "踏步"], ["低头", "踏步", "甩尾", "慢走"]),
+    "deer": category_preset("real_animal", "large_mammal", "鹿", "鹿、小鹿", "四足、细腿、角或耳朵识别明显", "轻步走、抬头、短跳", ["待机/站立", "向右轻步", "向左轻步", "点头", "轻跳"], ["点头", "抬头", "慢走", "打盹"]),
+    "sheep_cow": category_preset("real_animal", "large_mammal", "羊/牛", "羊、牛、小牛", "四足、蹄类，身体厚实", "稳步走、低头、踏步", ["待机/站立", "向右稳步", "向左稳步", "低头", "踏步"], ["低头吃草", "趴卧", "踏步", "慢走"]),
+    "panda_bear": category_preset("real_animal", "large_mammal", "熊猫/熊", "熊猫、小熊", "圆身体、四足或坐姿，动作憨厚", "慢走、坐下、挥掌、打盹", ["待机/坐着", "向右慢走", "向左慢走", "挥掌", "小跳"], ["坐下", "挥掌", "打盹", "趴下"]),
+    "elephant": category_preset("real_animal", "large_mammal", "象", "小象、象", "四足、大耳、长鼻，动作慢", "慢走、甩鼻、扇耳", ["待机/站立", "向右慢走", "向左慢走", "甩鼻/扇耳", "踏步"], ["甩鼻", "扇耳", "慢走", "打盹"]),
+    "small_flying_bird": category_preset("real_animal", "bird", "小型飞鸟", "麻雀、小鸟、燕子", "双足、翅膀、喙，体型小", "跳步、拍翅、歪头、啄一下", ["待机/站立", "向右跳步", "向左跳步", "拍翅", "小跳"], ["拍翅", "啄一下", "歪头", "打盹"]),
+    "parrot": category_preset("real_animal", "bird", "鹦鹉", "鹦鹉、玄凤", "双足、彩色羽毛、弯喙", "跳步、拍翅、歪头、说话表情", ["待机/站立", "向右跳步", "向左跳步", "拍翅", "小跳"], ["歪头", "拍翅", "啄一下", "点头"]),
+    "pigeon": category_preset("real_animal", "bird", "鸽类", "鸽子、斑鸠", "双足、圆身、短颈点头", "点头走、拍翅、啄一下", ["待机/站立", "向右点头走", "向左点头走", "拍翅", "小跳"], ["点头", "啄一下", "拍翅", "打盹"]),
+    "poultry": category_preset("real_animal", "bird", "家禽", "鸡、鸭、鹅", "双足或蹼足，喙和翅膀明显", "摇摆走、拍翅、啄一下", ["待机/站立", "向右摇摆走", "向左摇摆走", "拍翅", "小跳"], ["啄一下", "拍翅", "摇摆", "打盹"]),
+    "waterfowl": category_preset("real_animal", "bird", "水禽", "鸭子、鹅、天鹅", "蹼足、长颈或圆身，水边动作", "摇摆走、轻拍翅、低头", ["待机/站立", "向右摇摆走", "向左摇摆走", "拍翅", "小跳"], ["低头", "拍翅", "梳羽", "打盹"]),
+    "penguin": category_preset("real_animal", "bird", "企鹅", "企鹅、小企鹅", "直立、短翅、摇摆步", "摇摆走、拍短翅、滑一下", ["待机/站立", "向右摇摆走", "向左摇摆走", "拍短翅", "小跳"], ["滑一下", "拍翅", "歪头", "打盹"]),
+    "raptor": category_preset("real_animal", "bird", "猛禽", "鹰、猫头鹰", "双足、锐利喙爪，眼神稳定", "站立、展翅、转头、短跳", ["待机/站立", "向右短跳", "向左短跳", "展翅", "轻跳"], ["展翅", "转头", "警觉", "打盹"]),
+    "turtle": category_preset("real_animal", "reptile_amphibian", "龟", "乌龟、陆龟", "低矮、龟壳、四肢短，动作慢", "慢爬、探头、缩壳", ["待机/趴伏", "向右慢爬", "向左慢爬", "探头", "缩一下"], ["探头", "缩壳", "晒太阳", "慢爬"]),
+    "lizard": category_preset("real_animal", "reptile_amphibian", "蜥蜴", "蜥蜴、鬣蜥", "贴地四足、长尾，动作谨慎", "慢爬、抬头、甩尾", ["待机/趴伏", "向右慢爬", "向左慢爬", "抬头", "短促前探"], ["抬头", "甩尾", "晒太阳", "慢爬"]),
+    "snake": category_preset("real_animal", "reptile_amphibian", "蛇", "蛇、小蛇", "无足长身，不能强行画四肢", "盘起、探头、游走、吐信", ["待机/盘起", "向右游走", "向左游走", "探头/吐信", "弹一下"], ["盘起", "探头", "吐信", "慢游"]),
+    "gecko": category_preset("real_animal", "reptile_amphibian", "守宫", "守宫、壁虎", "贴地四足、大眼、尾巴", "慢爬、探头、摆尾", ["待机/趴伏", "向右慢爬", "向左慢爬", "探头", "短跳"], ["探头", "摆尾", "慢爬", "打盹"]),
+    "frog": category_preset("real_animal", "reptile_amphibian", "蛙", "青蛙、树蛙", "蹲坐、后腿强、眼睛明显", "蹦跳、鼓腮、眨眼", ["待机/蹲坐", "向右蹦跳", "向左蹦跳", "挥前爪", "跳一下"], ["鼓腮", "眨眼", "蹦跳", "打盹"]),
+    "goldfish": category_preset("real_animal", "aquatic", "金鱼", "金鱼、小鱼", "水生、鱼鳍和尾鳍是动作主体", "漂浮、摆尾、游动、吐泡泡", ["待机/漂浮", "向右游动", "向左游动", "摆鳍", "上浮一下"], ["摆尾", "吐泡泡", "转身", "漂浮"]),
+    "tropical_fish": category_preset("real_animal", "aquatic", "热带鱼", "热带鱼、小丑鱼", "水生、彩色鱼鳍和身体轮廓稳定", "左右游动、摆鳍、转身", ["待机/漂浮", "向右游动", "向左游动", "摆鳍", "上浮一下"], ["摆尾", "转身", "吐泡泡", "漂浮"]),
+    "jellyfish": category_preset("real_animal", "aquatic", "水母", "水母、发光水母", "半透明伞状体、触须，不能画成鱼", "漂浮、收缩、触须轻摆", ["待机/漂浮", "向右漂动", "向左漂动", "触须摆动", "上浮一下"], ["发光", "收缩", "漂浮", "触须摆动"]),
+    "octopus": category_preset("real_animal", "aquatic", "章鱼", "章鱼、小章鱼", "圆头、多触手，动作靠触手", "漂浮、触手摆动、缩放、转身", ["待机/漂浮", "向右游动", "向左游动", "挥触手", "上浮一下"], ["挥触手", "吐泡泡", "转身", "缩一下"]),
+    "seahorse": category_preset("real_animal", "aquatic", "海马", "海马", "竖直水生体态、卷尾", "竖直漂动、摆鳍、卷尾", ["待机/漂浮", "向右漂动", "向左漂动", "摆鳍", "上浮一下"], ["卷尾", "摆鳍", "漂浮", "转身"]),
+    "whale_dolphin": category_preset("real_animal", "aquatic", "鲸/海豚", "鲸鱼、海豚", "水生大体型、鳍和尾巴运动", "水平游动、摆尾、跃起", ["待机/漂浮", "向右游动", "向左游动", "摆鳍", "轻跃"], ["摆尾", "跃起", "吐泡泡", "转身"]),
+    "butterfly": category_preset("real_animal", "arthropod", "蝴蝶", "蝴蝶、飞蛾", "小体型、翅膀对称，主体不能糊", "停驻、振翅、轻飞", ["待机/停驻", "向右轻飞", "向左轻飞", "振翅", "小跃起"], ["振翅", "停驻", "轻飞", "转身"]),
+    "bee": category_preset("real_animal", "arthropod", "蜜蜂", "蜜蜂、黄蜂", "小体型、翅膀、条纹", "悬停、振翅、横移", ["待机/悬停", "向右飞", "向左飞", "振翅", "小跃起"], ["悬停", "振翅", "横移", "停驻"]),
+    "beetle": category_preset("real_animal", "arthropod", "甲虫", "甲虫、瓢虫", "甲壳、短足，动作小", "爬行、停驻、轻振翅", ["待机/停驻", "向右爬", "向左爬", "挥触角", "小跃起"], ["爬行", "停驻", "振翅", "转身"]),
+    "spider": category_preset("real_animal", "arthropod", "蜘蛛", "蜘蛛、小蜘蛛", "多足，低矮体态，不能画成昆虫四足", "多足爬行、停驻、探前足", ["待机/停驻", "向右爬", "向左爬", "探足", "小跃起"], ["爬行", "停驻", "探足", "转身"]),
+    "crab_shrimp": category_preset("real_animal", "arthropod", "蟹/虾", "螃蟹、小虾", "甲壳、钳或尾，横向运动明显", "横移、挥钳、摆尾", ["待机/停驻", "向右横移", "向左横移", "挥钳/摆须", "小跃起"], ["横移", "挥钳", "摆尾", "停驻"]),
+    "memorial_person": category_preset("human_character", "human", "纪念人物", "家人、重要的人", "人物比例稳定，脸型、发型、衣着是身份核心", "站立、走路、招手、点头、轻跳", ["待机/站立", "向右走", "向左走", "招手", "轻跳/点头"], ["点头", "坐下", "挥手", "安静陪伴"]),
+    "q_character": category_preset("human_character", "human", "Q版人物", "Q版主人、Q版朋友、Q版角色", "头身比偏大，表情和服装识别清晰", "轻走、招手、点头、轻跳", ["待机/站立", "向右走", "向左走", "招手", "轻跳"], ["挥手", "点头", "思考", "坐下"]),
+    "pixel_person": category_preset("human_character", "human", "像素人物", "像素小人、复古角色", "像素块清晰，轮廓和服装颜色稳定", "像素步行、招手、原地弹跳", ["待机/站立", "向右走", "向左走", "招手", "跳一下"], ["挥手", "点头", "走两步", "坐下"]),
+    "anime_character": category_preset("human_character", "human", "动漫角色", "动漫人物、二次元角色", "人物轮廓、发型、服装和配饰是身份核心", "轻走、招手、表情变化、轻跳", ["待机/站立", "向右走", "向左走", "招手", "轻跳"], ["挥手", "眨眼", "点头", "思考"]),
+    "profession_person": category_preset("human_character", "human", "职业人物", "工程师、老师、医生、产品经理", "职业服装/道具要稳定，但动作不夸张", "走路、招手、点头、思考", ["待机/站立", "向右走", "向左走", "招手", "轻跳/点头"], ["思考", "点头", "挥手", "坐下"]),
+    "child_person": category_preset("human_character", "human", "儿童", "小朋友、儿童角色", "儿童比例和服装稳定，动作轻快", "短步走、挥手、轻跳", ["待机/站立", "向右短步", "向左短步", "挥手", "轻跳"], ["挥手", "点头", "蹦一下", "坐下"]),
+    "elder_person": category_preset("human_character", "human", "老人", "老人、长辈形象", "发型、脸型、服装和姿态要温和稳定", "慢走、点头、挥手、坐下", ["待机/站立", "向右慢走", "向左慢走", "挥手", "点头"], ["点头", "坐下", "挥手", "安静陪伴"]),
+    "dragon": category_preset("fantasy_character", "fantasy", "龙", "小龙、东方龙、西方龙", "角、翅膀或长身是核心，不要忽大忽小", "扑翼、摆尾、轻跳、漂浮", ["待机/站立", "向右移动", "向左移动", "扑翼/挥爪", "弹跳"], ["扑翼", "摆尾", "发光", "趴下"]),
+    "elf": category_preset("fantasy_character", "fantasy", "精灵", "小精灵、花精灵", "小人形或半人形，翅膀/耳朵/服装稳定", "轻走、漂浮、挥手、轻跳", ["待机/站立", "向右轻走", "向左轻走", "挥手/扑翼", "轻跳"], ["挥手", "漂浮", "发光", "点头"]),
+    "slime": category_preset("fantasy_character", "fantasy", "史莱姆", "史莱姆、软泥怪", "软体圆形，表情和颜色是身份核心", "弹跳、压缩回弹、轻滑", ["待机/软弹", "向右弹跳", "向左弹跳", "挥手/鼓起", "弹一下"], ["弹跳", "缩放", "眨眼", "休息"]),
+    "unicorn": category_preset("fantasy_character", "fantasy", "独角兽", "独角兽、小马幻想宠", "四足、独角、鬃毛颜色稳定", "轻跑、甩尾、发光、轻跳", ["待机/站立", "向右轻跑", "向左轻跑", "抬前蹄", "轻跳"], ["发光", "甩尾", "踏步", "打盹"]),
+    "little_monster": category_preset("fantasy_character", "fantasy", "小怪物", "小怪兽、小恶魔", "轮廓、角、尾巴或眼睛是身份核心", "跳动、挥手、摆尾、表情变化", ["待机/站立", "向右移动", "向左移动", "挥手/摆尾", "弹跳"], ["眨眼", "挥手", "摆尾", "跳一下"]),
+    "ghost": category_preset("fantasy_character", "fantasy", "幽灵", "小幽灵、漂浮灵体", "漂浮轮廓、脸部表情稳定", "漂浮、轻晃、缩放、发光", ["待机/漂浮", "向右漂动", "向左漂动", "挥手", "上浮一下"], ["漂浮", "发光", "轻晃", "眨眼"]),
+    "magic_pet": category_preset("fantasy_character", "fantasy", "魔法宠物", "魔法猫、魔法使魔", "保留动物或角色主体，魔法元素不能盖住身份", "轻跑、漂浮、发光、挥爪", ["待机/站立", "向右移动", "向左移动", "挥手/挥爪", "轻跳"], ["发光", "漂浮", "挥爪", "打盹"]),
+    "box_robot": category_preset("mechanical_object", "robot", "盒子机器人", "AI 盒子、小方块机器人", "盒状或圆角机身、屏幕表情、机械臂", "滑行、亮屏、机械臂挥动、弹跳", ["待机/亮屏", "向右滑行", "向左滑行", "挥机械臂", "弹跳/抬升"], ["亮屏", "扫描", "充电", "小幅变形"]),
+    "humanoid_robot": category_preset("mechanical_object", "robot", "人形机器人", "人形机器人、助手机器人", "头身四肢机械结构，材质和关节稳定", "走路、挥手、点头、屏幕闪烁", ["待机/站立", "向右走", "向左走", "挥手", "轻跳"], ["挥手", "扫描", "点头", "充电"]),
+    "mecha": category_preset("mechanical_object", "robot", "机甲", "小机甲、装甲角色", "装甲轮廓、关节、颜色块稳定", "稳步移动、抬臂、喷气轻跳", ["待机/站立", "向右稳步", "向左稳步", "抬臂", "轻跳"], ["抬臂", "扫描", "喷气", "待机"]),
+    "device": category_preset("mechanical_object", "robot", "设备", "小设备、屏幕、智能终端", "屏幕/按钮/外壳是身份核心", "亮屏、轻晃、滑行、弹跳", ["待机/亮屏", "向右滑动", "向左滑动", "闪屏/挥动", "弹跳"], ["亮屏", "扫描", "充电", "轻晃"]),
+    "vehicle": category_preset("mechanical_object", "robot", "载具", "小车、飞船、无人机", "轮子/机翼/外壳结构稳定", "行驶、悬停、摆动、轻跃", ["待机/停驻", "向右行驶", "向左行驶", "摆动/闪灯", "轻跃"], ["行驶", "闪灯", "悬停", "转身"]),
+    "plush": category_preset("mechanical_object", "object", "毛绒玩具", "玩偶、毛绒熊、布偶", "柔软玩偶材质，轮廓和配件稳定", "轻晃、摆手、弹跳、坐下", ["待机/坐着", "向右挪动", "向左挪动", "摆手", "弹跳"], ["摆手", "坐下", "打盹", "轻晃"]),
+    "cup": category_preset("mechanical_object", "object", "杯子", "杯子、马克杯", "杯身、把手、图案稳定", "轻晃、挪动、冒气、弹跳", ["待机/轻晃", "向右挪动", "向左挪动", "摆动/冒气", "弹跳"], ["冒气", "轻晃", "眨眼", "休息"]),
+    "food": category_preset("mechanical_object", "object", "食物", "面包、饭团、甜点", "食物轮廓和表情稳定，不要变成动物", "轻晃、弹跳、表情变化", ["待机/轻晃", "向右挪动", "向左挪动", "挥手/摇摆", "弹跳"], ["眨眼", "轻晃", "弹跳", "休息"]),
+    "book": category_preset("mechanical_object", "object", "书本", "书、笔记本", "封面、书页、书签是识别点", "翻页、轻晃、挪动", ["待机/合上", "向右挪动", "向左挪动", "翻页", "弹跳"], ["翻页", "轻晃", "眨眼", "休息"]),
+    "tool": category_preset("mechanical_object", "object", "工具", "笔、锤子、工具角色", "工具轮廓、材质和功能部位稳定", "轻晃、摆动、挪动", ["待机/停驻", "向右挪动", "向左挪动", "摆动", "弹跳"], ["摆动", "轻晃", "闪光", "休息"]),
+    "furniture": category_preset("mechanical_object", "object", "家具", "椅子、小桌、台灯", "家具轮廓、材质、腿部结构稳定", "轻晃、挪动、亮灯或摆动", ["待机/停驻", "向右挪动", "向左挪动", "摆动/亮灯", "弹跳"], ["轻晃", "亮灯", "挪动", "休息"]),
+    "potted_plant": category_preset("plant_nature", "plant", "盆栽", "盆栽、小绿植", "花盆和叶片稳定，动作幅度小", "叶片轻摆、轻晃、发芽", ["待机/轻摆", "向右挪动", "向左挪动", "摆叶", "弹跳"], ["摆叶", "发芽", "轻晃", "休息"]),
+    "flower": category_preset("plant_nature", "plant", "花", "花朵、小花", "花瓣、茎叶和颜色稳定", "花瓣轻摆、点头、发光", ["待机/轻摆", "向右挪动", "向左挪动", "摆花", "弹跳"], ["开花", "摆叶", "点头", "休息"]),
+    "sapling": category_preset("plant_nature", "plant", "树苗", "小树苗、树精", "树干、叶冠、根部稳定", "叶冠轻摆、慢挪、发芽", ["待机/轻摆", "向右挪动", "向左挪动", "摆叶", "弹跳"], ["发芽", "摆叶", "轻晃", "休息"]),
+    "succulent": category_preset("plant_nature", "plant", "多肉", "多肉、仙人掌", "叶片或刺轮廓稳定，动作小", "轻晃、眨眼、发芽", ["待机/轻摆", "向右挪动", "向左挪动", "摆叶", "弹跳"], ["发芽", "眨眼", "轻晃", "休息"]),
+    "mushroom": category_preset("plant_nature", "plant", "蘑菇", "蘑菇、小菌菇", "菌盖、菌柄、花纹稳定", "弹跳、轻晃、缩放", ["待机/轻晃", "向右挪动", "向左挪动", "摇摆", "弹跳"], ["弹跳", "缩一下", "轻晃", "休息"]),
+    "other": category_preset("other", "custom", "未知/自定义", "暂未分类的新形象、混合形态", "先保留用户描述的核心外形，再补具体动作画像", "先按稳定桌宠基础动作处理，再根据形态补扩展动作", ["待机", "向右移动", "向左移动", "打招呼", "跳一下"], ["待补动作", "休息", "互动"]),
+}
+
+PET_CATEGORY_ALIASES = {
+    "dog": "small_dog",
+    "cat": "house_cat",
+    "rabbit": "upright_rabbit",
+    "small_mammal": "hamster",
+    "large_mammal": "horse",
+    "bird": "small_flying_bird",
+    "reptile": "turtle",
+    "reptile_amphibian": "turtle",
+    "aquatic": "goldfish",
+    "insect": "butterfly",
+    "arthropod": "butterfly",
+    "human": "q_character",
+    "fantasy": "little_monster",
+    "robot": "box_robot",
+    "object": "plush",
+    "plant": "potted_plant",
+    "custom": "other",
 }
 
 AI_PROVIDER_PRESETS = {
@@ -1561,46 +1597,165 @@ class DanhuangPet:
                 normalized.append(action)
         return normalized
 
-    def infer_pet_category(self, species="", category=""):
-        category_id = str(category or "").strip()
+    def normalize_pet_category_id(self, value):
+        category_id = str(value or "").strip()
         if category_id in PET_CATEGORY_PRESETS:
             return category_id
-        text = str(species or "").strip().lower()
+        return PET_CATEGORY_ALIASES.get(category_id, "")
+
+    def infer_pet_category(self, species="", category="", category_subtype="", notes="", display_name=""):
+        for value in (category_subtype, category):
+            normalized = self.normalize_pet_category_id(value)
+            if normalized:
+                return normalized
+        text = " ".join(str(item or "") for item in (display_name, species, category, notes)).strip().lower()
         rules = [
-            ("dog", ("dog", "犬", "狗", "汪", "柴", "柯基", "松狮", "金毛", "拉布拉多", "狐狸", "狼")),
-            ("cat", ("cat", "猫", "喵", "橘猫", "狸花", "布偶", "豹猫")),
-            ("rabbit", ("rabbit", "兔", "垂耳")),
-            ("small_mammal", ("仓鼠", "hamster", "豚鼠", "龙猫", "刺猬", "雪貂", "小鼠", "松鼠")),
-            ("large_mammal", ("马", "鹿", "羊", "牛", "熊", "熊猫", "象", "大型")),
-            ("bird", ("鸟", "鹦鹉", "鸽", "鸡", "鸭", "鹅", "企鹅", "bird")),
-            ("reptile", ("龟", "乌龟", "蜥蜴", "蛇", "守宫", "reptile")),
-            ("aquatic", ("鱼", "章鱼", "水母", "海马", "海豚", "aquatic", "fish")),
-            ("insect", ("虫", "昆虫", "蝴蝶", "蜜蜂", "甲虫", "蜘蛛", "螃蟹")),
-            ("human", ("人", "人物", "真人", "虚拟人", "角色", "男孩", "女孩", "human")),
-            ("fantasy", ("龙", "精灵", "史莱姆", "独角兽", "怪兽", "fantasy")),
-            ("robot", ("机器人", "机械", "机甲", "robot", "ai")),
-            ("object", ("植物", "花", "树", "杯", "玩偶", "物件", "食物", "object")),
+            ("long_hair_dog", ("松狮", "chow", "厚毛", "长毛犬", "蓬松")),
+            ("short_leg_dog", ("短腿", "柯基", "corgi")),
+            ("drop_ear_dog", ("垂耳", "下垂耳", "长耳犬")),
+            ("spitz_dog", ("柴犬", "尖耳", "博美", "spitz")),
+            ("short_hair_dog", ("短毛狗", "黑白短毛", "白棕狗", "短毛犬")),
+            ("large_dog", ("金毛", "拉布拉多", "萨摩耶", "大型犬")),
+            ("wolf_fox", ("狐狸", "狐", "狼", "wolf", "fox")),
+            ("small_dog", ("dog", "犬", "狗", "汪", "小狗")),
+            ("orange_cat", ("橘猫", "橘宝", "橘色", "虎斑")),
+            ("long_hair_cat", ("长毛猫", "布偶", "波斯猫")),
+            ("short_hair_cat", ("短毛猫", "英短", "美短", "狸花")),
+            ("kitten", ("幼猫", "奶猫", "小猫")),
+            ("big_cat", ("老虎", "虎", "狮", "豹", "大型猫")),
+            ("house_cat", ("cat", "猫", "喵")),
+            ("lop_rabbit", ("垂耳兔",)),
+            ("dwarf_rabbit", ("侏儒兔", "小兔")),
+            ("upright_rabbit", ("rabbit", "兔")),
+            ("hamster", ("仓鼠", "hamster", "小鼠")),
+            ("guinea_pig", ("豚鼠", "荷兰猪")),
+            ("chinchilla", ("龙猫", "栗鼠")),
+            ("hedgehog", ("刺猬",)),
+            ("ferret", ("雪貂", "鼬")),
+            ("squirrel", ("松鼠", "花栗鼠")),
+            ("horse", ("马", "小马")),
+            ("deer", ("鹿",)),
+            ("sheep_cow", ("羊", "牛")),
+            ("panda_bear", ("熊猫", "熊")),
+            ("elephant", ("象",)),
+            ("penguin", ("企鹅",)),
+            ("parrot", ("鹦鹉", "玄凤")),
+            ("pigeon", ("鸽", "斑鸠")),
+            ("waterfowl", ("鸭", "鹅", "天鹅")),
+            ("poultry", ("鸡", "家禽")),
+            ("raptor", ("鹰", "猫头鹰", "猛禽")),
+            ("small_flying_bird", ("鸟", "bird", "麻雀", "燕子")),
+            ("turtle", ("龟", "乌龟")),
+            ("lizard", ("蜥蜴", "鬣蜥")),
+            ("snake", ("蛇",)),
+            ("gecko", ("守宫", "壁虎")),
+            ("frog", ("蛙", "青蛙")),
+            ("jellyfish", ("水母",)),
+            ("octopus", ("章鱼",)),
+            ("seahorse", ("海马",)),
+            ("whale_dolphin", ("鲸", "海豚")),
+            ("tropical_fish", ("热带鱼", "小丑鱼")),
+            ("goldfish", ("鱼", "fish", "金鱼")),
+            ("butterfly", ("蝴蝶", "飞蛾")),
+            ("bee", ("蜜蜂", "黄蜂")),
+            ("beetle", ("甲虫", "瓢虫")),
+            ("spider", ("蜘蛛",)),
+            ("crab_shrimp", ("螃蟹", "蟹", "虾")),
+            ("box_robot", ("盒子机器人", "ai 盒子", "ai盒子")),
+            ("humanoid_robot", ("人形机器人",)),
+            ("mecha", ("机甲",)),
+            ("vehicle", ("小车", "飞船", "无人机", "载具")),
+            ("device", ("设备", "屏幕", "终端")),
+            ("robot", ("机器人", "机械", "robot", "ai")),
+            ("memorial_person", ("纪念人物", "家人", "真人")),
+            ("profession_person", ("工程师", "老师", "医生", "产品经理", "职业")),
+            ("child_person", ("儿童", "小朋友", "男孩", "女孩")),
+            ("elder_person", ("老人", "长辈")),
+            ("pixel_person", ("像素人", "pixel")),
+            ("anime_character", ("动漫", "二次元")),
+            ("q_character", ("人物", "虚拟人", "角色", "human", "q版", "q 版", "人")),
+            ("dragon", ("龙",)),
+            ("elf", ("精灵",)),
+            ("slime", ("史莱姆",)),
+            ("unicorn", ("独角兽",)),
+            ("ghost", ("幽灵",)),
+            ("magic_pet", ("魔法", "使魔")),
+            ("little_monster", ("怪兽", "怪物", "monster")),
+            ("box_robot", ("盒子机器人", "ai 盒子", "ai盒子")),
+            ("humanoid_robot", ("人形机器人",)),
+            ("mecha", ("机甲",)),
+            ("vehicle", ("小车", "飞船", "无人机", "载具")),
+            ("device", ("设备", "屏幕", "终端")),
+            ("robot", ("机器人", "机械", "robot", "ai")),
+            ("potted_plant", ("盆栽", "绿植")),
+            ("flower", ("花", "花朵")),
+            ("sapling", ("树苗", "小树")),
+            ("succulent", ("多肉", "仙人掌")),
+            ("mushroom", ("蘑菇", "菌菇")),
+            ("cup", ("杯", "马克杯")),
+            ("food", ("食物", "面包", "饭团", "甜点")),
+            ("book", ("书", "笔记本")),
+            ("tool", ("工具", "笔", "锤子")),
+            ("furniture", ("家具", "椅子", "台灯")),
+            ("plush", ("玩偶", "毛绒", "布偶", "物件", "object")),
         ]
         for value, keywords in rules:
             if any(keyword in text for keyword in keywords):
                 return value
         return "other"
 
-    def pet_category(self, pet=None, species="", category=""):
+    def pet_category(self, pet=None, species="", category="", category_subtype="", notes="", display_name=""):
         if isinstance(pet, dict):
-            return self.infer_pet_category(pet.get("species", species), pet.get("category", category))
-        return self.infer_pet_category(species, category)
+            return self.infer_pet_category(
+                pet.get("species", species),
+                pet.get("category", category),
+                pet.get("category_subtype", category_subtype),
+                pet.get("notes", notes),
+                pet.get("display_name", display_name),
+            )
+        return self.infer_pet_category(species, category, category_subtype, notes, display_name)
 
-    def pet_category_preset(self, pet=None, species="", category=""):
-        return PET_CATEGORY_PRESETS.get(self.pet_category(pet, species, category), PET_CATEGORY_PRESETS["other"])
+    def pet_category_preset(self, pet=None, species="", category="", category_subtype="", notes="", display_name=""):
+        return PET_CATEGORY_PRESETS.get(
+            self.pet_category(pet, species, category, category_subtype, notes, display_name),
+            PET_CATEGORY_PRESETS["other"],
+        )
 
-    def pet_category_label(self, pet=None, species="", category=""):
-        preset = self.pet_category_preset(pet, species, category)
-        return f"{preset['group']} / {preset['label']}"
+    def pet_category_fields(self, category_id, detail=""):
+        category_id = self.normalize_pet_category_id(category_id) or "other"
+        preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        detail = str(detail or "").strip()
+        return {
+            "category_group": preset.get("group_id", "other"),
+            "category": preset.get("category", "custom"),
+            "category_subtype": category_id,
+            "category_detail": detail or preset.get("label", ""),
+        }
+
+    def normalize_pet_category_metadata(self, pet):
+        category_id = self.pet_category(pet)
+        fields = self.pet_category_fields(category_id, pet.get("category_detail", ""))
+        pet.update(fields)
+        return pet
+
+    def pet_category_label(self, pet=None, species="", category="", category_subtype="", notes="", display_name=""):
+        preset = self.pet_category_preset(pet, species, category, category_subtype, notes, display_name)
+        return f"{preset['group']} / {preset['category_label']} / {preset['label']}"
 
     def pet_category_action_summary(self, category_id):
+        category_id = self.normalize_pet_category_id(category_id) or "other"
         preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
         return "、".join(preset.get("base_labels", []))
+
+    def pet_category_profile_summary(self, category_id):
+        category_id = self.normalize_pet_category_id(category_id) or "other"
+        preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        recommended = "、".join(preset.get("recommended", []))
+        return (
+            f"{preset['group']} / {preset['category_label']} / {preset['label']}：{preset['examples']}。"
+            f"体态：{preset.get('body_profile', '')}。动作：{preset.get('movement', '')}。"
+            f"基础动作：{self.pet_category_action_summary(category_id)}。推荐：{recommended}。"
+        )
 
     def default_pet_family(self):
         return {
@@ -1611,7 +1766,10 @@ class DanhuangPet:
                     "id": "danhuang",
                     "display_name": "蛋黄",
                     "species": "dog",
-                    "category": "dog",
+                    "category_group": "real_animal",
+                    "category": "canine",
+                    "category_subtype": "short_leg_dog",
+                    "category_detail": "暖黄短腿小狗，深棕下垂耳",
                     "status": "ready",
                     "spritesheet": "spritesheet.webp",
                     "identity_image": "",
@@ -1630,7 +1788,10 @@ class DanhuangPet:
                     "id": "black_white_dog",
                     "display_name": "小墨",
                     "species": "dog",
-                    "category": "dog",
+                    "category_group": "real_animal",
+                    "category": "canine",
+                    "category_subtype": "short_hair_dog",
+                    "category_detail": "黑白短毛狗",
                     "status": "ready",
                     "spritesheet": "family/xiao-mo/spritesheet.webp",
                     "identity_image": "family/xiao-mo/identity-base.png",
@@ -1649,7 +1810,10 @@ class DanhuangPet:
                     "id": "orange_cat",
                     "display_name": "橘宝",
                     "species": "cat",
-                    "category": "cat",
+                    "category_group": "real_animal",
+                    "category": "feline",
+                    "category_subtype": "orange_cat",
+                    "category_detail": "橘色虎斑猫",
                     "status": "reference_only",
                     "spritesheet": "family/ju-bao/spritesheet.webp",
                     "reference_images": ["family-references/orange-cat-and-hugging-dog.jpg", "family/ju-bao/identity-base.png"],
@@ -1667,7 +1831,10 @@ class DanhuangPet:
                     "id": "hugging_dog",
                     "display_name": "小白",
                     "species": "dog",
-                    "category": "dog",
+                    "category_group": "real_animal",
+                    "category": "canine",
+                    "category_subtype": "small_dog",
+                    "category_detail": "白棕小狗",
                     "status": "reference_only",
                     "spritesheet": "family/xiao-bai/spritesheet.webp",
                     "reference_images": ["family-references/orange-cat-and-hugging-dog.jpg", "family/xiao-bai/identity-base.png"],
@@ -1751,7 +1918,10 @@ class DanhuangPet:
                 "id": pet_id,
                 "display_name": str(pet.get("display_name") or pet_id),
                 "species": str(pet.get("species") or ""),
-                "category": self.infer_pet_category(pet.get("species"), pet.get("category")),
+                "category_group": str(pet.get("category_group") or ""),
+                "category": str(pet.get("category") or ""),
+                "category_subtype": str(pet.get("category_subtype") or ""),
+                "category_detail": str(pet.get("category_detail") or ""),
                 "status": str(pet.get("status") or "reference_only"),
                 "spritesheet": str(pet.get("spritesheet") or ""),
                 "identity_image": str(pet.get("identity_image") or ""),
@@ -1766,6 +1936,7 @@ class DanhuangPet:
                 "supported_actions": pet.get("supported_actions") if isinstance(pet.get("supported_actions"), list) else [],
                 "extension_assets": self.normalize_extension_assets(pet.get("extension_assets")),
             }
+            normalized = self.normalize_pet_category_metadata(normalized)
             normalized = self.normalize_pet_action_metadata(normalized)
             pets.append(normalized)
         if not any(pet["id"] == "danhuang" for pet in pets):
@@ -2984,7 +3155,9 @@ class DanhuangPet:
         lines = [
             f"名字：{name}",
             f"种类：{species}",
-            f"分类：{category_preset['group']} / {category_preset['label']}",
+            f"分类：{category_preset['group']} / {category_preset['category_label']} / {category_preset['label']}",
+            f"细分特征：{pet.get('category_detail') or category_preset.get('body_profile', '')}",
+            f"分类体态：{category_preset.get('body_profile', '')}",
             f"分类动作语义：{category_preset['movement']}",
         ]
         field_labels = [
@@ -5737,7 +5910,205 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         window.focus_force()
         return True
 
-    def update_pet_profile(self, pet_id, display_name, species="", category="", notes=""):
+    def build_pet_category_selector(self, parent, category_var, detail_var=None, on_change=None, wraplength=520):
+        shell = tk.Frame(parent, bg="#fffdf8")
+        shell.pack(fill="x")
+        state = {"group_id": "", "category": ""}
+        group_buttons = {}
+
+        group_row = tk.Frame(shell, bg="#fffdf8")
+        group_row.pack(fill="x")
+        type_row = tk.Frame(shell, bg="#fffdf8")
+        type_row.pack(fill="x", pady=(6, 0))
+        filter_row = tk.Frame(shell, bg="#fffdf8")
+        filter_row.pack(fill="x", pady=(6, 0))
+        subtype_grid = tk.Frame(shell, bg="#fffdf8")
+        subtype_grid.pack(fill="x", pady=(6, 0))
+        hint = tk.Label(
+            shell,
+            text="",
+            bg="#fff8ee",
+            fg="#6f573e",
+            anchor="w",
+            justify="left",
+            wraplength=wraplength,
+            font=("Microsoft YaHei UI", 8),
+            padx=8,
+            pady=6,
+        )
+        hint.pack(fill="x", pady=(6, 0))
+        filter_var = tk.StringVar()
+        tk.Label(filter_row, text="细分搜索", bg="#fffdf8", fg="#7c6650", font=("Microsoft YaHei UI", 8)).pack(side="left")
+        filter_entry = tk.Entry(filter_row, textvariable=filter_var, bg="#fff9f0", fg="#30261d", relief="flat", font=("Microsoft YaHei UI", 8))
+        filter_entry.pack(side="left", fill="x", expand=True, padx=(8, 0), ipady=3)
+
+        def type_ids_for_group(group_id):
+            return [
+                type_id
+                for type_id, item in PET_CATEGORY_TYPES.items()
+                if item.get("group_id") == group_id
+            ]
+
+        def subtype_ids_for_type(type_id):
+            return [
+                subtype_id
+                for subtype_id, item in PET_CATEGORY_PRESETS.items()
+                if item.get("category") == type_id
+            ]
+
+        def first_subtype_for_type(type_id):
+            values = subtype_ids_for_type(type_id)
+            return values[0] if values else "other"
+
+        def active_preset():
+            category_id = self.normalize_pet_category_id(category_var.get()) or "other"
+            category_var.set(category_id)
+            return PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+
+        def choose_subtype(subtype_id):
+            subtype_id = self.normalize_pet_category_id(subtype_id) or "other"
+            category_var.set(subtype_id)
+            preset = PET_CATEGORY_PRESETS.get(subtype_id, PET_CATEGORY_PRESETS["other"])
+            state["group_id"] = preset.get("group_id", "other")
+            state["category"] = preset.get("category", "custom")
+            if detail_var is not None and not str(detail_var.get() or "").strip():
+                detail_var.set(preset.get("label", ""))
+            refresh_all(sync_from_var=False)
+            if callable(on_change):
+                on_change()
+
+        def choose_type(type_id):
+            state["category"] = type_id
+            current_preset = active_preset()
+            if current_preset.get("category") != type_id:
+                choose_subtype(first_subtype_for_type(type_id))
+                return
+            refresh_all(sync_from_var=False)
+
+        def choose_group(group_id):
+            state["group_id"] = group_id
+            types = type_ids_for_group(group_id)
+            choose_type(types[0] if types else "custom")
+
+        def draw_group_buttons(selected_group):
+            for group_id, button in group_buttons.items():
+                item = PET_CATEGORY_GROUPS.get(group_id, {})
+                active = group_id == selected_group
+                button.configure(
+                    text=item.get("label", group_id),
+                    bg="#d88333" if active else "#fff8ee",
+                    fg="#ffffff" if active else "#3a2a1c",
+                    activebackground="#c9772d" if active else "#f4d8b4",
+                    activeforeground="#ffffff" if active else "#3a2a1c",
+                )
+
+        def draw_type_buttons(selected_group, selected_type):
+            for child in type_row.winfo_children():
+                child.destroy()
+            types = type_ids_for_group(selected_group)
+            for column in range(4):
+                type_row.grid_columnconfigure(column, weight=1, uniform="pet_category_type")
+            for index, type_id in enumerate(types):
+                item = PET_CATEGORY_TYPES.get(type_id, {})
+                active = type_id == selected_type
+                button = tk.Button(
+                    type_row,
+                    text=item.get("label", type_id),
+                    command=lambda value=type_id: choose_type(value),
+                    bg="#e9f3e8" if active else "#fff8ee",
+                    fg="#2f6f4e" if active else "#3a2a1c",
+                    activebackground="#d8ead6",
+                    relief="flat",
+                    bd=0,
+                    cursor="hand2",
+                    font=("Microsoft YaHei UI", 8, "bold" if active else "normal"),
+                    pady=5,
+                )
+                button.grid(row=index // 4, column=index % 4, sticky="ew", padx=(0, 6), pady=(0, 6))
+
+        def draw_subtype_buttons(selected_type, selected_subtype):
+            for child in subtype_grid.winfo_children():
+                child.destroy()
+            query = str(filter_var.get() or "").strip().lower()
+            values = []
+            for subtype_id in subtype_ids_for_type(selected_type):
+                item = PET_CATEGORY_PRESETS.get(subtype_id, {})
+                searchable = " ".join([
+                    subtype_id,
+                    str(item.get("label", "")),
+                    str(item.get("examples", "")),
+                    str(item.get("body_profile", "")),
+                ]).lower()
+                if not query or query in searchable:
+                    values.append(subtype_id)
+            if not values:
+                tk.Label(subtype_grid, text="没有匹配的细分类型。", bg="#fffdf8", fg="#9b7b5c", font=("Microsoft YaHei UI", 8)).pack(anchor="w")
+                return
+            for column in range(4):
+                subtype_grid.grid_columnconfigure(column, weight=1, uniform="pet_category_subtype")
+            for index, subtype_id in enumerate(values):
+                item = PET_CATEGORY_PRESETS.get(subtype_id, {})
+                active = subtype_id == selected_subtype
+                button = tk.Button(
+                    subtype_grid,
+                    text=item.get("label", subtype_id),
+                    command=lambda value=subtype_id: choose_subtype(value),
+                    bg="#d88333" if active else "#fff8ee",
+                    fg="#ffffff" if active else "#3a2a1c",
+                    activebackground="#c9772d" if active else "#f4d8b4",
+                    activeforeground="#ffffff" if active else "#3a2a1c",
+                    relief="flat",
+                    bd=0,
+                    cursor="hand2",
+                    font=("Microsoft YaHei UI", 8, "bold" if active else "normal"),
+                    pady=5,
+                )
+                button.grid(row=index // 4, column=index % 4, sticky="ew", padx=(0, 6), pady=(0, 6))
+
+        def refresh_hint(preset):
+            recommended = "、".join(preset.get("recommended", []))
+            hint.configure(
+                text=(
+                    f"{preset['group']} / {preset['category_label']} / {preset['label']}：{preset['examples']}\n"
+                    f"体态：{preset.get('body_profile', '')}\n"
+                    f"动作：{preset.get('movement', '')}\n"
+                    f"基础动作：{self.pet_category_action_summary(category_var.get())}；推荐扩展：{recommended}"
+                )
+            )
+
+        def refresh_all(sync_from_var=True):
+            preset = active_preset()
+            if sync_from_var:
+                state["group_id"] = preset.get("group_id", "other")
+                state["category"] = preset.get("category", "custom")
+            draw_group_buttons(state["group_id"])
+            draw_type_buttons(state["group_id"], state["category"])
+            draw_subtype_buttons(state["category"], category_var.get())
+            refresh_hint(PET_CATEGORY_PRESETS.get(category_var.get(), PET_CATEGORY_PRESETS["other"]))
+
+        for column in range(3):
+            group_row.grid_columnconfigure(column, weight=1, uniform="pet_category_group")
+        for index, group_id in enumerate(PET_CATEGORY_GROUPS):
+            button = tk.Button(
+                group_row,
+                text="",
+                command=lambda value=group_id: choose_group(value),
+                bg="#fff8ee",
+                fg="#3a2a1c",
+                activebackground="#f4d8b4",
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 8),
+                pady=5,
+            )
+            button.grid(row=index // 3, column=index % 3, sticky="ew", padx=(0, 6), pady=(0, 6))
+            group_buttons[group_id] = button
+        filter_var.trace_add("write", lambda *_: draw_subtype_buttons(state["category"], category_var.get()))
+        refresh_all()
+        return shell
+
+    def update_pet_profile(self, pet_id, display_name, species="", category="", notes="", category_detail=""):
         self.pet_family = self.load_pet_family()
         display_name = str(display_name or "").strip()
         if not display_name:
@@ -5749,8 +6120,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 pet = dict(pet)
                 pet["display_name"] = display_name
                 pet["species"] = str(species or "").strip()
-                pet["category"] = self.infer_pet_category(pet["species"], category)
+                pet.update(self.pet_category_fields(category, category_detail))
                 pet["notes"] = str(notes or "").strip()
+                pet = self.normalize_pet_category_metadata(pet)
                 self.pet_family["pets"][index] = pet
                 updated = pet
                 break
@@ -5773,8 +6145,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         window = tk.Toplevel(self.root)
         window.title("编辑宠物资料")
         window.configure(bg="#fff7ec")
-        window.geometry("660x560")
-        window.resizable(False, False)
+        window.geometry("780x690")
+        window.minsize(720, 640)
+        window.resizable(True, True)
         window.transient(self.panel if self.panel is not None else self.root)
 
         shell = tk.Frame(window, bg="#fff7ec", padx=18, pady=16)
@@ -5795,6 +6168,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         name_var = tk.StringVar(value=pet.get("display_name", pet_id))
         species_var = tk.StringVar(value=pet.get("species", ""))
         category_var = tk.StringVar(value=self.pet_category(pet))
+        category_detail_var = tk.StringVar(value=pet.get("category_detail", ""))
 
         def label(row, text):
             tk.Label(form, text=text, bg="#fffdf8", fg="#5a4532", anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=0, sticky="nw", padx=(12, 8), pady=8)
@@ -5811,57 +6185,12 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         label(2, "分类")
         category_box = tk.Frame(form, bg="#fffdf8")
         category_box.grid(row=2, column=1, sticky="ew", padx=(0, 12), pady=8)
-        category_box.grid_columnconfigure(0, weight=1)
-        category_grid = tk.Frame(category_box, bg="#fffdf8")
-        category_grid.pack(fill="x")
-        category_hint = tk.Label(category_box, text="", bg="#fffdf8", fg="#7c6650", anchor="w", justify="left", wraplength=500, font=("Microsoft YaHei UI", 8))
-        category_hint.pack(fill="x", pady=(6, 0))
-        category_buttons = {}
-
-        def refresh_category_buttons():
-            selected = category_var.get()
-            preset = PET_CATEGORY_PRESETS.get(selected, PET_CATEGORY_PRESETS["other"])
-            category_hint.configure(
-                text=f"{preset['group']} / {preset['label']}：{preset['examples']}。默认动作语义：{self.pet_category_action_summary(selected)}。"
-            )
-            for category_id, button in category_buttons.items():
-                item = PET_CATEGORY_PRESETS.get(category_id, {})
-                active = category_id == selected
-                button.configure(
-                    text=item.get("label", category_id),
-                    bg="#d88333" if active else "#fff8ee",
-                    fg="#ffffff" if active else "#3a2a1c",
-                    activebackground="#c9772d" if active else "#f4d8b4",
-                    activeforeground="#ffffff" if active else "#3a2a1c",
-                )
-
-        def choose_category(category_id):
-            category_var.set(category_id)
-            refresh_category_buttons()
-
-        for column in range(4):
-            category_grid.grid_columnconfigure(column, weight=1, uniform="pet_category")
-        for index, category_id in enumerate(PET_CATEGORY_PRESETS):
-            button = tk.Button(
-                category_grid,
-                text="",
-                command=lambda value=category_id: choose_category(value),
-                bg="#fff8ee",
-                fg="#3a2a1c",
-                activebackground="#f4d8b4",
-                relief="flat",
-                bd=0,
-                cursor="hand2",
-                font=("Microsoft YaHei UI", 8),
-                pady=5,
-            )
-            button.grid(row=index // 4, column=index % 4, sticky="ew", padx=(0, 6), pady=(0, 6))
-            category_buttons[category_id] = button
-        refresh_category_buttons()
-
-        label(3, "说明")
-        notes_text = tk.Text(form, height=6, bg="#fff9f0", fg="#30261d", relief="flat", font=("Microsoft YaHei UI", 9), wrap="word")
-        notes_text.grid(row=3, column=1, sticky="nsew", padx=(0, 12), pady=8)
+        self.build_pet_category_selector(category_box, category_var, category_detail_var, wraplength=590)
+        label(3, "细节")
+        entry(3, category_detail_var)
+        label(4, "说明")
+        notes_text = tk.Text(form, height=5, bg="#fff9f0", fg="#30261d", relief="flat", font=("Microsoft YaHei UI", 9), wrap="word")
+        notes_text.grid(row=4, column=1, sticky="nsew", padx=(0, 12), pady=8)
         notes_text.insert("1.0", pet.get("notes", ""))
 
         def modal_button(parent, text, command, variant="neutral", width=10):
@@ -5874,7 +6203,14 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             return tk.Button(parent, text=text, command=command, bg=bg, fg=fg, activebackground="#f3d4aa", activeforeground=fg, relief="flat", bd=0, cursor="hand2", width=width, pady=6, font=("Microsoft YaHei UI", 9))
 
         def save():
-            if self.update_pet_profile(pet_id, name_var.get(), species_var.get(), category_var.get(), notes_text.get("1.0", "end").strip()):
+            if self.update_pet_profile(
+                pet_id,
+                name_var.get(),
+                species_var.get(),
+                category_var.get(),
+                notes_text.get("1.0", "end").strip(),
+                category_detail_var.get(),
+            ):
                 window.destroy()
                 if callable(on_done):
                     on_done()
@@ -6020,30 +6356,36 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             messagebox.showerror("复制失败", str(exc))
             return False
 
-    def pet_prompt_identity_context(self, name="", species="", notes="", pet=None, category=""):
+    def pet_prompt_identity_context(self, name="", species="", notes="", pet=None, category="", category_detail=""):
         if pet:
             name = name or pet.get("display_name", "")
             species = species or pet.get("species", "")
             notes = notes or pet.get("notes", "")
-            category = category or pet.get("category", "")
+            category = category or pet.get("category_subtype", "") or pet.get("category", "")
+            category_detail = category_detail or pet.get("category_detail", "")
         name = str(name or "这只宠物").strip()
         species = str(species or "宠物").strip()
         notes = str(notes or "").strip()
-        category_id = self.infer_pet_category(species, category)
+        category_detail = str(category_detail or "").strip()
+        category_id = self.infer_pet_category(species, category, notes=notes, display_name=name)
         category_preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
+        recommended = "、".join(category_preset.get("recommended", []))
         return (
             f"宠物名称：{name}\n"
             f"种类：{species}\n"
-            f"形象分类：{category_preset['group']} / {category_preset['label']}（{category_preset['examples']}）\n"
+            f"形象分类：{category_preset['group']} / {category_preset['category_label']} / {category_preset['label']}（{category_preset['examples']}）\n"
+            f"细分特征：{category_detail or category_preset['body_profile']}\n"
+            f"体态画像：{category_preset['body_profile']}\n"
             f"分类动作方向：{category_preset['movement']}\n"
+            f"推荐扩展动作：{recommended}\n"
             f"用户描述：{notes or '请以用户上传的照片为唯一身份依据。'}\n"
-            "身份锁定：必须保留真实宠物的毛色分区、脸型、耳朵形状、眼神、鼻子、体型比例、尾巴特征和标志性花纹。"
+            "身份锁定：必须保留当前分类下的关键身份特征，包括脸型/头部结构、眼神、轮廓、身体比例、配饰、毛色/肤色/羽色/鳞片/材质和标志性花纹。"
         )
 
-    def main_pet_image_prompt(self, name="", species="", notes="", category=""):
+    def main_pet_image_prompt(self, name="", species="", notes="", category="", category_detail=""):
         return f"""请根据我上传的宠物照片，生成 Codex 桌宠主像素图。
 
-{self.pet_prompt_identity_context(name, species, notes, category=category)}
+{self.pet_prompt_identity_context(name, species, notes, category=category, category_detail=category_detail)}
 
 输出规格：
 - 单张完整全身宠物，居中，留足边距。
@@ -6095,7 +6437,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             "8. 如果生图工具总是输出 3:1 或 1024x1024 大图，请在工具里选择自定义画布尺寸：8 帧动作用 1536x208，6 帧动作用 1152x208，5 帧动作用 960x208，4 帧动作用 768x208。"
         )
 
-    def basic_action_prompt(self, state=None, name="", species="", notes="", category=""):
+    def basic_action_prompt(self, state=None, name="", species="", notes="", category="", category_detail=""):
         states = [state] if state else BASIC_ATLAS_ACTIONS
         category_id = self.infer_pet_category(species, category)
         category_preset = PET_CATEGORY_PRESETS.get(category_id, PET_CATEGORY_PRESETS["other"])
@@ -6103,9 +6445,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             "请以我上传的主像素图作为唯一身份基准，生成 Codex 桌宠横向 sprite strip。",
             "重要：动作图必须基于这张主像素图生成。不要只看文字描述重新画一只新宠物；如果主像素图没上传，请先生成或上传主像素图再做动作。",
             "",
-            self.pet_prompt_identity_context(name, species, notes, category=category),
+            self.pet_prompt_identity_context(name, species, notes, category=category, category_detail=category_detail),
             "",
-            f"当前分类动作语义：{category_preset['movement']}。这套基础动作的按钮名称保持兼容旧槽位，但动作表现要按分类理解：{self.pet_category_action_summary(category_id)}。",
+            f"当前分类动作语义：{category_preset['movement']}。体态画像：{category_preset.get('body_profile', '')}。这套基础动作的按钮名称保持兼容旧槽位，但动作表现要按分类理解：{self.pet_category_action_summary(category_id)}。",
             "",
             "统一规格：",
             f"- 每帧单元格固定 {CELL_W}x{CELL_H} 像素。",
@@ -6137,13 +6479,13 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         ])
         return "\n".join(lines)
 
-    def single_action_repair_prompt(self, state, name="", species="", notes="", category=""):
+    def single_action_repair_prompt(self, state, name="", species="", notes="", category="", category_detail=""):
         label = ACTION_LABELS.get(state, state)
         frame_count = ROWS.get(state, (0, CUSTOM_ACTION_MAX_FRAMES))[1]
         special_notes = self.action_special_prompt_notes(state or label)
         return f"""请只重做这一行动作，不要重做角色。
 
-{self.pet_prompt_identity_context(name, species, notes, category=category)}
+{self.pet_prompt_identity_context(name, species, notes, category=category, category_detail=category_detail)}
 
 重要：必须上传并严格参考当前主像素图，主像素图是唯一身份基准。不要根据文字重新设计新宠物。
 
@@ -6163,13 +6505,13 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 禁止：不要换宠物，不要改变毛色和五官，不要阴影、文字、速度线、气泡、背景装饰。
 """
 
-    def extension_action_prompt(self, label="", name="", species="", notes="", category="", frames=CUSTOM_ACTION_MAX_FRAMES):
+    def extension_action_prompt(self, label="", name="", species="", notes="", category="", frames=CUSTOM_ACTION_MAX_FRAMES, category_detail=""):
         label = str(label or "自定义动作").strip()
         frames = int(clamp(frames or CUSTOM_ACTION_MAX_FRAMES, 1, CUSTOM_ACTION_MAX_FRAMES))
         special_notes = self.action_special_prompt_notes(label)
         return f"""请以我上传的主像素图作为唯一身份基准，生成 Codex 桌宠扩展动作横向 sprite strip。
 
-{self.pet_prompt_identity_context(name, species, notes, category=category)}
+{self.pet_prompt_identity_context(name, species, notes, category=category, category_detail=category_detail)}
 
 重要：扩展动作必须基于当前主像素图。先上传主像素图，再上传动作需求；不要只凭文字重新画角色。
 
@@ -6273,7 +6615,8 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     name=pet.get("display_name", ""),
                     species=pet.get("species", ""),
                     notes=pet.get("notes", ""),
-                    category=pet.get("category", ""),
+                    category=pet.get("category_subtype", "") or pet.get("category", ""),
+                    category_detail=pet.get("category_detail", ""),
                 ),
             )
             prompt_preview.configure(state="disabled")
@@ -6350,7 +6693,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 draw.rectangle((x0, y0 + header_h, x0 + cell_w - 1, y0 + header_h + cell_h - 1), outline=(93, 145, 112, 255))
         sheet.convert("RGB").save(output)
 
-    def create_pet_from_assets(self, display_name, species="", category="", notes="", identity_path="", atlas_path="", reference_paths=None, activate=False, action_paths=None):
+    def create_pet_from_assets(self, display_name, species="", category="", notes="", identity_path="", atlas_path="", reference_paths=None, activate=False, action_paths=None, category_detail=""):
         display_name = str(display_name or "").strip()
         if not display_name:
             messagebox.showerror("导入失败", "请先填写宠物名字。")
@@ -6409,7 +6752,6 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             "id": slug,
             "display_name": display_name,
             "species": str(species or "").strip(),
-            "category": self.infer_pet_category(species, category),
             "status": "ready" if ready else "reference_only",
             "spritesheet": f"family/{slug}/spritesheet.webp",
             "identity_image": identity_rel,
@@ -6424,6 +6766,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             "supported_actions": BASE_INTERNAL_ACTIONS if ready else [],
             "extension_assets": [],
         }
+        pet.update(self.pet_category_fields(category, category_detail))
         self.pet_family = self.load_pet_family()
         self.pet_family.setdefault("pets", []).append(pet)
         self.save_pet_family()
@@ -6468,7 +6811,8 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         form.grid_columnconfigure(1, weight=1)
         name_var = tk.StringVar()
         species_var = tk.StringVar()
-        category_var = tk.StringVar(value="dog")
+        category_var = tk.StringVar(value="small_dog")
+        category_detail_var = tk.StringVar(value="小型犬")
         identity_var = tk.StringVar()
         action_paths = {}
         references = []
@@ -6493,60 +6837,19 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         field_label("分类", 2)
         category_box = tk.Frame(form, bg="#fffdf8")
         category_box.grid(row=2, column=1, sticky="ew", padx=(0, 12), pady=7)
-        category_grid = tk.Frame(category_box, bg="#fffdf8")
-        category_grid.pack(fill="x")
-        category_hint = tk.Label(category_box, text="", bg="#fffdf8", fg="#7c6650", anchor="w", justify="left", wraplength=720, font=("Microsoft YaHei UI", 8))
-        category_hint.pack(fill="x", pady=(4, 0))
-        category_buttons = {}
-
-        def refresh_category_buttons():
-            selected = category_var.get()
-            preset = PET_CATEGORY_PRESETS.get(selected, PET_CATEGORY_PRESETS["other"])
-            category_hint.configure(
-                text=f"{preset['group']} / {preset['label']}：{preset['examples']}。默认动作语义：{self.pet_category_action_summary(selected)}。"
-            )
-            for category_id, button in category_buttons.items():
-                item = PET_CATEGORY_PRESETS.get(category_id, {})
-                active = category_id == selected
-                button.configure(
-                    text=item.get("label", category_id),
-                    bg="#d88333" if active else "#fff8ee",
-                    fg="#ffffff" if active else "#3a2a1c",
-                    activebackground="#c9772d" if active else "#f4d8b4",
-                    activeforeground="#ffffff" if active else "#3a2a1c",
-                )
-
-        def choose_category(category_id):
-            category_var.set(category_id)
-            refresh_category_buttons()
+        def on_category_change():
             show_basic_actions_prompt(False)
             try:
                 refresh_preview()
             except NameError:
                 pass
+        self.build_pet_category_selector(category_box, category_var, category_detail_var, on_change=on_category_change, wraplength=720)
 
-        for column in range(5):
-            category_grid.grid_columnconfigure(column, weight=1, uniform="import_category")
-        for index, category_id in enumerate(PET_CATEGORY_PRESETS):
-            button = tk.Button(
-                category_grid,
-                text="",
-                command=lambda value=category_id: choose_category(value),
-                bg="#fff8ee",
-                fg="#3a2a1c",
-                activebackground="#f4d8b4",
-                relief="flat",
-                bd=0,
-                cursor="hand2",
-                font=("Microsoft YaHei UI", 8),
-                pady=4,
-            )
-            button.grid(row=index // 5, column=index % 5, sticky="ew", padx=(0, 6), pady=(0, 6))
-            category_buttons[category_id] = button
-
-        field_label("说明", 3)
+        field_label("细节", 3)
+        styled_entry(3, category_detail_var)
+        field_label("说明", 4)
         notes_text = tk.Text(form, height=3, bg="#fff9f0", fg="#30261d", relief="flat", font=("Microsoft YaHei UI", 9), wrap="word")
-        notes_text.grid(row=3, column=1, sticky="ew", padx=(0, 12), pady=7)
+        notes_text.grid(row=4, column=1, sticky="ew", padx=(0, 12), pady=7)
 
         preview = tk.Frame(shell, bg="#fffdf8", highlightthickness=1, highlightbackground="#ead7bd")
         preview.pack(fill="both", expand=True)
@@ -6621,7 +6924,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         prompt_text.pack(fill="both", expand=True, padx=10, pady=(0, 8))
 
         def prompt_inputs():
-            return name_var.get(), species_var.get(), category_var.get(), notes_text.get("1.0", "end").strip()
+            return name_var.get(), species_var.get(), category_var.get(), category_detail_var.get(), notes_text.get("1.0", "end").strip()
 
         def show_prompt(text, copy_label=""):
             prompt_text.configure(state="normal")
@@ -6638,22 +6941,20 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         prompt_actions.pack(fill="x", padx=10, pady=(0, 8))
 
         def show_main_image_prompt(copy=True):
-            name, species, category, notes = prompt_inputs()
-            show_prompt(self.main_pet_image_prompt(name, species, notes, category), "主像素图提示词" if copy else "")
+            name, species, category, category_detail, notes = prompt_inputs()
+            show_prompt(self.main_pet_image_prompt(name, species, notes, category, category_detail), "主像素图提示词" if copy else "")
 
         def show_basic_actions_prompt(copy=True):
-            name, species, category, notes = prompt_inputs()
-            show_prompt(self.basic_action_prompt(None, name, species, notes, category), "五个基础动作提示词" if copy else "")
+            name, species, category, category_detail, notes = prompt_inputs()
+            show_prompt(self.basic_action_prompt(None, name, species, notes, category, category_detail), "五个基础动作提示词" if copy else "")
 
         def show_extension_prompt(copy=True):
-            name, species, category, notes = prompt_inputs()
-            show_prompt(self.extension_action_prompt("自定义扩展动作", name, species, notes, category), "扩展动作提示词" if copy else "")
+            name, species, category, category_detail, notes = prompt_inputs()
+            show_prompt(self.extension_action_prompt("自定义扩展动作", name, species, notes, category, category_detail=category_detail), "扩展动作提示词" if copy else "")
 
         def show_usage_guide(copy=True):
             text = self.prompt_usage_guide_text()
             show_prompt(text, "提示词使用教学" if copy else "")
-
-        refresh_category_buttons()
 
         modal_button(prompt_actions, "复制主图提示词", show_main_image_prompt, "neutral", 14).pack(side="left", padx=(0, 6), pady=(0, 2))
         modal_button(prompt_actions, "复制五动作提示词", show_basic_actions_prompt, "neutral", 15).pack(side="left", padx=(0, 6), pady=(0, 2))
@@ -6814,6 +7115,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 references,
                 activate=require_atlas,
                 action_paths=paths,
+                category_detail=category_detail_var.get(),
             )
             if ok:
                 window.destroy()
@@ -6842,7 +7144,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 "复制该动作提示词",
                 lambda s=state: (
                     lambda values: show_prompt(
-                        self.single_action_repair_prompt(s, values[0], values[1], values[3], values[2]),
+                        self.single_action_repair_prompt(s, values[0], values[1], values[4], values[2], values[3]),
                         f"{category_action_label(s)}动作提示词",
                     )
                 )(prompt_inputs()),
@@ -15562,7 +15864,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             guide_row = tk.Frame(guide_card, bg="#fffdf7")
             guide_row.pack(fill="x", padx=12, pady=(0, 12))
             panel_button(guide_row, "复制使用教学", lambda: self.copy_text_to_clipboard(self.prompt_usage_guide_text(), "提示词使用教学"), width=112, height=28).pack(side="left")
-            panel_button(guide_row, "复制扩展动作提示词", lambda: self.copy_text_to_clipboard(self.extension_action_prompt("自定义扩展动作", self.active_pet_name(), self.active_pet.get("species", ""), self.active_pet.get("notes", ""), self.active_pet.get("category", "")), "扩展动作提示词"), width=142, height=28, variant="primary").pack(side="left", padx=8)
+            panel_button(guide_row, "复制扩展动作提示词", lambda: self.copy_text_to_clipboard(self.extension_action_prompt("自定义扩展动作", self.active_pet_name(), self.active_pet.get("species", ""), self.active_pet.get("notes", ""), self.active_pet.get("category_subtype", "") or self.active_pet.get("category", ""), category_detail=self.active_pet.get("category_detail", "")), "扩展动作提示词"), width=142, height=28, variant="primary").pack(side="left", padx=8)
 
             chase_asset = next((asset for asset in self.pet_extension_assets() if asset.get("id") == "chase-butterfly"), None)
             if chase_asset:
@@ -17181,6 +17483,18 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 anchor="w",
                 font=("Microsoft YaHei UI", 9),
             ).pack(fill="x", pady=(4, 8))
+            current_category_id = self.pet_category(current_pet)
+            current_category_preset = PET_CATEGORY_PRESETS.get(current_category_id, PET_CATEGORY_PRESETS["other"])
+            tk.Label(
+                visual_info,
+                text=f"体态：{current_pet.get('category_detail') or current_category_preset.get('body_profile', '')}；动作：{current_category_preset.get('movement', '')}；基础动作：{self.pet_category_action_summary(current_category_id)}",
+                bg="#fffaf1",
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=560,
+                font=("Microsoft YaHei UI", 8),
+            ).pack(fill="x", pady=(0, 8))
             visual_actions = tk.Frame(visual_info, bg="#fffaf1")
             visual_actions.pack(fill="x")
             panel_button(visual_actions, "更换主像素图", lambda pet_id=current_pet.get("id"): self.choose_pet_identity_image(pet_id, lambda: switch_page("形象")), width=110, height=28, variant="primary").pack(side="left")
@@ -18904,7 +19218,8 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                             pet.get("display_name", ""),
                             pet.get("species", ""),
                             pet.get("notes", ""),
-                            pet.get("category", ""),
+                            pet.get("category_subtype", "") or pet.get("category", ""),
+                            pet.get("category_detail", ""),
                         ),
                         f"{self.action_label(state)}动作提示词",
                     )

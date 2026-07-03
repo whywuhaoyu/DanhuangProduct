@@ -85,6 +85,186 @@ ACTION_LABELS = {
     "angry": "生气一下",
 }
 
+PET_CATEGORY_GROUP_LABELS = {
+    "real_animal": "真实动物",
+    "human_character": "人物角色",
+    "fantasy_character": "幻想生物",
+    "mechanical_object": "机械物件",
+    "plant_nature": "植物自然",
+    "other": "其他",
+}
+
+PET_CATEGORY_TYPE_GROUPS = {
+    "canine": "real_animal",
+    "feline": "real_animal",
+    "rabbit": "real_animal",
+    "small_mammal": "real_animal",
+    "large_mammal": "real_animal",
+    "bird": "real_animal",
+    "reptile_amphibian": "real_animal",
+    "aquatic": "real_animal",
+    "arthropod": "real_animal",
+    "human": "human_character",
+    "fantasy": "fantasy_character",
+    "robot": "mechanical_object",
+    "object": "mechanical_object",
+    "plant": "plant_nature",
+    "custom": "other",
+}
+
+PET_CATEGORY_TYPE_LABELS = {
+    "canine": "犬科",
+    "feline": "猫科",
+    "rabbit": "兔类",
+    "small_mammal": "小型哺乳",
+    "large_mammal": "大型哺乳",
+    "bird": "鸟类",
+    "reptile_amphibian": "爬行/两栖",
+    "aquatic": "水生",
+    "arthropod": "节肢",
+    "human": "人物",
+    "fantasy": "幻想",
+    "robot": "机器人",
+    "object": "拟物/物件",
+    "plant": "植物",
+    "custom": "自定义",
+}
+
+PET_CATEGORY_SUBTYPE_LABELS = {
+    "canine": {
+        "small_dog": "小型犬",
+        "medium_dog": "中型犬",
+        "large_dog": "大型犬",
+        "short_leg_dog": "短腿犬",
+        "long_hair_dog": "长毛犬",
+        "short_hair_dog": "短毛犬",
+        "spitz_dog": "尖耳犬",
+        "drop_ear_dog": "垂耳犬",
+        "wolf_fox": "狼/狐类",
+    },
+    "feline": {
+        "house_cat": "家猫",
+        "orange_cat": "橘猫",
+        "long_hair_cat": "长毛猫",
+        "short_hair_cat": "短毛猫",
+        "kitten": "幼猫",
+        "big_cat": "大型猫科",
+    },
+    "rabbit": {"upright_rabbit": "立耳兔", "lop_rabbit": "垂耳兔", "dwarf_rabbit": "侏儒兔"},
+    "small_mammal": {
+        "hamster": "仓鼠",
+        "guinea_pig": "豚鼠",
+        "chinchilla": "龙猫",
+        "hedgehog": "刺猬",
+        "ferret": "雪貂",
+        "squirrel": "松鼠",
+    },
+    "large_mammal": {
+        "horse": "马",
+        "deer": "鹿",
+        "sheep_cow": "羊/牛",
+        "panda_bear": "熊猫/熊",
+        "elephant": "象",
+    },
+    "bird": {
+        "small_flying_bird": "小型飞鸟",
+        "parrot": "鹦鹉",
+        "pigeon": "鸽类",
+        "poultry": "家禽",
+        "waterfowl": "水禽",
+        "penguin": "企鹅",
+        "raptor": "猛禽",
+    },
+    "reptile_amphibian": {"turtle": "龟", "lizard": "蜥蜴", "snake": "蛇", "gecko": "守宫", "frog": "蛙"},
+    "aquatic": {
+        "goldfish": "金鱼",
+        "tropical_fish": "热带鱼",
+        "jellyfish": "水母",
+        "octopus": "章鱼",
+        "seahorse": "海马",
+        "whale_dolphin": "鲸/海豚",
+    },
+    "arthropod": {
+        "butterfly": "蝴蝶",
+        "bee": "蜜蜂",
+        "beetle": "甲虫",
+        "spider": "蜘蛛",
+        "crab_shrimp": "蟹/虾",
+    },
+    "human": {
+        "memorial_person": "纪念人物",
+        "q_character": "Q版人物",
+        "pixel_person": "像素人物",
+        "anime_character": "动漫角色",
+        "profession_person": "职业人物",
+        "child_person": "儿童",
+        "elder_person": "老人",
+    },
+    "fantasy": {
+        "dragon": "龙",
+        "elf": "精灵",
+        "slime": "史莱姆",
+        "unicorn": "独角兽",
+        "little_monster": "小怪物",
+        "ghost": "幽灵",
+        "magic_pet": "魔法宠物",
+    },
+    "robot": {
+        "box_robot": "盒子机器人",
+        "humanoid_robot": "人形机器人",
+        "mecha": "机甲",
+        "device": "设备",
+        "vehicle": "载具",
+    },
+    "object": {
+        "plush": "毛绒玩具",
+        "cup": "杯子",
+        "food": "食物",
+        "book": "书本",
+        "tool": "工具",
+        "furniture": "家具",
+    },
+    "plant": {
+        "potted_plant": "盆栽",
+        "flower": "花",
+        "sapling": "树苗",
+        "succulent": "多肉",
+        "mushroom": "蘑菇",
+    },
+    "custom": {"other": "未知/自定义"},
+}
+
+PET_CATEGORY_LOOKUP = {
+    subtype_id: {
+        "category_group": PET_CATEGORY_TYPE_GROUPS.get(category, "other"),
+        "category": category,
+        "category_subtype": subtype_id,
+        "category_detail": label,
+    }
+    for category, subtypes in PET_CATEGORY_SUBTYPE_LABELS.items()
+    for subtype_id, label in subtypes.items()
+}
+
+PET_CATEGORY_ALIASES = {
+    "dog": "small_dog",
+    "cat": "house_cat",
+    "rabbit": "upright_rabbit",
+    "small_mammal": "hamster",
+    "large_mammal": "horse",
+    "bird": "small_flying_bird",
+    "reptile": "turtle",
+    "reptile_amphibian": "turtle",
+    "aquatic": "goldfish",
+    "insect": "butterfly",
+    "arthropod": "butterfly",
+    "human": "q_character",
+    "fantasy": "little_monster",
+    "robot": "box_robot",
+    "object": "plush",
+    "plant": "potted_plant",
+    "custom": "other",
+}
+
 
 def clamp(value: Any, minimum: float, maximum: float) -> float:
     try:
@@ -97,6 +277,67 @@ def clamp(value: Any, minimum: float, maximum: float) -> float:
 def is_custom_action_id(value: Any) -> bool:
     text = str(value or "")
     return text.startswith(CUSTOM_ACTION_PREFIX) and len(text) > len(CUSTOM_ACTION_PREFIX)
+
+
+def normalize_pet_category_id(value: Any) -> str:
+    category_id = str(value or "").strip()
+    if category_id in PET_CATEGORY_LOOKUP:
+        return category_id
+    return PET_CATEGORY_ALIASES.get(category_id, "")
+
+
+def infer_pet_category(pet: Mapping[str, Any]) -> str:
+    for key in ("category_subtype", "category"):
+        category_id = normalize_pet_category_id(pet.get(key))
+        if category_id:
+            return category_id
+    text = " ".join(
+        str(pet.get(key) or "")
+        for key in ("display_name", "species", "category_detail", "notes")
+    ).lower()
+    rules = [
+        ("long_hair_dog", ("松狮", "厚毛", "长毛犬", "chow")),
+        ("short_leg_dog", ("短腿", "柯基", "corgi")),
+        ("drop_ear_dog", ("垂耳", "下垂耳")),
+        ("short_hair_dog", ("短毛狗", "黑白短毛", "白棕狗")),
+        ("orange_cat", ("橘猫", "橘宝", "橘色")),
+        ("house_cat", ("猫", "cat")),
+        ("small_dog", ("狗", "犬", "dog", "小狗")),
+        ("penguin", ("企鹅",)),
+        ("parrot", ("鹦鹉",)),
+        ("small_flying_bird", ("鸟", "bird")),
+        ("turtle", ("龟",)),
+        ("goldfish", ("鱼", "fish")),
+        ("box_robot", ("盒子机器人", "ai 盒子", "ai盒子")),
+        ("humanoid_robot", ("人形机器人",)),
+        ("mecha", ("机甲",)),
+        ("device", ("设备", "屏幕", "终端")),
+        ("vehicle", ("小车", "飞船", "无人机", "载具")),
+        ("box_robot", ("机器人", "机械", "robot", "ai")),
+        ("memorial_person", ("纪念人物", "真人", "家人")),
+        ("q_character", ("人物", "角色", "human", "q版", "人")),
+        ("potted_plant", ("盆栽", "植物", "绿植")),
+        ("plush", ("玩偶", "毛绒", "物件", "object")),
+    ]
+    for category_id, keywords in rules:
+        if any(keyword in text for keyword in keywords):
+            return category_id
+    return "other"
+
+
+def pet_category_fields(category_id: Any, detail: Any = "") -> dict[str, str]:
+    normalized_id = normalize_pet_category_id(category_id) or "other"
+    fields = dict(PET_CATEGORY_LOOKUP.get(normalized_id, PET_CATEGORY_LOOKUP["other"]))
+    custom_detail = str(detail or "").strip()
+    if custom_detail:
+        fields["category_detail"] = custom_detail
+    return fields
+
+
+def normalize_pet_category_metadata(pet: dict[str, Any]) -> dict[str, Any]:
+    category_id = infer_pet_category(pet)
+    pet.update(pet_category_fields(category_id, pet.get("category_detail")))
+    return pet
 
 
 def sanitize_pet_slug(name: Any) -> str:
@@ -137,6 +378,10 @@ def default_pet_family() -> dict[str, Any]:
                 "id": "danhuang",
                 "display_name": "蛋黄",
                 "species": "dog",
+                "category_group": "real_animal",
+                "category": "canine",
+                "category_subtype": "short_leg_dog",
+                "category_detail": "暖黄短腿小狗，深棕下垂耳",
                 "status": "ready",
                 "spritesheet": "spritesheet.webp",
                 "identity_image": "",
@@ -155,6 +400,10 @@ def default_pet_family() -> dict[str, Any]:
                 "id": "black_white_dog",
                 "display_name": "小墨",
                 "species": "dog",
+                "category_group": "real_animal",
+                "category": "canine",
+                "category_subtype": "short_hair_dog",
+                "category_detail": "黑白短毛狗",
                 "status": "ready",
                 "spritesheet": "family/xiao-mo/spritesheet.webp",
                 "identity_image": "family/xiao-mo/identity-base.png",
@@ -173,6 +422,10 @@ def default_pet_family() -> dict[str, Any]:
                 "id": "orange_cat",
                 "display_name": "橘宝",
                 "species": "cat",
+                "category_group": "real_animal",
+                "category": "feline",
+                "category_subtype": "orange_cat",
+                "category_detail": "橘色虎斑猫",
                 "status": "reference_only",
                 "spritesheet": "family/ju-bao/spritesheet.webp",
                 "identity_image": "",
@@ -191,6 +444,10 @@ def default_pet_family() -> dict[str, Any]:
                 "id": "hugging_dog",
                 "display_name": "小白",
                 "species": "dog",
+                "category_group": "real_animal",
+                "category": "canine",
+                "category_subtype": "small_dog",
+                "category_detail": "白棕小狗",
                 "status": "reference_only",
                 "spritesheet": "family/xiao-bai/spritesheet.webp",
                 "identity_image": "",
@@ -308,6 +565,10 @@ def normalize_pet_entry(pet: Mapping[str, Any], pet_dir: str | Path) -> dict[str
         "id": pet_id,
         "display_name": str(pet.get("display_name") or pet_id),
         "species": str(pet.get("species") or ""),
+        "category_group": str(pet.get("category_group") or ""),
+        "category": str(pet.get("category") or ""),
+        "category_subtype": str(pet.get("category_subtype") or ""),
+        "category_detail": str(pet.get("category_detail") or ""),
         "status": str(pet.get("status") or "reference_only"),
         "spritesheet": str(pet.get("spritesheet") or ""),
         "identity_image": str(pet.get("identity_image") or ""),
@@ -322,6 +583,7 @@ def normalize_pet_entry(pet: Mapping[str, Any], pet_dir: str | Path) -> dict[str
         "supported_actions": pet.get("supported_actions") if isinstance(pet.get("supported_actions"), list) else [],
         "extension_assets": normalize_extension_assets(pet.get("extension_assets")),
     }
+    normalized = normalize_pet_category_metadata(normalized)
     return normalize_pet_action_metadata(normalized, pet_dir)
 
 
