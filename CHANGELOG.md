@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.44-tk-pet-category-taxonomy - 2026-07-03
+
+- Tk 宠物分类从扁平 `dog/cat/human/robot/other` 升级为「一级大类 / 二级类型 / 三级细分 / 细节描述」。
+- 新增字段契约：`category_group`、`category`、`category_subtype`、`category_detail`；现有 5 个宠物已迁移到明确细分分类。
+- 新增三层分类选择 UI，导入宠物和编辑资料共用同一控件，避免所有分类按钮挤在一行或一块。
+- 形象页当前宠物卡片新增体态、动作和基础动作摘要。
+- AI 生图提示词带入分类、体态、动作语义和推荐扩展动作，人物、鸟类、水生、机器人、物件不再默认套用猫狗动作。
+- 新增产品技术文档：`docs/product/蛋黄-Tk宠物分类体系-技术文档-v1.md`。
+- 已生成 Windows 免 Python exe 包：`packages/danhuang-desktop-pet-windows-20260703-161901/` 和 `packages/danhuang-desktop-pet-windows-20260703-161901-exe.zip`，zip SHA256：`5FF6EB2A763D494A831476C346C381FB2545CE92F89B7717DBBF626AC4F4B5A1`。
+- `packages/` 已清理旧包，只保留最新 `20260703-161901` 文件夹和 zip。
+
 ## 2026-07-03-tk-only-project-route
 
 - 当前产品主线收敛为 Python/Tk，WPF Spike/技术验证目录已移除，不再作为后续同步目标。
