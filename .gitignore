@@ -5,6 +5,7 @@ archive-staging/
 data-dev/
 qa/
 docs/product/current-audit/
+docs/product/当前审计/
 
 # Runtime and private data
 *.log

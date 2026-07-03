@@ -5,8 +5,8 @@
 - `src-prototype/legacy-monolith/run-danhuang-desktop-pet.py`
 - `data-dev/current-runtime/danhuang/run-danhuang-desktop-pet.py`
 - `CHANGELOG.md`
-- `docs/product/CURRENT_TK_UI_OPTIMIZATION_BACKLOG.md`
-- `docs/product/IMPLEMENTATION_TRACKER.md`
+- `docs/product/当前Tk桌宠UI优化清单.md`
+- `docs/product/执行追踪.md`
 
 ## 变更摘要
 

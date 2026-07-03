@@ -1,6 +1,6 @@
 # UI 重构规格
 
-当前 Tk 版本 UI 优化的执行级清单见 `docs/product/CURRENT_TK_UI_OPTIMIZATION_BACKLOG.md`。面向外部设计工具的总体说明见 `docs/product/DANHUANG_UI_DESIGN_BRIEF.md`。本文件保留总体设计规格；具体 Tk 迭代、截图验收和 exe 打包要求以该清单为准。
+当前 Tk 版本 UI 优化的执行级清单见 `docs/product/当前Tk桌宠UI优化清单.md`。面向外部设计工具的总体说明见 `docs/product/蛋黄桌宠总体UI设计说明.md`。本文件保留总体设计规格；具体 Tk 迭代、截图验收和 exe 打包要求以该清单为准。
 
 ## 视觉方向
 

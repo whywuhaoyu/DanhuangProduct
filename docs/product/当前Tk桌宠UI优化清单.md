@@ -200,7 +200,7 @@
 
 每个 UI 优化批次至少完成：
 
-- 文档：本文补充对应条目，必要时同步 `UI_REDESIGN_SPEC.md`、项目梳理和执行追踪。
+- 文档：本文补充对应条目，必要时同步 `UI重构规格.md`、项目梳理和执行追踪。
 - 静态验证：`python -m py_compile run-danhuang-desktop-pet.py`。
 - 数据验证：settings、family、state、todos、providers JSON 可解析。
 - 页面烟测：控制面板能打开目标页，切页滚动回顶部，文本不重叠，不横向溢出。

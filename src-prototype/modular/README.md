@@ -27,8 +27,8 @@ ui/
 拆分前先看：
 
 ```text
-docs/product/PROTOTYPE_MODULARIZATION_PLAN.md
-docs/product/current-audit/code-structure-20260614-121543.json
+docs/product/Tk原型模块化拆分计划.md
+docs/product/当前审计/code-structure-20260614-121543.json
 ```
 
 ## Phase 1 已落地

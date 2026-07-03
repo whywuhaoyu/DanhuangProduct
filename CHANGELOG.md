@@ -3,7 +3,7 @@
 ## 2026-07-03-tk-only-project-route
 
 - 当前产品主线收敛为 Python/Tk，WPF Spike/技术验证目录已移除，不再作为后续同步目标。
-- 新增当前项目梳理文档：`docs/product/TK_CURRENT_PROJECT_STATUS_20260703.md`，明确 Tk 代码基线、E 盘运行镜像、模块化阶段、非主线目录和下一步优先级。
+- 新增当前项目梳理文档：`docs/product/蛋黄Tk当前项目梳理_20260703.md`，明确 Tk 代码基线、E 盘运行镜像、模块化阶段、非主线目录和下一步优先级。
 - 更新 README、架构、路线图、目录治理、UI 设计规格和执行追踪，移除当前路线中的 WPF 运行/同步要求。
 - 固化 Tk 打包规则：每次完成 Tk 功能优化、UI 优化或运行逻辑修复后，都必须同步 E 盘运行镜像，并重新生成 Windows 可执行 exe 包到 `packages/`。
 - 基于当前 Tk `0.11.43` 生成 Windows 免 Python exe 包：`packages/danhuang-desktop-pet-windows-20260703-142158/` 和 `packages/danhuang-desktop-pet-windows-20260703-142158-exe.zip`，zip SHA256：`1ADAEF3205322C35ECBD447E769B4562EAA2F54F1E0DB6963359C7ED91F69814`。
@@ -88,7 +88,7 @@
 - 新增 `src-prototype/modular/assets/atlas.py`，负责 spritesheet 网格、标准动作行、扩展动作条尺寸、帧数和时长校验。
 - 新增 `src-prototype/modular/assets/manifest.py`，负责宠物动作 manifest、动作标签、复合跑动、右键动作选择和 family 级动作摘要。
 - 新增 `src-prototype/modular/validate_phase3.py` 和资产单元测试，可只读 E 盘运行镜像输出 5 个宠物、54 个可播放动作和 11 个扩展动作摘要。
-- 新增 `docs/product/DANHUANG_UI_DESIGN_BRIEF.md`，用于交给外部设计工具生成总体 UI 方案，覆盖控制面板、右键面板、聊天窗、提醒页、动作页、形象页和安全页。
+- 新增 `docs/product/蛋黄桌宠总体UI设计说明.md`，用于交给外部设计工具生成总体 UI 方案，覆盖控制面板、右键面板、聊天窗、提醒页、动作页、形象页和安全页。
 - 未修改 C 盘当前运行版主程序，因此不需要重启桌宠。
 
 ## 0.11.34-prototype-phase2-core - 2026-06-18

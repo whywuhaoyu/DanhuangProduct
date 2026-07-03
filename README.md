@@ -8,7 +8,7 @@
 - 产品化工程放在 `E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct`。
 - 已冻结原型归档：`archives/DanhuangPrototype-20260614-121543`。
 - 已复制当前 Tk 单文件原型到 `src-prototype/legacy-monolith/`，用于后续拆分验证。
-- 已生成当前审计文件到 `docs/product/current-audit/`。
+- 已生成当前审计文件到 `docs/product/当前审计/`。
 - Tk Phase 3 正在拆分运行层 UI：右键菜单、气泡 view model/renderer 和基础窗口尺寸已优先接入 E 盘运行镜像。
 - 当前电脑的可运行主线是 Python/Tk 版本；另一台电脑的 Vue/Tauri 版本作为并行产品化分支维护。WPF Spike/技术验证目录已移除，不再作为当前产品路线。
 
@@ -44,12 +44,12 @@ Get-CimInstance Win32_Process | Where-Object { ($_.Name -in @("python.exe","pyth
 
 ## 入口文档
 
-- 产品需求：[docs/product/PRODUCT_REQUIREMENTS.md](docs/product/PRODUCT_REQUIREMENTS.md)
-- 路线图：[docs/product/ROADMAP.md](docs/product/ROADMAP.md)
-- 目标架构：[docs/product/ARCHITECTURE_TARGET.md](docs/product/ARCHITECTURE_TARGET.md)
-- UI 重构：[docs/product/UI_REDESIGN_SPEC.md](docs/product/UI_REDESIGN_SPEC.md)
-- 目录治理：[docs/product/DIRECTORY_GOVERNANCE.md](docs/product/DIRECTORY_GOVERNANCE.md)
-- Git 分支维护：[docs/product/GIT_BRANCH_WORKFLOW_20260703.md](docs/product/GIT_BRANCH_WORKFLOW_20260703.md)
+- 产品需求：[docs/product/蛋黄桌宠产品需求.md](docs/product/蛋黄桌宠产品需求.md)
+- 路线图：[docs/product/产品路线图.md](docs/product/产品路线图.md)
+- 目标架构：[docs/product/目标架构.md](docs/product/目标架构.md)
+- UI 重构：[docs/product/UI重构规格.md](docs/product/UI重构规格.md)
+- 目录治理：[docs/product/目录治理.md](docs/product/目录治理.md)
+- Git 分支维护：[docs/product/蛋黄GitHub分支维护方案_20260703.md](docs/product/蛋黄GitHub分支维护方案_20260703.md)
 - Vue 版本跨电脑推送：[docs/product/Vue版本跨电脑推送操作文档_20260703.md](docs/product/Vue版本跨电脑推送操作文档_20260703.md)
-- 隐私和商业化：[docs/product/PRIVACY_COMMERCIALIZATION.md](docs/product/PRIVACY_COMMERCIALIZATION.md)
-- 执行追踪：[docs/product/IMPLEMENTATION_TRACKER.md](docs/product/IMPLEMENTATION_TRACKER.md)
+- 隐私和商业化：[docs/product/隐私和商业化设计.md](docs/product/隐私和商业化设计.md)
+- 执行追踪：[docs/product/执行追踪.md](docs/product/执行追踪.md)
