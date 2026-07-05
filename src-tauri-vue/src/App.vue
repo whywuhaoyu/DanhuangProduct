@@ -31,6 +31,7 @@ import {
   Eye,
   Filter,
   FolderHeart,
+  FolderOpen,
   Heart,
   Home,
   Image,
@@ -51,6 +52,7 @@ import {
   ShieldCheck,
   Sparkles,
   Timer,
+  Trash2,
   Upload,
   X,
   Zap,
@@ -58,7 +60,10 @@ import {
 import { runtimeApi } from "./api/runtime";
 import { MetricCard, StatusPill } from "./components";
 import type {
+  AiProviderTestResult,
   ChatMessageSummary,
+  SecurityActionInput,
+  SecurityActionResult,
   PetActionSummary,
   PetStateSummary,
   PetSummary,
@@ -122,6 +127,7 @@ const PET_ATLAS_COLUMNS = 8;
 
 type PanelThemeId = "studio" | "garden" | "daylight" | "soft-blue";
 type ReminderTone = "sage" | "info" | "danger-soft" | "warn";
+type ToastTone = "success" | "info" | "warn" | "danger-soft";
 type ReminderFilter = "全部" | "今日" | "重要" | "已完成";
 type ProviderState = "待配置 Key" | "可接入" | "测试中" | "已启用" | "当前" | "连接失败" | "高级";
 type PresencePresetId = "companion" | "focus" | "playful" | "edge";
@@ -258,6 +264,35 @@ interface QuickTool {
   icon: typeof Heart;
 }
 
+interface BuyerTask {
+  id: string;
+  label: string;
+  caption: string;
+  icon: typeof Heart;
+  action: () => void | Promise<void>;
+  status: string;
+  tone: ReminderTone;
+}
+
+interface SecurityActionCard {
+  action: SecurityActionInput["action"];
+  label: string;
+  caption: string;
+  icon: typeof Heart;
+  tone: ReminderTone;
+}
+
+interface RuntimeHealthItem {
+  label: string;
+  value: string;
+  tone: ReminderTone;
+}
+
+interface QuickToolCard extends QuickTool {
+  status: string;
+  tone: ReminderTone;
+}
+
 interface PetRoamArea {
   monitor: Monitor;
   monitorKey: string;
@@ -290,11 +325,19 @@ const petSpriteAssetPath = ref("");
 const assetError = ref("");
 const referenceAssetError = ref("");
 const petSpriteError = ref("");
+const actionDropActive = ref(false);
+const lastActionImportResult = ref("");
+const reminderSearch = ref("");
+const reminderDeleteBusyId = ref("");
+const securityActionBusy = ref<SecurityActionInput["action"] | "">("");
+const securityActionResult = ref<SecurityActionResult | null>(null);
 const loading = ref(true);
 const activePage = ref("overview");
 const toast = ref("");
+const toastTone = ref<ToastTone>("info");
 const petPinned = ref(true);
 const quickMenuOpen = ref(false);
+const quickMenuMoreOpen = ref(false);
 const petSwitcherOpen = ref(false);
 const quickMenuPos = ref({ x: 44, y: 44 });
 const activePetActionId = ref("idle");
@@ -312,6 +355,7 @@ let petRoamDirection: "left" | "right" = "right";
 let petRoamBusy = false;
 let petWindowSizeBusy = false;
 let petRoamPausedUntil = 0;
+let petActionHoldUntil = 0;
 let petDragActive = false;
 let petDragFeedbackBusy = false;
 let petDragFeedbackTimer: number | undefined;
@@ -375,7 +419,7 @@ const bubbleStyleOptions = [
   {
     id: "thought",
     label: "思考泡",
-    caption: "当前运行镜像默认，轻盈、有陪伴感。",
+    caption: "当前本机默认，轻盈、有陪伴感。",
   },
   { id: "cloud", label: "云朵", caption: "更柔软，适合主动陪伴短句。" },
   { id: "rounded", label: "圆角", caption: "克制、清晰，适合工作时常开。" },
@@ -558,6 +602,13 @@ const quickTools: QuickTool[] = [
   { action: "motion", label: "动作页", caption: "预览动作", icon: Play },
 ];
 
+const securityActionCards: SecurityActionCard[] = [
+  { action: "personal-backup", label: "个人备份", caption: "备份本机配置、提醒、聊天和加密 Key 配置副本。", icon: Save, tone: "sage" },
+  { action: "public-export-check", label: "公开包检查", caption: "列出公开分发前必须排除的私人数据。", icon: ShieldCheck, tone: "warn" },
+  { action: "open-data-dir", label: "打开数据目录", caption: "打开本机数据目录，方便核对真实记录。", icon: FolderOpen, tone: "info" },
+  { action: "installer-status", label: "安装包状态", caption: "检查安装包是否已生成，并确认无需额外运行环境。", icon: PackageCheck, tone: "info" },
+];
+
 const baseActionIds = ["idle", "running-right", "running-left", "waving", "jumping"];
 
 const roleStyles = ["蛋黄本色", "技术导师", "产品拆解", "知识博主", "短视频编导", "研究助手", "直说教练", "运营写手"];
@@ -590,6 +641,7 @@ const providerCards = ref<ProviderCard[]>([
 ]);
 const selectedProvider = ref("deepseek");
 const providerTestLog = ref("选择厂商后可测试连接；真实 Key 不回显、不写日志。");
+const providerTestResult = ref<AiProviderTestResult | null>(null);
 const providerSavingId = ref("");
 const providerKeyModalMode = ref<"" | "replace" | "clear">("");
 const providerKeyDraft = ref("");
@@ -673,8 +725,12 @@ const petImageUploading = ref<"" | "identity" | "reference">("");
 const petActionUploading = ref(false);
 const quickMenuSaving = ref(false);
 const quickMenuDraft = ref<string[]>([]);
+function nextCustomActionId() {
+  return `custom:action-${Date.now().toString(36)}`;
+}
+
 const petActionDraft = ref({
-  action_id: "custom:petting",
+  action_id: nextCustomActionId(),
   label: "摸摸头",
   frames: 4,
   durations: "220,180,180,260",
@@ -725,13 +781,28 @@ const memoryTimelineItems = computed(() => {
 });
 const visibleReminders = computed(() => {
   const today = new Date().toISOString().slice(0, 10);
-  const items = reminders.value.slice().sort((a, b) => Number(b.pinned) - Number(a.pinned) || Number(a.done) - Number(b.done));
-  if (reminderFilter.value === "今日") return items.filter((item) => item.due.includes("今日") || item.due.includes("今天") || item.due.startsWith(today));
-  if (reminderFilter.value === "重要") return items.filter((item) => item.priority !== "普通" || item.pinned);
-  if (reminderFilter.value === "已完成") return items.filter((item) => item.done);
+  const keyword = reminderSearch.value.trim().toLowerCase();
+  let items = reminders.value.slice().sort((a, b) => Number(b.pinned) - Number(a.pinned) || Number(a.done) - Number(b.done));
+  if (reminderFilter.value === "今日") items = items.filter((item) => item.due.includes("今日") || item.due.includes("今天") || item.due.startsWith(today));
+  if (reminderFilter.value === "重要") items = items.filter((item) => item.priority !== "普通" || item.pinned);
+  if (reminderFilter.value === "已完成") items = items.filter((item) => item.done);
+  if (keyword) {
+    items = items.filter((item) =>
+      [item.title, item.note, item.due, item.category, item.priority, item.repeat]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword),
+    );
+  }
   return items;
 });
 const selectedReminder = computed(() => reminders.value.find((item) => item.id === selectedReminderId.value) ?? visibleReminders.value[0] ?? null);
+const reminderPreviewText = computed(() => {
+  const title = reminderDraft.value.title.trim();
+  const due = reminderDraft.value.due.trim() || "稍后";
+  if (!title) return "输入标题后会先显示本地解析预览。";
+  return `将创建提醒: ${title} / ${due} / 本地分类 / 普通优先级。`;
+});
 const companionLevel = computed(() => Math.max(1, Math.round(Number(runtime.value?.features.companion_level ?? 1) || 1)));
 const companionXp = computed(() => Math.max(0, Math.round(Number(runtime.value?.features.companion_xp ?? 0) || 0)));
 const companionInteractions = computed(() => Math.max(0, Math.round(Number(runtime.value?.features.companion_interactions ?? 0) || 0)));
@@ -741,7 +812,7 @@ const companionProgressXp = computed(() => companionXp.value % companionLevelSpa
 const companionXpToNext = computed(() => companionLevelSpan.value - companionProgressXp.value);
 const companionProgressPercent = computed(() => clamp(Math.round((companionProgressXp.value / companionLevelSpan.value) * 100), 4, 100));
 const companionProgressText = computed(() => {
-  const prefix = runtime.value?.runtime_available ? "当前宠物真实陪伴状态" : "浏览器预览示例状态";
+  const prefix = runtime.value?.runtime_available ? "当前宠物真实陪伴状态" : "体验演示状态";
   return `${prefix}: ${companionXp.value} XP、互动 ${companionInteractions.value} 次、对话 ${companionTalks.value} 轮；按当前等级进度估算，距离下一阶段约 ${companionXpToNext.value} XP。`;
 });
 const capabilityCards = computed(() => [
@@ -763,6 +834,111 @@ const capabilityCards = computed(() => [
   },
   { label: "兜底", value: "短句陪伴", tone: "sage" as const },
 ]);
+const runtimeHealthItems = computed<RuntimeHealthItem[]>(() => [
+  {
+    label: "数据状态",
+    value: runtime.value?.runtime_available ? "已就绪" : "预览模式",
+    tone: runtime.value?.runtime_available ? "sage" : "warn",
+  },
+  {
+    label: "当前形象",
+    value: currentPet.value?.display_name ?? "未读取",
+    tone: currentPet.value ? "sage" : "warn",
+  },
+  {
+    label: "提醒",
+    value: runtime.value ? `${runtime.value.features.todo_open_count} 未完成` : "未读取",
+    tone: runtime.value?.features.todo_pinned_count ? "warn" : "info",
+  },
+  {
+    label: "AI",
+    value: runtime.value?.features.saved_key_provider_count ? `${runtime.value.features.saved_key_provider_count} Key` : "本地兜底",
+    tone: runtime.value?.features.saved_key_provider_count ? "sage" : "warn",
+  },
+  {
+    label: "动作",
+    value: runtime.value ? `${runtime.value.total_supported_actions} 个` : "未读取",
+    tone: runtime.value?.total_supported_actions ? "sage" : "warn",
+  },
+]);
+const quickToolCards = computed<QuickToolCard[]>(() =>
+  quickTools.map((tool) => {
+    if (tool.action === "chat") {
+      return {
+        ...tool,
+        status: selectedProviderCard.value.hasSavedKey ? "云端可用" : "本地兜底",
+        tone: selectedProviderCard.value.hasSavedKey ? "sage" : "warn",
+      };
+    }
+    if (tool.action === "reminder") {
+      return {
+        ...tool,
+        status: runtime.value ? `${runtime.value.features.todo_open_count} 未完成` : "本地读取",
+        tone: runtime.value?.features.todo_pinned_count ? "warn" : "info",
+      };
+    }
+    if (tool.action === "identity") {
+      return {
+        ...tool,
+        status: runtime.value ? `${runtime.value.ready_pet_count} 可用` : "演示",
+        tone: runtime.value?.ready_pet_count ? "sage" : "warn",
+      };
+    }
+    if (tool.action === "motion") {
+      return {
+        ...tool,
+        status: runtime.value ? `${runtime.value.total_supported_actions} 动作` : "演示",
+        tone: runtime.value?.total_supported_actions ? "sage" : "warn",
+      };
+    }
+    if (tool.action === "recall-pet" || tool.action === "settle-pet") {
+      return {
+        ...tool,
+        status: runtime.value?.runtime_available ? "桌面可用" : "演示提示",
+        tone: runtime.value?.runtime_available ? "sage" : "warn",
+      };
+    }
+    return { ...tool, status: "立即可用", tone: "sage" };
+  }),
+);
+const buyerTasks = computed<BuyerTask[]>(() => [
+  {
+    id: "show-pet",
+    label: "显示桌宠",
+    caption: petSpriteAsset.value || currentAsset.value ? "把它放回桌面，确认形象可见。" : "先显示桌宠；如素材缺失会引导修复形象。",
+    icon: PanelRightOpen,
+    action: showPetWindow,
+    status: petSpriteAsset.value || currentAsset.value ? "形象可见" : "需修复",
+    tone: petSpriteAsset.value || currentAsset.value ? "sage" : "warn",
+  },
+  {
+    id: "chat",
+    label: "和它说话",
+    caption: "打开对话页，测试本地兜底或云端回复。",
+    icon: MessageCircle,
+    action: () => switchPage("chat"),
+    status: selectedProviderCard.value.hasSavedKey ? "云端可用" : "本地兜底",
+    tone: selectedProviderCard.value.hasSavedKey ? "sage" : "info",
+  },
+  {
+    id: "reminder",
+    label: "创建提醒",
+    caption: "进入本地待办，添加第一条提醒。",
+    icon: Bell,
+    action: () => switchPage("reminders"),
+    status: runtime.value ? `${runtime.value.features.todo_open_count} 未完成` : "待读取",
+    tone: runtime.value?.features.todo_pinned_count ? "warn" : "sage",
+  },
+  {
+    id: "privacy",
+    label: "隐私与数据",
+    caption: "检查备份、公开包排除项和安装包状态。",
+    icon: ShieldCheck,
+    action: () => switchPage("security"),
+    status: "本机优先",
+    tone: "sage",
+  },
+]);
 const chatStatusSummary = computed(() => {
   const active = providerCards.value.find((provider) => provider.active) ?? selectedProviderCard.value;
   if (active?.hasSavedKey) return `${active.name} 云端回复 + 本地兜底`;
@@ -779,6 +955,9 @@ const providerKeyActionDisabled = computed(() => {
   }
   return providerKeyDraft.value.trim().length < 8;
 });
+const selectedProviderTestResult = computed(() =>
+  providerTestResult.value?.provider_id === selectedProvider.value ? providerTestResult.value : null,
+);
 const pageTitle = computed(() => navigationItems.value.find((item) => item.id === activePage.value)?.label ?? "首页");
 const pageCaption = computed(() => {
   const map: Record<string, string> = {
@@ -790,12 +969,12 @@ const pageCaption = computed(() => {
     profile: "宠物级陪伴数据、长期记忆和最近聊天。",
     story: "故事、日记、思念记录，默认克制表达。",
     motion: "动作预览、右键动作栏和扩展动作上传。",
-    ai: "Provider 状态、模型、Key 隐私和测试反馈。",
+    ai: "AI 厂商、模型、Key 隐私和测试反馈。",
     appearance: "透明窗口、气泡样式、颜色预设和即时预览。",
     behavior: "移动速度、巡游策略、多屏和安静时段。",
     security: "个人备份、公开分发边界和安装包导出。",
   };
-  return map[activePage.value] ?? "Tauri/Vue 产品版基础页面。";
+  return map[activePage.value] ?? "桌面陪伴版页面。";
 });
 const activePresencePresetId = computed(() => presencePresets.find((preset) => presencePresetMatches(preset))?.id ?? "");
 
@@ -872,7 +1051,7 @@ function chatSourceClass(source: string) {
 }
 
 const petVisualLabel = computed(() => currentPet.value?.display_name?.slice(0, 2) || "蛋黄");
-const petStatusText = computed(() => (currentPet.value ? petStatusLabel(currentPet.value) : "等待运行镜像"));
+const petStatusText = computed(() => (currentPet.value ? petStatusLabel(currentPet.value) : "等待本机数据"));
 const playableActions = computed(() => currentPet.value?.actions ?? []);
 const actionById = computed(() => new globalThis.Map(playableActions.value.map((action) => [action.id, action])));
 const savedQuickMenuActionIds = computed(() => runtime.value?.settings.quick_menu_actions ?? []);
@@ -937,6 +1116,16 @@ const petSpriteStyle = computed(() => {
     backgroundSize: `${Math.round(columns * SPRITE_CELL_WIDTH * scale)}px auto`,
   };
 });
+const petFallbackClasses = computed<Record<string, boolean>>(() => {
+  const actionId = activePetAction.value?.id ?? "idle";
+  return {
+    "pet-fallback--idle": actionId === "idle",
+    "pet-fallback--run": actionId === "running-right" || actionId === "running-left",
+    "pet-fallback--run-left": actionId === "running-left",
+    "pet-fallback--wave": actionId === "waving",
+    "pet-fallback--jump": actionId === "jumping",
+  };
+});
 const currentAssetIsSpritesheet = computed(
   () => Boolean(currentAsset.value && currentAssetPath.value && currentPet.value?.spritesheet_asset === currentAssetPath.value),
 );
@@ -993,12 +1182,31 @@ const petBubblePriorityLabel = computed(() => {
   if (top.priority <= 20) return "自动说话";
   return "普通";
 });
+const toastTitle = computed(() => {
+  if (toastTone.value === "success") return "已完成";
+  if (toastTone.value === "warn") return "需要处理";
+  if (toastTone.value === "danger-soft") return "操作失败";
+  return "状态更新";
+});
+const toastRole = computed(() => (toastTone.value === "danger-soft" || toastTone.value === "warn" ? "alert" : "status"));
 
-function showToast(message: string) {
+function inferToastTone(message: string): ToastTone {
+  if (/(失败|错误|异常|无法|不能|不可|超过|未支持)/.test(message)) return "danger-soft";
+  if (/(请先|需要|等待|暂无|未读取|未配置)/.test(message)) return "warn";
+  if (/(已|成功|保存|完成|开启|恢复|导入|切换|加入|写入|显示|隐藏)/.test(message)) return "success";
+  return "info";
+}
+
+function showToast(message: string, tone: ToastTone = inferToastTone(message)) {
   toast.value = message;
+  toastTone.value = tone;
   window.setTimeout(() => {
     if (toast.value === message) toast.value = "";
   }, 2800);
+}
+
+function dismissToast() {
+  toast.value = "";
 }
 
 function publishRuntimeRefresh(reason: string) {
@@ -1123,6 +1331,7 @@ function startNextPetBubble() {
 
   if (next.actionId) {
     const action = playableActions.value.find((item) => item.id === next.actionId);
+    holdPetAction();
     void setPetActionSilently(action);
   }
 
@@ -1535,6 +1744,11 @@ function pausePetRoam(durationMs = PET_ROAM_PAUSE_MS) {
   petRoamPausedUntil = Math.max(petRoamPausedUntil, Date.now() + durationMs);
 }
 
+function holdPetAction(durationMs = 1_600) {
+  if (viewMode !== "pet") return;
+  petActionHoldUntil = Math.max(petActionHoldUntil, Date.now() + durationMs);
+}
+
 function petRoamIntervalMs() {
   return Math.min(Math.max(Math.round(Number(roamIntervalValue.value) || PET_ROAM_INTERVAL_MS), 60), 1000);
 }
@@ -1823,7 +2037,7 @@ async function saveAppearanceSettings() {
       bubble_duration: bubbleDuration.value,
       always_on_top: petPinned.value,
     },
-    "外观偏好已写入 E 盘运行镜像",
+    "外观偏好已保存到本机",
   );
 }
 
@@ -1851,7 +2065,7 @@ async function saveBehaviorSettings() {
       lock_size_across_monitors: lockSizeAcrossMonitors.value,
       always_on_top: petPinned.value,
     },
-    "行为设置已写入 E 盘运行镜像",
+    "行为设置已保存到本机",
   );
 }
 
@@ -2159,7 +2373,7 @@ async function saveReminderDetail() {
     });
     updateReminder(mapTodoToReminder(todo));
     await refreshRuntime();
-    showToast("提醒详情已保存到 E 盘运行镜像");
+    showToast("提醒详情已保存到本机");
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
   } finally {
@@ -2200,14 +2414,39 @@ async function toggleProvider(provider = selectedProviderCard.value) {
   );
 }
 
-function testProvider(providerId = selectedProvider.value) {
+async function testProvider(providerId = selectedProvider.value) {
   selectedProvider.value = providerId;
   const provider = providerCards.value.find((item) => item.id === providerId);
   if (!provider) return;
-  providerTestLog.value = provider.hasSavedKey
-    ? `${provider.name} 本机已保存 Key；本轮只做安全状态检查，不发起联网测试。`
-    : `${provider.name} 未保存 Key；后续接 Stronghold 或系统安全存储后再联网测试。`;
-  showToast("已完成本地安全状态检查");
+  providerSavingId.value = providerId;
+  providerTestLog.value = `${provider.name} 正在发送一条不落盘的连接测试请求...`;
+  providerTestResult.value = null;
+  try {
+    const result = await runtimeApi.testAiProviderConnection({ provider_id: providerId });
+    providerTestResult.value = result;
+    providerTestLog.value = result.message;
+    const target = providerCards.value.find((item) => item.id === providerId);
+    if (target) {
+      target.state = result.ok ? (target.active ? "当前" : "可接入") : "连接失败";
+      target.note = result.message;
+    }
+    showToast(result.title, result.ok ? "success" : "warn");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    providerTestResult.value = {
+      provider_id: providerId,
+      ok: false,
+      title: "测试失败",
+      message,
+      details: ["检查网络、Base URL、模型名和 Key 权限。"],
+    };
+    providerTestLog.value = message;
+    const target = providerCards.value.find((item) => item.id === providerId);
+    if (target) target.state = "连接失败";
+    showToast(message, "warn");
+  } finally {
+    providerSavingId.value = "";
+  }
 }
 
 function openProviderKeyModal(mode: "replace" | "clear") {
@@ -2289,7 +2528,7 @@ async function addReminder() {
     reminderDraft.value.title = "";
     await refreshRuntime();
     void checkDueReminders({ silent: true });
-    showToast("提醒已写入 E 盘运行镜像");
+    showToast("提醒已保存到本机");
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
   }
@@ -2327,6 +2566,30 @@ async function toggleReminderPinned(id: string) {
     showToast(item.pinned ? "已取消置顶" : "提醒已置顶");
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function deleteReminder(id: string) {
+  const item = reminders.value.find((todo) => todo.id === id);
+  if (!item || reminderDeleteBusyId.value) return;
+  const confirmed = window.confirm(`确认删除提醒“${item.title}”？\n\n会从列表隐藏，但保留本机时间轴记录。`);
+  if (!confirmed) return;
+  reminderDeleteBusyId.value = id;
+  try {
+    await runtimeApi.updateTodoState({
+      id,
+      deleted: true,
+      now: nowIso(),
+    });
+    reminders.value = reminders.value.filter((todo) => todo.id !== id);
+    if (selectedReminderId.value === id) selectedReminderId.value = visibleReminders.value[0]?.id ?? "";
+    if (activeDueReminder.value?.id === id) activeDueReminder.value = null;
+    await refreshRuntime();
+    showToast("提醒已软删除，时间轴仍保留记录");
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : String(error));
+  } finally {
+    reminderDeleteBusyId.value = "";
   }
 }
 
@@ -2502,7 +2765,7 @@ async function loadPetSpriteForAction(
   if (!assetPath) {
     petSpriteAsset.value = "";
     petSpriteAssetPath.value = "";
-    petSpriteError.value = "当前宠物没有可播放精灵图";
+    petSpriteError.value = "正在使用内置默认形象，可导入精灵图升级动作";
     return;
   }
   if (petSpriteAsset.value && petSpriteAssetPath.value === assetPath) {
@@ -2528,6 +2791,7 @@ async function loadPetSpriteForAction(
 async function setPetAction(action: PetActionSummary) {
   stopCursorFollow(false);
   pausePetRoam(2_800);
+  holdPetAction(1_800);
   activePetActionId.value = action.id;
   spriteFrame.value = 0;
   await loadPetSpriteForAction(action);
@@ -3005,7 +3269,9 @@ async function tickPetRoam() {
   if (petDragActive) return;
   if (cursorFollowActive.value) return;
   if (!roamEnabled.value || quickMenuOpen.value || Date.now() < petRoamPausedUntil) {
-    await settlePetRoamIdle();
+    if (Date.now() >= petActionHoldUntil) {
+      await settlePetRoamIdle();
+    }
     return;
   }
 
@@ -3116,6 +3382,8 @@ function queueAction(action: string | PetActionSummary) {
         toast: `已让桌宠播放${item.label}`,
       });
     } else {
+      quickMenuOpen.value = false;
+      quickMenuMoreOpen.value = false;
       void setPetAction(item);
     }
   } else {
@@ -3142,8 +3410,8 @@ function syncRuntimeFeatures(summary: RuntimeSummary) {
     });
     selectedProvider.value = summary.features.active_provider || providerCards.value[0]?.id || selectedProvider.value;
     providerTestLog.value = summary.features.saved_key_provider_count
-      ? `运行镜像中有 ${summary.features.saved_key_provider_count} 个厂商保存了本机 Key，真实值未返回前端。`
-      : "运行镜像未返回已保存 Key，前端只展示安全状态。";
+      ? `本机数据中有 ${summary.features.saved_key_provider_count} 个厂商保存了加密 Key，真实值不会返回前端。`
+      : "本机数据未返回已保存 Key，前端只展示安全状态。";
   }
 }
 
@@ -3332,6 +3600,7 @@ function openQuickMenu(event: MouseEvent) {
   stopCursorFollow(false);
   pausePetRoam(4_000);
   quickMenuPos.value = { x: event.clientX, y: event.clientY };
+  quickMenuMoreOpen.value = false;
   petSwitcherOpen.value = false;
   petInlineChatOpen.value = false;
   quickMenuOpen.value = true;
@@ -3347,7 +3616,6 @@ function resetPageScroll() {
     const scroller = pageScrollRef.value;
     if (!scroller) return;
     scroller.scrollTo({ top: 0, left: 0 });
-    scroller.focus({ preventScroll: true });
   });
 }
 
@@ -3453,7 +3721,19 @@ function openPanelPage(page: string) {
 }
 
 function petStatusLabel(pet: PetSummary) {
-  return `${pet.supported_action_count} 动作 / ${pet.extension_action_count} 扩展`;
+  return `${pet.supported_action_count} 个动作，${pet.extension_action_count} 个扩展`;
+}
+
+function petActionPackLabel(pet: PetSummary | null | undefined) {
+  if (!pet) return "等待资料";
+  if (pet.action_pack_level === "full") return "完整动作";
+  if (pet.action_pack_level === "basic") return "基础动作";
+  if (pet.action_pack_level === "builtin") return "内置动作";
+  return "自定义动作";
+}
+
+function actionKindLabel(action: PetActionSummary) {
+  return action.source === "strip" ? "补充动作" : "内置动作";
 }
 
 function petInitial(pet: PetSummary) {
@@ -3545,18 +3825,24 @@ function parseDurations(raw: string, frames: number) {
   return Array.from({ length: frames }, (_, index) => values[index] ?? 180);
 }
 
-async function uploadPetActionStrip(event: Event) {
-  const inputEl = event.target as HTMLInputElement;
-  const file = inputEl.files?.[0];
-  inputEl.value = "";
+function resetActionUploadDraft() {
+  petActionDraft.value = {
+    action_id: nextCustomActionId(),
+    label: "摸摸头",
+    frames: 4,
+    durations: "220,180,180,260",
+  };
+  lastActionImportResult.value = "";
+  showToast("动作上传表单已清空");
+}
+
+async function uploadPetActionStripFile(file: File | undefined) {
   if (!file || !currentPet.value) return;
   const frames = Math.min(Math.max(Math.round(Number(petActionDraft.value.frames) || 1), 1), 8);
-  const actionId = petActionDraft.value.action_id.trim().toLowerCase();
+  const actionId = petActionDraft.value.action_id.trim().toLowerCase().startsWith("custom:")
+    ? petActionDraft.value.action_id.trim().toLowerCase()
+    : nextCustomActionId();
   const label = petActionDraft.value.label.trim();
-  if (!actionId.startsWith("custom:")) {
-    showToast("新增动作 ID 请使用 custom: 前缀");
-    return;
-  }
   if (!label) {
     showToast("请先填写动作名称");
     return;
@@ -3585,11 +3871,45 @@ async function uploadPetActionStrip(event: Event) {
     const action = playableActions.value.find((item) => item.id === actionId);
     if (action) await loadPetSpriteForAction(action);
     localStorage.setItem(PET_REFRESH_KEY, `${Date.now()}:action:${currentPet.value.id}:${actionId}`);
+    lastActionImportResult.value = `${label} 已导入，${frames} 帧，已加入当前宠物动作清单；仍需人工确认身份、方向和透明边缘。`;
+    petActionDraft.value.action_id = nextCustomActionId();
     showToast(`${label} 动作条已导入`);
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
   } finally {
     petActionUploading.value = false;
+    actionDropActive.value = false;
+  }
+}
+
+async function uploadPetActionStrip(event: Event) {
+  const inputEl = event.target as HTMLInputElement;
+  const file = inputEl.files?.[0];
+  inputEl.value = "";
+  await uploadPetActionStripFile(file);
+}
+
+async function handleActionStripDrop(event: DragEvent) {
+  actionDropActive.value = false;
+  const file = event.dataTransfer?.files?.[0];
+  await uploadPetActionStripFile(file);
+}
+
+async function clearPetActionStrip(action: PetActionSummary) {
+  if (!currentPet.value || action.source !== "strip") return;
+  const confirmed = window.confirm(`确认从动作清单移除“${action.label}”？\n\n不会删除磁盘上的原始动作条文件，只会从当前宠物和右键栏移除。`);
+  if (!confirmed) return;
+  try {
+    const summary = await runtimeApi.clearPetActionStrip({
+      pet_id: currentPet.value.id,
+      action_id: action.id,
+    });
+    await applyRuntimeSummary(summary, { refreshTodoList: false });
+    localStorage.setItem(PET_REFRESH_KEY, `${Date.now()}:action-clear:${currentPet.value.id}:${action.id}`);
+    lastActionImportResult.value = `${action.label} 已从动作清单移除，素材文件未物理删除。`;
+    showToast("扩展动作已从清单移除");
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -3641,6 +3961,19 @@ async function saveQuickMenuActions() {
     showToast(error instanceof Error ? error.message : String(error));
   } finally {
     quickMenuSaving.value = false;
+  }
+}
+
+async function runSecurityAction(action: SecurityActionInput["action"]) {
+  securityActionBusy.value = action;
+  try {
+    const result = await runtimeApi.runSecurityAction({ action });
+    securityActionResult.value = result;
+    showToast(result.message, result.tone);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : String(error));
+  } finally {
+    securityActionBusy.value = "";
   }
 }
 
@@ -3770,7 +4103,7 @@ onMounted(() => {
       unlistenRuntimeChanged = unlisten;
     })
     .catch(() => {
-      // Browser preview does not expose Tauri's event bus.
+      // 体验模式没有桌面事件总线。
     });
   void listen<unknown>("danhuang-reminder-triggered", (event) => {
     const signal = reminderSignalFromPayload(event.payload);
@@ -3950,9 +4283,26 @@ onBeforeUnmount(() => {
         :aria-label="`${currentPet?.display_name ?? '当前宠物'}：${activePetAction.label}`"
       />
       <img v-else-if="currentAsset && !currentAssetIsSpritesheet" :src="currentAsset" :alt="currentPet?.display_name ?? '当前宠物'" :style="petImageStyle" />
-      <div v-else class="pet-fallback">
-        <Heart :size="54" />
+      <div
+        v-else
+        class="pet-fallback"
+        :class="petFallbackClasses"
+        :data-action="activePetAction?.id ?? 'idle'"
+        role="img"
+        :aria-label="`${currentPet?.display_name ?? '桌宠'}默认形象`"
+      >
+        <span class="pet-fallback__dog">
+          <span class="pet-fallback__ear pet-fallback__ear--left" />
+          <span class="pet-fallback__ear pet-fallback__ear--right" />
+          <span class="pet-fallback__tail" />
+          <span class="pet-fallback__face">
+            <span class="pet-fallback__eye pet-fallback__eye--left" />
+            <span class="pet-fallback__eye pet-fallback__eye--right" />
+            <span class="pet-fallback__nose" />
+          </span>
+        </span>
         <strong>{{ petVisualLabel }}</strong>
+        <button class="pet-repair-button" type="button" @mousedown.stop @click.stop="openPanelPage('identity')">导入形象</button>
       </div>
       <span v-if="activePetAction" class="pet-action-badge">{{ activePetAction.label }}</span>
       <span v-if="petSpriteError && !petSpriteAsset" class="pet-action-hint">{{ petSpriteError }}</span>
@@ -3983,82 +4333,100 @@ onBeforeUnmount(() => {
         <div class="quick-menu__grid quick-menu__grid--list">
           <button type="button" @click="quickPetTalk">说句话</button>
           <button type="button" @click="quickPetTouch">摸摸</button>
-          <button type="button" :disabled="chatSending" @click="quickPetChat">{{ chatSending ? "思考中" : "聊一句" }}</button>
           <button type="button" @click="openPetInlineChat">直接对话</button>
-          <button type="button" @click="openPanelPage('chat')">打开对话</button>
           <button type="button" @click="openPanelPage('reminders')">提醒</button>
-          <button type="button" :class="{ active: cursorFollowActive }" @click="toggleCursorFollow">
-            {{ cursorFollowActive ? `停止跟随 ${cursorFollowRemainingSeconds}s` : "跟随光标" }}
-          </button>
-          <button type="button" @click="settlePetNearEdge('quick-menu')">靠边休息</button>
-          <button type="button" @click="quickClearPetBubbles">清空气泡</button>
-          <button type="button" :class="{ active: petSwitcherOpen }" @click="petSwitcherOpen = !petSwitcherOpen">切换形象</button>
           <button type="button" @click="openPanelPage('overview')">控制面板</button>
+          <button type="button" @click="hidePetWindow">隐藏</button>
         </div>
       </div>
-      <div class="quick-menu__section">
-        <p>陪伴模式</p>
-        <div class="quick-menu__grid quick-menu__grid--list quick-menu__grid--presence">
+      <button class="quick-menu__more-toggle" type="button" :aria-expanded="quickMenuMoreOpen" @click="quickMenuMoreOpen = !quickMenuMoreOpen">
+        {{ quickMenuMoreOpen ? "收起更多" : "更多动作与设置" }}
+      </button>
+      <template v-if="quickMenuMoreOpen">
+        <div class="quick-menu__section">
+          <p>更多</p>
+          <div class="quick-menu__grid quick-menu__grid--list">
+            <button type="button" :disabled="chatSending" @click="quickPetChat">{{ chatSending ? "思考中" : "聊一句" }}</button>
+            <button type="button" @click="openPanelPage('chat')">打开对话页</button>
+            <button type="button" :class="{ active: cursorFollowActive }" @click="toggleCursorFollow">
+              {{ cursorFollowActive ? `停止跟随 ${cursorFollowRemainingSeconds}s` : "跟随光标" }}
+            </button>
+            <button type="button" @click="settlePetNearEdge('quick-menu')">靠边休息</button>
+            <button type="button" @click="quickClearPetBubbles">清空气泡</button>
+            <button type="button" :class="{ active: petSwitcherOpen }" @click="petSwitcherOpen = !petSwitcherOpen">切换形象</button>
+          </div>
+        </div>
+        <div class="quick-menu__section">
+          <p>陪伴模式</p>
+          <div class="quick-menu__grid quick-menu__grid--list quick-menu__grid--presence">
+            <button
+              v-for="preset in presencePresets"
+              :key="preset.id"
+              type="button"
+              :class="{ active: activePresencePresetId === preset.id }"
+              :disabled="settingsSaving || clickThroughBusy"
+              @click="applyPresencePreset(preset)"
+            >
+              {{ preset.label }}
+            </button>
+          </div>
+        </div>
+        <div v-if="petSwitcherOpen" class="quick-menu__pet-switcher">
+          <p>家人形象</p>
           <button
-            v-for="preset in presencePresets"
-            :key="preset.id"
+            v-for="pet in readyPets"
+            :key="pet.id"
             type="button"
-            :class="{ active: activePresencePresetId === preset.id }"
-            :disabled="settingsSaving || clickThroughBusy"
-            @click="applyPresencePreset(preset)"
+            class="quick-menu__pet-row"
+            :class="{ current: pet.id === runtime?.current_pet_id }"
+            :disabled="petSwitchingId === pet.id"
+            @click="switchPetFromQuickMenu(pet)"
           >
-            {{ preset.label }}
+            <span class="quick-menu__pet-avatar">{{ petInitial(pet) }}</span>
+            <span>
+              <strong>{{ pet.display_name }}</strong>
+              <small>{{ pet.species || "未标注种类" }} · {{ petActionPackLabel(pet) }}</small>
+            </span>
+            <StatusPill
+              :label="pet.id === runtime?.current_pet_id ? '当前' : petSwitchingId === pet.id ? '切换中' : '切换'"
+              :tone="pet.id === runtime?.current_pet_id ? 'info' : 'sage'"
+            />
           </button>
+          <button class="quick-menu__manage-link" type="button" @click="openPanelPage('identity')">管理全部形象</button>
         </div>
-      </div>
-      <div v-if="petSwitcherOpen" class="quick-menu__pet-switcher">
-        <p>家人形象</p>
-        <button
-          v-for="pet in readyPets"
-          :key="pet.id"
-          type="button"
-          class="quick-menu__pet-row"
-          :class="{ current: pet.id === runtime?.current_pet_id }"
-          :disabled="petSwitchingId === pet.id"
-          @click="switchPetFromQuickMenu(pet)"
-        >
-          <span class="quick-menu__pet-avatar">{{ petInitial(pet) }}</span>
-          <span>
-            <strong>{{ pet.display_name }}</strong>
-            <small>{{ pet.species || "未标注种类" }} · {{ pet.action_pack_level || "basic" }}</small>
-          </span>
-          <StatusPill
-            :label="pet.id === runtime?.current_pet_id ? '当前' : petSwitchingId === pet.id ? '切换中' : '切换'"
-            :tone="pet.id === runtime?.current_pet_id ? 'info' : 'sage'"
-          />
-        </button>
-        <button class="quick-menu__manage-link" type="button" @click="openPanelPage('identity')">管理全部形象</button>
-      </div>
-      <div class="quick-menu__section">
-        <p>右键动作</p>
-        <div class="quick-menu__grid quick-menu__grid--actions">
-          <button v-for="item in activeQuickMenuActionItems.slice(0, 8)" :key="item.id" type="button" @click="queueAction(item)">
-            {{ item.label }}
-          </button>
-          <button v-if="!activeQuickMenuActionItems.length" type="button" disabled>暂无可用动作</button>
-          <button v-if="activeQuickMenuActionItems.length > 8" type="button" @click="openPanelPage('motion')">
-            更多/管理 +{{ Math.max(activeQuickMenuActionItems.length - 8, 0) }}
-          </button>
+        <div class="quick-menu__section">
+          <p>右键动作</p>
+          <div class="quick-menu__grid quick-menu__grid--actions">
+            <button v-for="item in activeQuickMenuActionItems.slice(0, 5)" :key="item.id" type="button" @click="queueAction(item)">
+              {{ item.label }}
+            </button>
+            <button v-if="!activeQuickMenuActionItems.length" type="button" disabled>暂无可用动作</button>
+            <button v-if="activeQuickMenuActionItems.length > 5" type="button" @click="openPanelPage('motion')">
+              更多/管理 +{{ Math.max(activeQuickMenuActionItems.length - 5, 0) }}
+            </button>
+          </div>
         </div>
-      </div>
-      <footer class="quick-menu__footer">
+      </template>
+      <footer v-if="quickMenuMoreOpen" class="quick-menu__footer">
         <button class="button ghost" type="button" @click="setPinned(!petPinned)">
           {{ petPinned ? "取消置顶" : "窗口置顶" }}
         </button>
         <button class="button ghost" type="button" :disabled="clickThroughBusy" @click="enableTemporaryClickThrough()">短时穿透</button>
-        <button class="button ghost" type="button" @click="hidePetWindow">隐藏</button>
       </footer>
     </section>
 
     <button class="pet-close" type="button" title="隐藏桌宠" @click.stop="hidePetWindow">
       <X :size="16" />
     </button>
-    <div v-if="toast" class="toast pet-toast">{{ toast }}</div>
+    <div v-if="toast" class="toast pet-toast" :class="`toast--${toastTone}`" :role="toastRole" aria-live="polite">
+      <div>
+        <strong>{{ toastTitle }}</strong>
+        <span>{{ toast }}</span>
+      </div>
+      <button class="toast__close" type="button" aria-label="关闭提示" @click="dismissToast">
+        <X :size="14" />
+      </button>
+    </div>
   </div>
 
   <main v-else class="app-shell" :data-theme="activeThemeId">
@@ -4086,24 +4454,30 @@ onBeforeUnmount(() => {
 
       <div class="sidebar-card">
         <div class="sidebar-card__title">
-          <StatusPill :label="runtime?.runtime_available ? 'E 盘镜像' : '浏览器预览'" tone="sage" />
+          <StatusPill :label="runtime?.runtime_available ? '数据就绪' : '预览模式'" tone="sage" />
           <button class="icon-button compact" type="button" title="刷新数据" @click="refreshRuntime">
             <RefreshCw :size="15" />
           </button>
         </div>
-        <p>{{ currentPet?.display_name ?? "等待数据" }} · {{ runtime?.ready_pet_count ?? 0 }} 个 ready 形象</p>
+        <p>{{ currentPet?.display_name ?? "等待数据" }} · {{ runtime?.ready_pet_count ?? 0 }} 个可用形象</p>
       </div>
     </aside>
 
     <section class="workspace" @wheel="handleWorkspaceWheel">
       <header class="topbar">
         <div>
-          <span class="eyebrow">Tauri/Vue 产品版</span>
+          <span class="eyebrow">桌面陪伴版</span>
           <h1>{{ pageTitle }}</h1>
           <p>{{ pageCaption }}</p>
+          <div class="runtime-strip" aria-label="运行状态摘要">
+            <div v-for="item in runtimeHealthItems" :key="item.label">
+              <StatusPill :label="item.label" :tone="item.tone" />
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
         </div>
         <div class="topbar-actions">
-          <div class="theme-switcher" aria-label="页面背景">
+          <div v-if="activePage === 'appearance'" class="theme-switcher" aria-label="页面背景">
             <button
               v-for="theme in themeOptions"
               :key="theme.id"
@@ -4144,7 +4518,7 @@ onBeforeUnmount(() => {
 
       <div v-if="loading" class="loading-panel">
         <Heart :size="28" />
-        <span>正在读取 E 盘运行镜像...</span>
+        <span>正在读取本机数据...</span>
       </div>
 
       <div v-else ref="pageScrollRef" class="page-scroll" tabindex="0" aria-label="页面内容" @keydown="handlePageScrollKeydown">
@@ -4153,15 +4527,15 @@ onBeforeUnmount(() => {
             <div class="hero-copy">
               <span class="eyebrow">当前陪伴</span>
               <h2>{{ currentPet?.display_name ?? "未读取到宠物" }}</h2>
-              <p>桌面小窗口保持轻，控制面板承载形象、提醒、AI、动作和安全导出。所有状态跟随当前宠物刷新。</p>
+              <p>买来第一分钟要能看到桌宠、说上话、记一条提醒，并确认隐私数据不会被误打包。</p>
               <div class="hero-actions">
-                <button class="button primary" type="button" @click="switchPage('chat')">
-                  <MessageCircle :size="16" />
-                  和它说话
+                <button class="button primary" type="button" @click="showPetWindow">
+                  <PanelRightOpen :size="16" />
+                  显示桌宠
                 </button>
-                <button class="button ghost" type="button" @click="switchPage('identity')">
-                  <Image :size="16" />
-                  切换形象
+                <button class="button ghost" type="button" @click="switchPage('security')">
+                  <ShieldCheck :size="16" />
+                  隐私与数据
                 </button>
               </div>
             </div>
@@ -4171,10 +4545,32 @@ onBeforeUnmount(() => {
                 <img v-else-if="currentAsset && !currentAssetIsSpritesheet" :src="currentAsset" :alt="currentPet?.display_name ?? '当前宠物'" />
                 <div v-else class="pet-preview-fallback">
                   <Heart :size="44" />
-                  <span>{{ assetError || "浏览器预览使用占位图" }}</span>
+                  <span>{{ assetError || "形象素材需要修复" }}</span>
+                  <button class="button ghost compact-action" type="button" @click="switchPage('identity')">修复形象</button>
                 </div>
               </div>
               <div class="floating-note">我在 · 不打扰 · 可关闭</div>
+            </div>
+          </article>
+
+          <article class="panel wide-panel buyer-start-panel">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">首次使用</span>
+                <h2>买来先做这四件事</h2>
+              </div>
+              <CheckCircle2 :size="22" />
+            </div>
+            <div class="buyer-task-grid">
+              <button v-for="task in buyerTasks" :key="task.id" class="action-card" type="button" @click="task.action()">
+                <component :is="task.icon" :size="18" />
+                <span class="action-card__body">
+                  <strong>{{ task.label }}</strong>
+                  <small>{{ task.caption }}</small>
+                </span>
+                <StatusPill :label="task.status" :tone="task.tone" />
+                <ChevronRight class="action-card__arrow" :size="16" />
+              </button>
             </div>
           </article>
 
@@ -4187,7 +4583,7 @@ onBeforeUnmount(() => {
               <StatusPill :label="currentPet?.status ?? 'unknown'" tone="sage" />
             </div>
             <div class="metric-row">
-              <MetricCard label="Ready 形象" :value="runtime?.ready_pet_count ?? 0" />
+              <MetricCard label="可用形象" :value="runtime?.ready_pet_count ?? 0" />
               <MetricCard label="可播放动作" :value="runtime?.total_supported_actions ?? 0" />
               <MetricCard label="扩展动作" :value="runtime?.total_extension_assets ?? 0" />
             </div>
@@ -4231,13 +4627,14 @@ onBeforeUnmount(() => {
               <Sparkles :size="22" />
             </div>
             <div class="quick-tool-grid">
-              <button v-for="tool in quickTools" :key="tool.label" class="action-card" type="button" @click="runQuickTool(tool)">
+              <button v-for="tool in quickToolCards" :key="tool.label" class="action-card" type="button" @click="runQuickTool(tool)">
                 <component :is="tool.icon" :size="18" />
-                <span
-                  ><strong>{{ tool.label }}</strong
-                  ><small>{{ tool.caption }}</small></span
-                >
-                <ChevronRight :size="16" />
+                <span class="action-card__body">
+                  <strong>{{ tool.label }}</strong>
+                  <small>{{ tool.caption }}</small>
+                </span>
+                <StatusPill :label="tool.status" :tone="tool.tone" />
+                <ChevronRight class="action-card__arrow" :size="16" />
               </button>
             </div>
           </article>
@@ -4301,7 +4698,7 @@ onBeforeUnmount(() => {
               </div>
               <div v-if="!referenceAssets.length" class="reference-empty">
                 <Image :size="22" />
-                <span>现实参考图只保存在本机运行镜像内，不记录原始本机路径。</span>
+                <span>现实参考图只保存在本机数据内，不记录原始本机路径。</span>
               </div>
             </div>
             <small v-if="referenceAssetError" class="inline-warning">{{ referenceAssetError }}</small>
@@ -4309,7 +4706,7 @@ onBeforeUnmount(() => {
               <MetricCard label="动作" :value="currentPet?.supported_action_count ?? 0" />
               <MetricCard label="扩展" :value="currentPet?.extension_action_count ?? 0" />
               <MetricCard label="参考图" :value="currentPet?.reference_assets.length ?? 0" />
-              <MetricCard label="动作包" :value="currentPet?.action_pack_level ?? '-'" />
+              <MetricCard label="动作表现" :value="petActionPackLabel(currentPet)" />
             </div>
           </article>
 
@@ -4326,7 +4723,7 @@ onBeforeUnmount(() => {
                 <div class="pet-row__avatar">{{ petInitial(pet) }}</div>
                 <div>
                   <strong>{{ pet.display_name }}</strong>
-                  <span>{{ pet.species || "未标注种类" }} · {{ pet.action_pack_level || "basic" }} · 参考图 {{ pet.reference_assets.length }}</span>
+                  <span>{{ pet.species || "未标注种类" }} · {{ petActionPackLabel(pet) }} · 参考图 {{ pet.reference_assets.length }}</span>
                 </div>
                 <StatusPill :label="pet.id === runtime?.current_pet_id ? '当前' : pet.status" :tone="pet.id === runtime?.current_pet_id ? 'info' : 'sage'" />
                 <span class="row-meta">{{ petStatusLabel(pet) }}</span>
@@ -4466,7 +4863,7 @@ onBeforeUnmount(() => {
               <div>
                 <BookOpen :size="14" /><span>角色 prompt 已保存 · {{ petState.summary_updated_at || "未记录更新时间" }}</span>
               </div>
-              <div><ShieldCheck :size="14" /><span>故事和纪念内容只保存在 E 盘运行镜像。</span></div>
+              <div><ShieldCheck :size="14" /><span>故事和纪念内容只保存在本机数据里。</span></div>
             </div>
             <form class="form-stack story-form" @submit.prevent="createStory">
               <span class="eyebrow">新增故事</span>
@@ -4499,12 +4896,13 @@ onBeforeUnmount(() => {
             <div class="operation-section">
               <h3>常用操作</h3>
               <div class="quick-tool-grid compact-grid">
-                <button v-for="tool in quickTools.slice(0, 4)" :key="tool.label" class="action-card" type="button" @click="runQuickTool(tool)">
+                <button v-for="tool in quickToolCards.slice(0, 4)" :key="tool.label" class="action-card" type="button" @click="runQuickTool(tool)">
                   <component :is="tool.icon" :size="18" />
-                  <span
-                    ><strong>{{ tool.label }}</strong
-                    ><small>{{ tool.caption }}</small></span
-                  >
+                  <span class="action-card__body">
+                    <strong>{{ tool.label }}</strong>
+                    <small>{{ tool.caption }}</small>
+                  </span>
+                  <StatusPill :label="tool.status" :tone="tool.tone" />
                 </button>
               </div>
             </div>
@@ -4523,7 +4921,7 @@ onBeforeUnmount(() => {
                 <button v-for="item in extensionActionItems" :key="item.id" type="button" @click="queueAction(item)">
                   {{ item.label }}
                 </button>
-                <small v-if="!extensionActionItems.length">扩展动作条还未接入，后续可上传动作 strip。</small>
+                <small v-if="!extensionActionItems.length">扩展动作还未接入，后续可上传动作条。</small>
               </div>
             </div>
             <div class="operation-section">
@@ -4579,9 +4977,20 @@ onBeforeUnmount(() => {
                 <Play :size="18" />
                 <div>
                   <strong>{{ item.label }}</strong>
-                  <span>{{ item.source === "strip" ? "扩展动作条" : "主 atlas" }} · {{ item.frames }} 帧</span>
+                  <span>{{ actionKindLabel(item) }} · {{ item.frames }} 帧</span>
                 </div>
-                <StatusPill :label="activePetActionId === item.id ? '播放中' : '可播放'" :tone="activePetActionId === item.id ? 'info' : 'sage'" />
+                <div class="action-preview-card__meta">
+                  <StatusPill :label="activePetActionId === item.id ? '播放中' : '可播放'" :tone="activePetActionId === item.id ? 'info' : 'sage'" />
+                  <button
+                    v-if="item.source === 'strip'"
+                    class="icon-button compact"
+                    type="button"
+                    title="从动作清单移除"
+                    @click.stop="clearPetActionStrip(item)"
+                  >
+                    <Trash2 :size="15" />
+                  </button>
+                </div>
               </button>
               <small v-if="!playableActions.length">当前宠物还没有可播放动作元数据。</small>
             </div>
@@ -4590,17 +4999,24 @@ onBeforeUnmount(() => {
             <div class="panel-header">
               <div>
                 <span class="eyebrow">扩展动作导入</span>
-                <h2>上传 192x208 cell 的 PNG/WebP strip</h2>
+                <h2>上传透明 PNG/WebP 动作条</h2>
               </div>
               <Upload :size="22" />
             </div>
+            <div
+              class="action-drop-zone"
+              :class="{ active: actionDropActive, disabled: petActionUploading || !currentPet }"
+              @dragover.prevent="actionDropActive = true"
+              @dragleave.prevent="actionDropActive = false"
+              @drop.prevent="handleActionStripDrop"
+            >
+              <Upload :size="24" />
+              <strong>{{ petActionUploading ? "正在导入动作条" : "拖入 PNG/WebP 动作条" }}</strong>
+                <span>也可以先填名称和帧数，再用下方按钮选择文件。动作编号会自动生成。</span>
+            </div>
             <div class="action-upload-form">
               <label>
-                <span>动作 ID</span>
-                <input v-model.trim="petActionDraft.action_id" placeholder="custom:petting" />
-              </label>
-              <label>
-                <span>名称</span>
+                <span>显示名称</span>
                 <input v-model.trim="petActionDraft.label" maxlength="24" placeholder="摸摸头" />
               </label>
               <label>
@@ -4608,14 +5024,21 @@ onBeforeUnmount(() => {
                 <input v-model.number="petActionDraft.frames" type="number" min="1" max="8" />
               </label>
               <label>
-                <span>帧时长 ms</span>
+                <span>每帧时长 ms</span>
                 <input v-model.trim="petActionDraft.durations" placeholder="220,180,180,260" />
               </label>
-              <label class="button primary file-button action-upload-button" :class="{ disabled: petActionUploading || !currentPet }">
-                <Upload :size="16" />
-                {{ petActionUploading ? "导入中" : "选择动作条并导入" }}
-                <input type="file" accept="image/png,image/webp" :disabled="petActionUploading || !currentPet" @change="uploadPetActionStrip" />
-              </label>
+              <div class="button-row action-upload-actions">
+                <label class="button primary file-button action-upload-button" :class="{ disabled: petActionUploading || !currentPet }">
+                  <Upload :size="16" />
+                  {{ petActionUploading ? "导入中" : "选择文件并导入" }}
+                  <input type="file" accept="image/png,image/webp" :disabled="petActionUploading || !currentPet" @change="uploadPetActionStrip" />
+                </label>
+                <button class="button ghost" type="button" :disabled="petActionUploading" @click="resetActionUploadDraft">清空表单</button>
+              </div>
+            </div>
+            <div v-if="lastActionImportResult" class="qa-result-card">
+              <CheckCircle2 :size="18" />
+              <span>{{ lastActionImportResult }}</span>
             </div>
             <div class="qa-list">
               <div><StatusPill label="尺寸" tone="sage" /><span>Rust 校验宽度等于 192 x 帧数，高度 208。</span></div>
@@ -4642,7 +5065,7 @@ onBeforeUnmount(() => {
                     <Play :size="16" />
                     <div>
                       <strong>{{ item.label }}</strong>
-                      <span>{{ item.id }} · {{ item.source === "strip" ? "扩展动作条" : "主 atlas" }}</span>
+                      <span>{{ actionKindLabel(item) }} · {{ item.frames }} 帧</span>
                     </div>
                     <div class="managed-action-controls">
                       <button class="icon-button compact" type="button" title="上移" @click="moveQuickMenuAction(item.id, -1)">
@@ -4745,7 +5168,7 @@ onBeforeUnmount(() => {
           <article class="panel">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">AI Provider</span>
+                <span class="eyebrow">AI 厂商</span>
                 <h2>真实 Key 永不显示</h2>
               </div>
               <Bot :size="22" />
@@ -4788,8 +5211,14 @@ onBeforeUnmount(() => {
                 </p>
               </div>
               <div>
-                <strong>测试反馈</strong>
+                <strong>连接反馈</strong>
                 <p>{{ providerTestLog }}</p>
+                <div v-if="selectedProviderTestResult" class="qa-list compact-qa-list">
+                  <div v-for="detail in selectedProviderTestResult.details" :key="detail">
+                    <StatusPill :label="selectedProviderTestResult.ok ? '通过' : '待修复'" :tone="selectedProviderTestResult.ok ? 'sage' : 'warn'" />
+                    <span>{{ detail }}</span>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="button-row panel-actions">
@@ -4805,7 +5234,9 @@ onBeforeUnmount(() => {
               <button class="button ghost" type="button" @click="toggleProvider()" :disabled="providerSavingId === selectedProviderCard.id">
                 {{ selectedProviderCard.enabled ? "停用" : "启用" }}
               </button>
-              <button class="button ghost" type="button" @click="testProvider()">本地状态检查</button>
+              <button class="button ghost" type="button" :disabled="providerSavingId === selectedProviderCard.id" @click="testProvider()">
+                {{ providerSavingId === selectedProviderCard.id ? "测试中..." : "测试连接" }}
+              </button>
               <button class="button ghost" type="button" @click="openProviderKeyModal('replace')">替换 Key</button>
               <button class="button danger" type="button" :disabled="!selectedProviderCard.hasSavedKey" @click="openProviderKeyModal('clear')">清除 Key</button>
             </div>
@@ -4817,7 +5248,7 @@ onBeforeUnmount(() => {
             <div class="panel-header">
               <div>
                 <span class="eyebrow">快速新增</span>
-                <h2>写入本地运行镜像</h2>
+                <h2>添加本机提醒</h2>
               </div>
               <CalendarClock :size="22" />
             </div>
@@ -4826,9 +5257,10 @@ onBeforeUnmount(() => {
               <input v-model="reminderDraft.due" aria-label="提醒时间" placeholder="今天 18:30" @keydown.enter="addReminder" />
               <button class="button primary" type="button" @click="addReminder">
                 <Plus :size="16" />
-                添加
+                添加提醒
               </button>
             </div>
+            <p class="inline-helper">{{ reminderPreviewText }}</p>
             <div v-if="activeDueReminder" class="due-alert-card" role="status" aria-live="polite">
               <div class="due-alert-card__icon">
                 <Bell :size="20" />
@@ -4848,6 +5280,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="filter-row" aria-label="提醒筛选">
+              <input v-model="reminderSearch" aria-label="搜索提醒" placeholder="搜索标题、分类、备注" />
               <button
                 v-for="filter in reminderFilters"
                 :key="filter"
@@ -4862,7 +5295,7 @@ onBeforeUnmount(() => {
             <div class="todo-list">
               <div v-if="remindersLoading" class="empty-state compact">
                 <RefreshCw :size="22" />
-                <span>正在同步 E 盘待办镜像...</span>
+                <span>正在同步本机提醒...</span>
               </div>
               <button
                 v-for="todo in visibleReminders"
@@ -4947,7 +5380,7 @@ onBeforeUnmount(() => {
                   v-model="reminderDetailDraft.note"
                   :disabled="!selectedReminder"
                   aria-label="编辑提醒备注"
-                  placeholder="补充提醒背景，默认只保存在本机运行镜像。"
+                  placeholder="补充提醒背景，默认只保存在本机。"
                 />
               </label>
               <div class="button-row">
@@ -4956,8 +5389,17 @@ onBeforeUnmount(() => {
                   {{ reminderDetailSaving ? "保存中..." : "保存详情" }}
                 </button>
                 <button class="button ghost" type="button" :disabled="!selectedReminder" @click="selectedReminder && toggleReminderDone(selectedReminder.id)">
-                  <Check :size="16" />
-                  {{ selectedReminder?.done ? "重开" : "完成" }}
+                <Check :size="16" />
+                {{ selectedReminder?.done ? "重开" : "完成" }}
+              </button>
+                <button
+                  class="button danger"
+                  type="button"
+                  :disabled="!selectedReminder || reminderDeleteBusyId === selectedReminder.id"
+                  @click="selectedReminder && deleteReminder(selectedReminder.id)"
+                >
+                  <Trash2 :size="16" />
+                  {{ reminderDeleteBusyId === selectedReminder?.id ? "删除中" : "删除" }}
                 </button>
                 <button class="button ghost" type="button" :disabled="!selectedReminder" @click="selectedReminder && toggleReminderPinned(selectedReminder.id)">
                   {{ selectedReminder?.pinned ? "取消置顶" : "置顶" }}
@@ -5050,7 +5492,7 @@ onBeforeUnmount(() => {
             <div class="panel-header">
               <div>
                 <span class="eyebrow">气泡样式</span>
-                <h2>运行镜像气泡样式预览和保存</h2>
+                <h2>本机气泡样式预览和保存</h2>
               </div>
               <Eye :size="22" />
             </div>
@@ -5077,7 +5519,7 @@ onBeforeUnmount(() => {
             <div class="bubble-config-section">
               <div class="section-title-row">
                 <strong>气泡配色</strong>
-                <span>写入运行镜像，不影响页面背景主题</span>
+                <span>保存到本机，不影响页面背景主题</span>
               </div>
               <div class="bubble-palette-grid">
                 <button
@@ -5267,7 +5709,7 @@ onBeforeUnmount(() => {
               <button class="switch-card" :class="{ selected: roamEnabled }" type="button" @click="roamEnabled = !roamEnabled">
                 <Map :size="19" />
                 <strong>自由巡游</strong>
-                <span>{{ roamEnabled ? "开启，按运行镜像策略移动" : "关闭，停留在当前位置" }}</span>
+                <span>{{ roamEnabled ? "开启，按本机策略移动" : "关闭，停留在当前位置" }}</span>
               </button>
               <button
                 class="switch-card"
@@ -5315,9 +5757,9 @@ onBeforeUnmount(() => {
                 }}</span>
               </div>
               <div>
-                <StatusPill label="Tk 设置接入" tone="sage" />
+                <StatusPill label="本机设置" tone="sage" />
                 <strong>拖动、巡游和说话间隔会写回</strong>
-                <span>灵敏度、惯性、巡游速度、活动范围和自动说话间隔来自 E 盘运行镜像 settings。</span>
+                <span>灵敏度、惯性、巡游速度、活动范围和自动说话间隔都会保存在本机设置里。</span>
               </div>
             </div>
             <div class="slider-stack">
@@ -5484,13 +5926,41 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-else class="content-grid">
-          <article class="panel">
+          <article class="panel wide-panel">
             <div class="panel-header">
               <div>
                 <span class="eyebrow">安全</span>
-                <h2>公开分发边界清楚可见</h2>
+                <h2>隐私、备份和公开包检查</h2>
               </div>
               <ShieldCheck :size="22" />
+            </div>
+            <div class="security-action-grid">
+              <button
+                v-for="item in securityActionCards"
+                :key="item.action"
+                class="action-card"
+                type="button"
+                :disabled="Boolean(securityActionBusy)"
+                @click="runSecurityAction(item.action)"
+              >
+                <component :is="item.icon" :size="18" />
+                <span class="action-card__body">
+                  <strong>{{ item.label }}</strong>
+                  <small>{{ item.caption }}</small>
+                </span>
+                <StatusPill :label="securityActionBusy === item.action ? '执行中' : '可执行'" :tone="securityActionBusy === item.action ? 'info' : item.tone" />
+                <ChevronRight class="action-card__arrow" :size="16" />
+              </button>
+            </div>
+            <div v-if="securityActionResult" class="security-result-card" :class="`security-result-card--${securityActionResult.tone}`">
+              <div>
+                <strong>{{ securityActionResult.title }}</strong>
+                <p>{{ securityActionResult.message }}</p>
+                <small v-if="securityActionResult.path">{{ securityActionResult.path }}</small>
+              </div>
+              <ul>
+                <li v-for="item in securityActionResult.items" :key="item">{{ item }}</li>
+              </ul>
             </div>
             <div class="privacy-matrix">
               <div>
@@ -5499,7 +5969,7 @@ onBeforeUnmount(() => {
               </div>
               <div>
                 <StatusPill label="永不导出" tone="danger-soft" />
-                <p>API Key、Token、DPAPI、本机绝对路径。</p>
+                <p>API Key、Token、本机加密材料、本机绝对路径。</p>
               </div>
               <div>
                 <StatusPill label="可选导出" tone="info" />
@@ -5511,7 +5981,7 @@ onBeforeUnmount(() => {
             <div class="panel-header">
               <div>
                 <span class="eyebrow">安装包</span>
-                <h2>NSIS 调试包已通过，商业包另做清洁验收</h2>
+                <h2>买家无需额外环境</h2>
               </div>
               <PackageCheck :size="22" />
             </div>
@@ -5519,7 +5989,7 @@ onBeforeUnmount(() => {
               <Download :size="22" />
               <div>
                 <strong>公开包必须从干净模板生成</strong>
-                <p>导出只作用于副本，不修改本机真实数据。开机启动默认关闭。</p>
+                <p>导出只作用于副本，不修改本机真实数据。开机启动默认关闭，发版前必须跑公开包检查。</p>
               </div>
             </div>
           </article>
@@ -5542,7 +6012,7 @@ onBeforeUnmount(() => {
           <div class="privacy-matrix">
             <div>
               <StatusPill label="只写本机" tone="sage" />
-              <p>Key 只传给 Rust，写入 DPAPI 加密字段。</p>
+              <p>Key 只传给本机后端，写入系统加密字段。</p>
             </div>
             <div>
               <StatusPill label="不回显" tone="info" />
@@ -5550,7 +6020,7 @@ onBeforeUnmount(() => {
             </div>
             <div>
               <StatusPill label="不进仓库" tone="danger-soft" />
-              <p>运行镜像、DPAPI 和 Key 文件默认被 Git 排除。</p>
+              <p>本机数据、加密材料和 Key 文件默认被 Git 排除。</p>
             </div>
           </div>
           <label v-if="providerKeyModalMode === 'replace'">
@@ -5607,6 +6077,14 @@ onBeforeUnmount(() => {
       </form>
     </section>
 
-    <div v-if="toast" class="toast">{{ toast }}</div>
+    <div v-if="toast" class="toast" :class="`toast--${toastTone}`" :role="toastRole" aria-live="polite">
+      <div>
+        <strong>{{ toastTitle }}</strong>
+        <span>{{ toast }}</span>
+      </div>
+      <button class="toast__close" type="button" aria-label="关闭提示" @click="dismissToast">
+        <X :size="14" />
+      </button>
+    </div>
   </main>
 </template>

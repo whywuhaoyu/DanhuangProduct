@@ -29,3 +29,10 @@ serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["dpapi", "dwmapi", "wingdi", "winbase", "wincrypt", "winuser"] }
+
+[profile.release]
+debug = 0
+strip = true
+panic = "abort"
+lto = "thin"
+codegen-units = 1

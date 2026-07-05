@@ -3,7 +3,9 @@ import type {
   ChatMessageSummary,
   CreatePetStoryInput,
   CreateTodoInput,
+  AiProviderTestResult,
   PetStateSummary,
+  PetSummary,
   RecordTodoReminderInput,
   RuntimeApi,
   RuntimeAsset,
@@ -11,11 +13,15 @@ import type {
   SafeSettingsSummary,
   SendChatMessageInput,
   SwitchPetInput,
+  ClearPetActionStripInput,
+  SecurityActionInput,
+  SecurityActionResult,
   TodoSummary,
   UploadPetActionStripInput,
   UploadPetImageInput,
   UpdateAiProviderStateInput,
   UpdateAiProviderKeyInput,
+  TestAiProviderInput,
   UpdatePetProfileInput,
   UpdateQuickMenuActionsInput,
   UpdateSettingsInput,
@@ -29,82 +35,159 @@ declare global {
   }
 }
 
-const mockRuntime: RuntimeSummary = {
-  runtime_available: false,
-  runtime_source: "browser-preview",
-  current_pet_id: "pet-20260520-112213",
-  pet_count: 5,
-  ready_pet_count: 5,
-  total_supported_actions: 54,
-  total_extension_assets: 11,
-  current_pet: {
+function atlasAction(id: string, label: string, row: number, frames: number, durations: number[]) {
+  return { id, label, source: "atlas", row, frames, durations, asset: null };
+}
+
+function stripAction(id: string, label: string, asset: string, frames: number) {
+  return {
+    id,
+    label,
+    source: "strip",
+    row: null,
+    frames,
+    durations: Array.from({ length: frames }, () => 160),
+    asset,
+  };
+}
+
+const demoCoreActions = [
+  atlasAction("idle", "待机", 0, 6, [260, 150, 150, 170, 170, 320]),
+  atlasAction("running-right", "向右跑", 1, 8, [58, 54, 50, 54, 58, 50, 54, 68]),
+  atlasAction("running-left", "向左跑", 2, 8, [58, 54, 50, 54, 58, 50, 54, 68]),
+  atlasAction("waving", "挥爪", 3, 4, [170, 120, 120, 220]),
+  atlasAction("jumping", "跳一下", 4, 5, [80, 75, 90, 95, 140]),
+];
+
+const demoFullActions = [
+  ...demoCoreActions,
+  atlasAction("waiting", "等一下", 6, 6, [220, 180, 180, 220, 180, 260]),
+  atlasAction("review", "陪我一会", 8, 6, [210, 190, 220, 190, 190, 260]),
+  atlasAction("failed", "委屈一下", 5, 8, [120, 100, 120, 140, 160, 180, 180, 260]),
+  atlasAction("running", "跑一小段", 7, 6, [62, 58, 54, 58, 62, 74]),
+  atlasAction("standing", "站一会", 9, 8, [240, 220, 260, 220, 280, 220, 240, 320]),
+  atlasAction("tongue", "吐舌头", 10, 8, [140, 140, 150, 150, 150, 150, 160, 220]),
+  atlasAction("lying", "卧倒", 11, 8, [190, 190, 230, 260, 260, 300, 300, 360]),
+  atlasAction("stretching", "伸懒腰", 12, 8, [130, 140, 150, 170, 190, 180, 170, 230]),
+  atlasAction("sleeping", "打个盹", 13, 8, [420, 480, 460, 520, 480, 540, 500, 560]),
+  atlasAction("sniffing", "闻一闻", 14, 8, [130, 130, 140, 150, 170, 170, 160, 220]),
+  atlasAction("rolling", "打个滚", 15, 8, [120, 110, 110, 115, 115, 110, 120, 180]),
+  atlasAction("crying", "哭一下", 16, 8, [220, 200, 210, 230, 250, 230, 210, 300]),
+  atlasAction("chase-butterfly", "追蝴蝶", 17, 8, [72, 66, 62, 66, 72, 66, 62, 88]),
+  atlasAction("angry", "生气一下", 18, 8, [130, 110, 130, 110, 170, 140, 140, 240]),
+];
+
+const demoPets: PetSummary[] = [
+  {
+    id: "danhuang",
+    display_name: "蛋黄",
+    species: "小狗",
+    notes: "内置完整动作包，首次启动即可显示、对话、提醒和巡游。",
+    status: "ready",
+    action_pack_level: "full",
+    supported_action_count: 19,
+    extension_action_count: 0,
+    identity_asset: null,
+    reference_assets: ["family/danhuang/uploads/user-1-01.jpg"],
+    spritesheet_asset: "spritesheet.webp",
+    identity_available: false,
+    spritesheet_available: true,
+    actions: demoFullActions,
+  },
+  {
+    id: "black_white_dog",
+    display_name: "小墨",
+    species: "小狗",
+    notes: "黑白小狗形象，已内置基础动作，可直接切换到桌面。",
+    status: "ready",
+    action_pack_level: "basic",
+    supported_action_count: 5,
+    extension_action_count: 0,
+    identity_asset: "family/xiao-mo/identity-base.png",
+    reference_assets: ["family-references/black-white-dog.jpg"],
+    spritesheet_asset: "family/xiao-mo/spritesheet.webp",
+    identity_available: true,
+    spritesheet_available: true,
+    actions: demoCoreActions,
+  },
+  {
+    id: "orange_cat",
+    display_name: "橘宝",
+    species: "小猫",
+    notes: "橘猫形象，带舔爪、舔毛和洗脸三个扩展动作。",
+    status: "ready",
+    action_pack_level: "basic",
+    supported_action_count: 8,
+    extension_action_count: 3,
+    identity_asset: "family/ju-bao/identity-base.png",
+    reference_assets: ["family-references/orange-cat-and-hugging-dog.jpg"],
+    spritesheet_asset: "family/ju-bao/spritesheet.webp",
+    identity_available: true,
+    spritesheet_available: true,
+    actions: [
+      ...demoCoreActions,
+      stripAction("custom:licking-paw", "舔爪", "family/ju-bao/extension-custom-licking-paw.webp", 4),
+      stripAction("custom:licking-fur", "舔毛", "family/ju-bao/extension-custom-licking-fur.webp", 4),
+      stripAction("custom:washing-face", "洗脸", "family/ju-bao/extension-custom-washing-face.webp", 4),
+    ],
+  },
+  {
+    id: "hugging_dog",
+    display_name: "小白",
+    species: "小狗",
+    notes: "拥抱小狗形象，已内置基础动作，可直接切换到桌面。",
+    status: "ready",
+    action_pack_level: "basic",
+    supported_action_count: 5,
+    extension_action_count: 0,
+    identity_asset: "family/xiao-bai/identity-base.png",
+    reference_assets: ["family-references/orange-cat-and-hugging-dog.jpg"],
+    spritesheet_asset: "family/xiao-bai/spritesheet.webp",
+    identity_available: true,
+    spritesheet_available: true,
+    actions: demoCoreActions,
+  },
+  {
     id: "pet-20260520-112213",
     display_name: "胖久",
     species: "松狮",
-    notes: "奶油色松狮小狗，圆脸厚毛、粉棕鼻、灰色胸背带。",
+    notes: "奶油色松狮小狗，已内置基础动作和 8 个扩展动作。",
     status: "ready",
     action_pack_level: "basic",
-    supported_action_count: 11,
-    extension_action_count: 6,
-    identity_asset: null,
-    reference_assets: [],
-    spritesheet_asset: null,
-    identity_available: false,
-    spritesheet_available: false,
+    supported_action_count: 13,
+    extension_action_count: 8,
+    identity_asset: "family/pet-20260520-112213/identity-base.png",
+    reference_assets: [
+      "family/pet-20260520-112213/uploads/user-1-01.jpg",
+      "family/pet-20260520-112213/uploads/user-2-01.jpg",
+    ],
+    spritesheet_asset: "family/pet-20260520-112213/spritesheet.webp",
+    identity_available: true,
+    spritesheet_available: true,
     actions: [
-      { id: "idle", label: "待机", source: "atlas", row: 0, frames: 6, durations: [260, 150, 150, 170, 170, 320], asset: null },
-      { id: "running-right", label: "向右跑", source: "atlas", row: 1, frames: 8, durations: [58, 54, 50, 54, 58, 50, 54, 68], asset: null },
-      { id: "running-left", label: "向左跑", source: "atlas", row: 2, frames: 8, durations: [58, 54, 50, 54, 58, 50, 54, 68], asset: null },
-      { id: "waving", label: "挥爪", source: "atlas", row: 3, frames: 4, durations: [170, 120, 120, 220], asset: null },
-      { id: "jumping", label: "跳一下", source: "atlas", row: 4, frames: 5, durations: [80, 75, 90, 95, 140], asset: null },
+      ...demoCoreActions,
+      stripAction("custom:petting", "摸摸头", "family/pet-20260520-112213/extension-custom-petting.webp", 4),
+      stripAction("custom:licking-paw", "舔爪", "family/pet-20260520-112213/extension-custom-licking-paw.webp", 4),
+      stripAction("custom:yawning", "打哈欠", "family/pet-20260520-112213/extension-custom-yawning.webp", 4),
+      stripAction("tongue", "吐舌头", "family/pet-20260520-112213/extension-tongue.webp", 6),
+      stripAction("stretching", "伸懒腰", "family/pet-20260520-112213/extension-stretching.webp", 5),
+      stripAction("sleeping", "打个盹", "family/pet-20260520-112213/extension-sleeping.webp", 6),
+      stripAction("chase-butterfly", "追蝴蝶", "family/pet-20260520-112213/extension-chase-butterfly.webp", 8),
+      stripAction("sniffing", "闻一闻", "family/pet-20260520-112213/extension-sniffing.webp", 8),
     ],
   },
-  pets: [
-    {
-      id: "danhuang",
-      display_name: "蛋黄",
-      species: "dog",
-      notes: "暖黄短腿小狗，深棕下垂耳，温柔略委屈的眼神。",
-      status: "ready",
-      action_pack_level: "full",
-      supported_action_count: 19,
-      extension_action_count: 0,
-      identity_asset: null,
-      reference_assets: [],
-      spritesheet_asset: null,
-      identity_available: false,
-      spritesheet_available: false,
-      actions: [
-        { id: "idle", label: "待机", source: "atlas", row: 0, frames: 6, durations: [260, 150, 150, 170, 170, 320], asset: null },
-        { id: "running-right", label: "向右跑", source: "atlas", row: 1, frames: 8, durations: [58, 54, 50, 54, 58, 50, 54, 68], asset: null },
-        { id: "running-left", label: "向左跑", source: "atlas", row: 2, frames: 8, durations: [58, 54, 50, 54, 58, 50, 54, 68], asset: null },
-        { id: "waving", label: "挥爪", source: "atlas", row: 3, frames: 4, durations: [170, 120, 120, 220], asset: null },
-        { id: "jumping", label: "跳一下", source: "atlas", row: 4, frames: 5, durations: [80, 75, 90, 95, 140], asset: null },
-      ],
-    },
-    {
-      id: "pet-20260520-112213",
-      display_name: "胖久",
-      species: "松狮",
-      notes: "奶油色松狮小狗，圆脸厚毛、粉棕鼻、灰色胸背带。",
-      status: "ready",
-      action_pack_level: "basic",
-      supported_action_count: 11,
-      extension_action_count: 6,
-      identity_asset: null,
-      reference_assets: [],
-      spritesheet_asset: null,
-      identity_available: false,
-      spritesheet_available: false,
-      actions: [
-        { id: "idle", label: "待机", source: "atlas", row: 0, frames: 6, durations: [260, 150, 150, 170, 170, 320], asset: null },
-        { id: "running-right", label: "向右跑", source: "atlas", row: 1, frames: 8, durations: [58, 54, 50, 54, 58, 50, 54, 68], asset: null },
-        { id: "running-left", label: "向左跑", source: "atlas", row: 2, frames: 8, durations: [58, 54, 50, 54, 58, 50, 54, 68], asset: null },
-        { id: "waving", label: "挥爪", source: "atlas", row: 3, frames: 4, durations: [170, 120, 120, 220], asset: null },
-        { id: "jumping", label: "跳一下", source: "atlas", row: 4, frames: 5, durations: [80, 75, 90, 95, 140], asset: null },
-      ],
-    },
-  ],
+];
+
+const mockRuntime: RuntimeSummary = {
+  runtime_available: false,
+  runtime_source: "体验预览",
+  current_pet_id: "danhuang",
+  pet_count: demoPets.length,
+  ready_pet_count: demoPets.length,
+  total_supported_actions: demoPets.reduce((total, pet) => total + pet.supported_action_count, 0),
+  total_extension_assets: demoPets.reduce((total, pet) => total + pet.extension_action_count, 0),
+  current_pet: demoPets[0],
+  pets: demoPets,
   settings: {
     scale: 0.46,
     animation_speed: 0.5,
@@ -166,7 +249,7 @@ const mockRuntime: RuntimeSummary = {
     settings_loaded: false,
     family_loaded: false,
     sensitive_fields_returned: false,
-    notes: ["浏览器预览使用 mock 数据；Tauri 运行时读取 E 盘 data-dev 镜像。"],
+    notes: ["体验预览使用 5 个内置宠物素材；桌面版会在本机数据目录初始化同一套宠物。"],
   },
 };
 
@@ -183,16 +266,16 @@ let mockTodos: TodoSummary[] = [
     pinned: true,
     important_interval_minutes: 30,
     snooze_until: "",
-    created_at: "browser-preview",
+    created_at: "体验演示",
     completed_at: "",
     last_reminded_at: "",
-    updated_at: "browser-preview",
+    updated_at: "体验演示",
     remind_count: 0,
   },
   {
     id: "screenshot",
-    title: "补 Tauri/Vue 页面截图基线",
-    note: "覆盖窄屏和桌面宽度。",
+    title: "确认桌宠第一眼可见",
+    note: "检查小窗口、右键菜单和控制面板都能直接使用。",
     due_at: "明天",
     category: "QA",
     priority: "普通",
@@ -201,10 +284,10 @@ let mockTodos: TodoSummary[] = [
     pinned: false,
     important_interval_minutes: 0,
     snooze_until: "",
-    created_at: "browser-preview",
+    created_at: "体验演示",
     completed_at: "",
     last_reminded_at: "",
-    updated_at: "browser-preview",
+    updated_at: "体验演示",
     remind_count: 0,
   },
   {
@@ -219,10 +302,10 @@ let mockTodos: TodoSummary[] = [
     pinned: true,
     important_interval_minutes: 60,
     snooze_until: "",
-    created_at: "browser-preview",
+    created_at: "体验演示",
     completed_at: "",
     last_reminded_at: "",
-    updated_at: "browser-preview",
+    updated_at: "体验演示",
     remind_count: 0,
   },
 ];
@@ -230,7 +313,7 @@ let mockTodos: TodoSummary[] = [
 let mockChatMessages: ChatMessageSummary[] = [
   {
     id: "browser-chat-1",
-    time: "browser-preview",
+    time: "体验演示",
     user: "主人有点累了",
     mood: "tired",
     reply: "主人，先把肩膀放下来。我在这里陪你，慢慢做完这一点就好。",
@@ -238,16 +321,16 @@ let mockChatMessages: ChatMessageSummary[] = [
   },
   {
     id: "browser-chat-2",
-    time: "browser-preview",
-    user: "查一下 Tauri 是什么",
+    time: "体验演示",
+    user: "明天记得提醒我买狗粮",
     mood: "question",
-    reply: "主人，我先帮你查到这些：Tauri 是桌面应用框架，常用 Web 前端做界面、Rust 做系统能力。浏览器预览只展示资料摘要样式，真实桌面版会由 Rust 执行受控网页摘要查询。",
-    source: "research-fallback:Tauri:browser-preview",
+    reply: "好呀，主人可以在提醒页添加时间；我会在本机帮你记住，不会把提醒打进公开包。",
+    source: "local",
   },
 ];
 
 let mockPetState: PetStateSummary = {
-  pet_id: "pet-20260520-112213",
+  pet_id: "danhuang",
   stories: [
     {
       id: "browser-story-1",
@@ -255,16 +338,16 @@ let mockPetState: PetStateSummary = {
       title: "我与胖久",
       content: "胖久从东北一路来到主人身边，慢慢建立起信任。它不爱洗澡，但很爱干净，也会在门口等主人回家。",
       content_preview: "胖久从东北一路来到主人身边，慢慢建立起信任。它不爱洗澡，但很爱干净，也会在门口等主人回家。",
-      created_at: "browser-preview",
-      updated_at: "browser-preview",
+      created_at: "体验演示",
+      updated_at: "体验演示",
       pinned: false,
       image_count: 1,
     },
   ],
   prompt_summary: "胖久是一只奶油色松狮小狗，从东北远道而来，是主人家里安静、慢热又柔软的陪伴者。",
   role_prompt: "我叫胖久，是一只奶油色的松狮小狗，住在主人的电脑桌面右下角。",
-  summary_updated_at: "browser-preview",
-  summary_source: "mock",
+  summary_updated_at: "体验演示",
+  summary_source: "体验演示",
   memory: {
     message_count: 14,
     mood_counts: { ask_memory: 5, quiet: 3, thanks: 2 },
@@ -275,7 +358,7 @@ let mockPetState: PetStateSummary = {
     common_questions: ["你还记得我们的故事吗", "你还记得你的名字吗"],
     notes: [],
     last_mood: "ask_memory",
-    updated_at: "browser-preview",
+    updated_at: "体验演示",
   },
 };
 
@@ -318,7 +401,18 @@ export const runtimeApi: RuntimeApi = {
 
   async getRuntimeAsset(assetPath: string) {
     if (!isTauri()) {
-      throw new Error("浏览器预览不读取本机运行镜像图片");
+      const normalized = assetPath.replace(/\\/g, "/").replace(/^\/+/, "").trim();
+      if (!normalized || normalized.includes("..") || normalized.includes(":")) {
+        throw new Error("素材路径不在体验预览范围内");
+      }
+      const extension = normalized.split(".").pop()?.toLowerCase();
+      const mimeType =
+        extension === "png" ? "image/png" : extension === "jpg" || extension === "jpeg" ? "image/jpeg" : "image/webp";
+      return {
+        path: normalized,
+        mime_type: mimeType,
+        data_url: `/src-tauri/builtin-runtime/danhuang/${normalized}`,
+      };
     }
     return invoke<RuntimeAsset>("get_runtime_asset", { assetPath });
   },
@@ -337,7 +431,7 @@ export const runtimeApi: RuntimeApi = {
   async updateQuickMenuActions(input: UpdateQuickMenuActionsInput) {
     if (!isTauri()) {
       const target = mockRuntime.pets.find((pet) => pet.id === input.pet_id);
-      if (!target) throw new Error("浏览器预览没有这个宠物资料");
+      if (!target) throw new Error("体验演示没有这个宠物资料");
       const available = new Set(target.actions.map((action) => action.id));
       const actionIds = input.action_ids.filter((id, index, source) => available.has(id) && source.indexOf(id) === index).slice(0, 16);
       if (!actionIds.length) throw new Error("右键动作栏至少保留 1 个动作");
@@ -395,10 +489,29 @@ export const runtimeApi: RuntimeApi = {
     return invoke<RuntimeSummary>("update_ai_provider_key", { input });
   },
 
+  async testAiProviderConnection(input: TestAiProviderInput) {
+    if (!isTauri()) {
+      const provider = mockRuntime.features.providers.find((item) => item.id === input.provider_id);
+      const providerName = provider?.display_name ?? input.provider_id;
+      return {
+        provider_id: input.provider_id,
+        ok: Boolean(provider?.has_saved_key),
+        title: provider?.has_saved_key ? "连接可用" : "缺少 Key",
+        message: provider?.has_saved_key
+          ? `${providerName} 的体验预览连接状态可用。桌面版会发送一条不落盘的真实测试请求。`
+          : `${providerName} 还没有保存 Key。`,
+        details: provider?.has_saved_key
+          ? [`模型: ${provider.model || "默认模型"}`, "体验预览不会真实联网。"]
+          : ["先保存 Key，再点测试连接。"],
+      } satisfies AiProviderTestResult;
+    }
+    return invoke<AiProviderTestResult>("test_ai_provider_connection", { input });
+  },
+
   async switchPet(input: SwitchPetInput) {
     if (!isTauri()) {
       const target = mockRuntime.pets.find((pet) => pet.id === input.pet_id && pet.status === "ready");
-      if (!target) throw new Error("浏览器预览没有这个可切换宠物");
+      if (!target) throw new Error("体验演示没有这个可切换宠物");
       mockRuntime.current_pet_id = target.id;
       mockRuntime.current_pet = target;
       return mockRuntime;
@@ -409,7 +522,7 @@ export const runtimeApi: RuntimeApi = {
   async updatePetProfile(input: UpdatePetProfileInput) {
     if (!isTauri()) {
       const target = mockRuntime.pets.find((pet) => pet.id === input.pet_id);
-      if (!target) throw new Error("浏览器预览没有这个宠物资料");
+      if (!target) throw new Error("体验演示没有这个宠物资料");
       target.display_name = input.display_name;
       target.species = input.species ?? "";
       target.notes = input.notes ?? "";
@@ -424,11 +537,11 @@ export const runtimeApi: RuntimeApi = {
   async uploadPetImage(input: UploadPetImageInput) {
     if (!isTauri()) {
       const target = mockRuntime.pets.find((pet) => pet.id === input.pet_id);
-      if (!target) throw new Error("浏览器预览没有这个宠物资料");
+      if (!target) throw new Error("体验演示没有这个宠物资料");
       const mockPath =
         input.kind === "identity"
           ? `family/${input.pet_id}/identity-base.png`
-          : `family/${input.pet_id}/uploads/user-browser-preview.png`;
+          : `family/${input.pet_id}/uploads/user-demo.png`;
       if (input.kind === "identity") {
         target.identity_asset = mockPath;
         target.identity_available = true;
@@ -446,7 +559,7 @@ export const runtimeApi: RuntimeApi = {
   async uploadPetActionStrip(input: UploadPetActionStripInput) {
     if (!isTauri()) {
       const target = mockRuntime.pets.find((pet) => pet.id === input.pet_id);
-      if (!target) throw new Error("浏览器预览没有这个宠物资料");
+      if (!target) throw new Error("体验演示没有这个宠物资料");
       const action = {
         id: input.action_id,
         label: input.label,
@@ -467,6 +580,25 @@ export const runtimeApi: RuntimeApi = {
       return mockRuntime;
     }
     return invoke<RuntimeSummary>("upload_pet_action_strip", { input });
+  },
+
+  async clearPetActionStrip(input: ClearPetActionStripInput) {
+    if (!isTauri()) {
+      const target = mockRuntime.pets.find((pet) => pet.id === input.pet_id);
+      if (!target) throw new Error("体验演示没有这个宠物资料");
+      target.actions = target.actions.filter((item) => item.id !== input.action_id);
+      target.supported_action_count = target.actions.length;
+      target.extension_action_count = target.actions.filter((item) => item.source === "strip").length;
+      mockRuntime.settings.quick_menu_actions = mockRuntime.settings.quick_menu_actions.filter((id) => id !== input.action_id);
+      mockRuntime.settings.quick_menu_action_count = mockRuntime.settings.quick_menu_actions.length;
+      mockRuntime.total_supported_actions = mockRuntime.pets.reduce((total, pet) => total + pet.supported_action_count, 0);
+      mockRuntime.total_extension_assets = mockRuntime.pets.reduce((total, pet) => total + pet.extension_action_count, 0);
+      if (mockRuntime.current_pet_id === target.id) {
+        mockRuntime.current_pet = target;
+      }
+      return mockRuntime;
+    }
+    return invoke<RuntimeSummary>("clear_pet_action_strip", { input });
   },
 
   async getTodos() {
@@ -507,7 +639,7 @@ export const runtimeApi: RuntimeApi = {
         if (todo.id !== input.id) return todo;
         return {
           ...todo,
-          status: input.done === undefined ? todo.status : input.done ? "done" : "open",
+          status: input.deleted ? "deleted" : input.done === undefined ? todo.status : input.done ? "done" : "open",
           completed_at: input.done ? input.now : input.done === false ? "" : todo.completed_at,
           pinned: input.pinned ?? todo.pinned,
           snooze_until: input.snooze_until ?? todo.snooze_until,
@@ -584,9 +716,9 @@ export const runtimeApi: RuntimeApi = {
         user: input.text,
         mood,
         reply: isResearch
-          ? "主人，我先帮你查到这些：浏览器预览不会联网，真实桌面版会由 Rust 受控查询中文维基和网页摘要，再交给 AI 或本地兜底回答。"
+          ? "主人，我先帮你查到这些：体验演示不会联网，桌面版会由本机后端受控查询资料摘要，再交给 AI 或本地兜底回答。"
           : mockReplyForMood(mood),
-        source: isResearch ? "research-fallback:browser-preview" : input.role_style ? `local:${input.role_style}` : "local",
+        source: isResearch ? "research-fallback:experience" : input.role_style ? `local:${input.role_style}` : "local",
       };
       mockChatMessages = [...mockChatMessages, item].slice(-30);
       return item;
@@ -655,6 +787,30 @@ export const runtimeApi: RuntimeApi = {
   async refreshPetWindow() {
     if (!isTauri()) return;
     await invoke("refresh_pet_window");
+  },
+
+  async runSecurityAction(input: SecurityActionInput) {
+    if (!isTauri()) {
+      const result: SecurityActionResult = {
+        title:
+          input.action === "personal-backup"
+            ? "个人备份演示"
+            : input.action === "open-data-dir"
+              ? "数据目录演示"
+              : input.action === "installer-status"
+                ? "安装包状态演示"
+                : "公开包检查演示",
+        message: "体验演示不会读取或写入本机文件；桌面版会通过受控本地操作执行。",
+        tone: "info",
+        items: [
+          "聊天、提醒、记忆、日志和 Key 不进入公开包。",
+          "个人备份只写入本机数据目录副本。",
+          "安装包默认不要求额外运行环境或手工复制文件。",
+        ],
+      };
+      return result;
+    }
+    return invoke<SecurityActionResult>("run_security_action", { input });
   },
 
   async quitApp() {

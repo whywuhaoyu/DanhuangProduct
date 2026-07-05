@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -28,8 +29,12 @@ use winapi::um::winuser::{
     SWP_NOSENDCHANGING, SWP_NOSIZE,
 };
 
+mod builtin_assets;
+
+use builtin_assets::{BUILTIN_PET_FAMILY_JSON, BUILTIN_RUNTIME_ASSETS};
+
 const RUNTIME_DIR: &str = "data-dev/current-runtime/danhuang";
-const FAMILY_PATH: &str = "data-dev/current-runtime/danhuang/danhuang-failed-identity-backup-20260521-140133/pet-family.json";
+const FAMILY_PATH: &str = "data-dev/current-runtime/danhuang/pet-family.json";
 const SETTINGS_PATH: &str = "data-dev/current-runtime/danhuang/desktop-pet-settings.json";
 const AI_PROVIDERS_PATH: &str = "data-dev/current-runtime/danhuang/danhuang-ai-providers.json";
 const TODOS_PATH: &str = "data-dev/current-runtime/danhuang/danhuang-todos.json";
@@ -39,12 +44,14 @@ const CHAT_MEMORY_PATH: &str = "data-dev/current-runtime/danhuang/danhuang-chat-
 const DIALOGUE_LIBRARY_PATH: &str =
     "data-dev/current-runtime/danhuang/danhuang-dialogue-library.json";
 const SOUL_PROFILE_PATH: &str = "data-dev/current-runtime/danhuang/danhuang-soul-profile.md";
+const APP_DATA_PRODUCT_DIR: &str = "DanhuangDesktopPet";
+const BUILTIN_PET_ID: &str = "danhuang";
 const MAX_ASSET_BYTES: u64 = 15 * 1024 * 1024;
 const MAX_UPLOAD_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 const MAX_QUICK_MENU_ACTIONS: usize = 16;
 const MAX_CHAT_MESSAGES: usize = 200;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct PetFamilyFile {
     #[serde(default)]
     current_pet_id: String,
@@ -54,7 +61,7 @@ struct PetFamilyFile {
     extra: HashMap<String, Value>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct PetEntryFile {
     #[serde(default)]
     id: String,
@@ -82,7 +89,7 @@ struct PetEntryFile {
     extra: HashMap<String, Value>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct ExtensionAssetFile {
     #[serde(default)]
     id: String,
@@ -267,6 +274,26 @@ struct UpdateQuickMenuActionsInput {
 }
 
 #[derive(Debug, Deserialize)]
+struct ClearPetActionStripInput {
+    pet_id: String,
+    action_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SecurityActionInput {
+    action: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SecurityActionResult {
+    title: String,
+    message: String,
+    tone: String,
+    items: Vec<String>,
+    path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct UpdateAiProviderStateInput {
     provider_id: String,
     #[serde(default)]
@@ -282,6 +309,20 @@ struct UpdateAiProviderKeyInput {
     api_key: String,
     #[serde(default)]
     clear: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct TestAiProviderInput {
+    provider_id: String,
+}
+
+#[derive(Debug, Serialize)]
+struct AiProviderTestResult {
+    provider_id: String,
+    ok: bool,
+    title: String,
+    message: String,
+    details: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -504,6 +545,8 @@ struct UpdateTodoInput {
     done: Option<bool>,
     #[serde(default)]
     pinned: Option<bool>,
+    #[serde(default)]
+    deleted: Option<bool>,
     #[serde(default)]
     snooze_until: Option<String>,
     #[serde(default)]
@@ -802,6 +845,296 @@ struct RuntimeAsset {
     data_url: String,
 }
 
+fn app_data_product_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    if let Ok(data_root) = env::var("DANHUANG_USER_DATA_ROOT") {
+        let trimmed = data_root.trim();
+        if !trimmed.is_empty() {
+            roots.push(PathBuf::from(trimmed));
+        }
+    }
+
+    if cfg!(windows) {
+        if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
+            roots.push(PathBuf::from(local_app_data).join(APP_DATA_PRODUCT_DIR));
+        }
+        if let Ok(app_data) = env::var("APPDATA") {
+            roots.push(PathBuf::from(app_data).join(APP_DATA_PRODUCT_DIR));
+        }
+    } else if let Ok(xdg_data_home) = env::var("XDG_DATA_HOME") {
+        roots.push(PathBuf::from(xdg_data_home).join("danhuang-desktop-pet"));
+    } else if let Ok(home) = env::var("HOME") {
+        roots.push(
+            PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("danhuang-desktop-pet"),
+        );
+    }
+
+    roots
+}
+
+fn write_seed_json_file(path: &Path, value: Value) -> Result<(), String> {
+    if path.is_file() {
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("创建初始化目录失败 {}: {}", parent.display(), err))?;
+    }
+    let raw = serde_json::to_string_pretty(&value)
+        .map_err(|err| format!("初始化 JSON 序列化失败 {}: {}", path.display(), err))?;
+    fs::write(path, format!("{}\n", raw))
+        .map_err(|err| format!("写入初始化文件失败 {}: {}", path.display(), err))
+}
+
+fn write_seed_text_file(path: &Path, value: &str) -> Result<(), String> {
+    if path.is_file() {
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("创建初始化目录失败 {}: {}", parent.display(), err))?;
+    }
+    fs::write(path, value).map_err(|err| format!("写入初始化文件失败 {}: {}", path.display(), err))
+}
+
+fn write_builtin_asset_file(root: &Path, relative_path: &str, bytes: &[u8]) -> Result<(), String> {
+    let target = runtime_asset_write_path(root, relative_path)?;
+    let should_write = target
+        .metadata()
+        .map(|metadata| metadata.len() != bytes.len() as u64)
+        .unwrap_or(true);
+
+    if should_write {
+        fs::write(&target, bytes)
+            .map_err(|err| format!("写入内置宠物素材失败 {}: {}", target.display(), err))?;
+    }
+
+    Ok(())
+}
+
+fn ensure_builtin_assets(root: &Path) -> Result<(), String> {
+    for asset in BUILTIN_RUNTIME_ASSETS {
+        write_builtin_asset_file(root, asset.relative_path, asset.bytes)?;
+    }
+    Ok(())
+}
+
+fn write_builtin_family_raw(path: &Path) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("创建初始化目录失败 {}: {}", parent.display(), err))?;
+    }
+    fs::write(path, format!("{}\n", BUILTIN_PET_FAMILY_JSON.trim_end()))
+        .map_err(|err| format!("写入内置宠物注册表失败 {}: {}", path.display(), err))
+}
+
+fn merge_builtin_pet_family(root: &Path) -> Result<(), String> {
+    let path = root.join(FAMILY_PATH);
+    let builtin: PetFamilyFile = serde_json::from_str(BUILTIN_PET_FAMILY_JSON)
+        .map_err(|err| format!("内置宠物注册表解析失败: {}", err))?;
+
+    if !path.is_file() {
+        return write_builtin_family_raw(&path);
+    }
+
+    let mut current: PetFamilyFile = read_json_file(&path).unwrap_or(PetFamilyFile {
+        current_pet_id: builtin.current_pet_id.clone(),
+        pets: Vec::new(),
+        extra: HashMap::new(),
+    });
+    let mut changed = false;
+
+    for builtin_pet in builtin.pets {
+        if let Some(existing) = current.pets.iter_mut().find(|pet| pet.id == builtin_pet.id) {
+            let existing_missing_sprite = existing.spritesheet.trim().is_empty()
+                || !asset_exists(root, &existing.spritesheet);
+            let should_replace = existing.action_pack_level == "builtin"
+                || existing_missing_sprite
+                || existing.supported_actions.len() < builtin_pet.supported_actions.len();
+            if should_replace {
+                *existing = builtin_pet;
+                changed = true;
+            }
+        } else {
+            current.pets.push(builtin_pet);
+            changed = true;
+        }
+    }
+
+    if current.current_pet_id.trim().is_empty()
+        || !current
+            .pets
+            .iter()
+            .any(|pet| pet.id == current.current_pet_id)
+    {
+        current.current_pet_id = builtin.current_pet_id;
+        changed = true;
+    }
+
+    if changed {
+        write_json_file(&path, &current)?;
+    }
+
+    Ok(())
+}
+
+fn ensure_builtin_runtime(root: &Path) -> Result<(), String> {
+    let runtime_dir = root.join(RUNTIME_DIR);
+    let pet_state_dir = runtime_dir.join("pet-state").join(BUILTIN_PET_ID);
+    fs::create_dir_all(
+        runtime_dir
+            .join("family")
+            .join(BUILTIN_PET_ID)
+            .join("uploads"),
+    )
+    .map_err(|err| format!("创建内置宠物素材目录失败: {}", err))?;
+    fs::create_dir_all(&pet_state_dir)
+        .map_err(|err| format!("创建内置宠物状态目录失败: {}", err))?;
+
+    let now = Local::now().to_rfc3339();
+    ensure_builtin_assets(root)?;
+    merge_builtin_pet_family(root)?;
+
+    write_seed_json_file(
+        &root.join(SETTINGS_PATH),
+        json!({
+            "version": 1,
+            "current_pet_id": BUILTIN_PET_ID,
+            "scale": 0.46,
+            "animation_speed": 0.7,
+            "always_on_top": true,
+            "bubble_style": "thought",
+            "bubble_fill": "#fffaf0",
+            "bubble_outline": "#d8a760",
+            "bubble_text": "#3b3024",
+            "bubble_duration": 6,
+            "talk_enabled": true,
+            "ai_enabled": true,
+            "ai_timeout": 60,
+            "roam_enabled": true,
+            "drag_sensitivity": 0.55,
+            "inertia": 0.2,
+            "roam_speed": 75,
+            "roam_distance": 0.35,
+            "roam_interval": 100,
+            "idle_action_interval": 8,
+            "talk_interval": 90,
+            "talk_after_interaction_delay": 10,
+            "roam_allow_center": false,
+            "multi_monitor_roam": true,
+            "primary_monitor_edge_only": false,
+            "secondary_monitor_full_roam": true,
+            "roam_current_monitor_only": false,
+            "keep_on_screen": true,
+            "lock_size_across_monitors": true,
+            "click_through_enabled": false,
+            "quick_menu_actions": ["idle", "running-right", "running-left", "waving", "jumping"]
+        }),
+    )?;
+
+    write_seed_json_file(
+        &root.join(AI_PROVIDERS_PATH),
+        json!({
+            "version": 1,
+            "active_provider": "openai",
+            "providers": {
+                "openai": {
+                    "display_name": "OpenAI",
+                    "api_format": "responses",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-5",
+                    "default_model": "gpt-5",
+                    "env_key": "OPENAI_API_KEY",
+                    "enabled": false,
+                    "encrypted_api_key": ""
+                },
+                "deepseek": {
+                    "display_name": "DeepSeek",
+                    "api_format": "chat_completions",
+                    "base_url": "https://api.deepseek.com",
+                    "model": "deepseek-chat",
+                    "default_model": "deepseek-chat",
+                    "env_key": "DEEPSEEK_API_KEY",
+                    "enabled": false,
+                    "encrypted_api_key": ""
+                },
+                "kimi": {
+                    "display_name": "Kimi",
+                    "api_format": "chat_completions",
+                    "base_url": "https://api.moonshot.cn/v1",
+                    "model": "moonshot-v1-8k",
+                    "default_model": "moonshot-v1-8k",
+                    "env_key": "MOONSHOT_API_KEY",
+                    "enabled": false,
+                    "encrypted_api_key": ""
+                }
+            }
+        }),
+    )?;
+
+    write_seed_json_file(
+        &root.join(TODOS_PATH),
+        json!({ "version": 1, "items": [], "updated_at": now.clone() }),
+    )?;
+    write_seed_json_file(
+        &root.join(REMINDER_HISTORY_PATH),
+        json!({ "version": 1, "events": [], "updated_at": now.clone() }),
+    )?;
+    write_seed_json_file(
+        &root.join(CHAT_MEMORY_PATH),
+        json!({
+            "version": 1,
+            "messages": [],
+            "mood_counts": {},
+            "learned_phrases": [],
+            "reply_count": 0,
+            "last_mood": "",
+            "updated_at": now.clone()
+        }),
+    )?;
+    write_seed_json_file(
+        &root.join(DIALOGUE_LIBRARY_PATH),
+        json!({
+            "base": ["我在这里，轻轻陪你一会儿。", "主人，我会安静陪着你。", "先把最重要的一件小事做好就行。"],
+            "moods": {
+                "happy": ["听起来不错，我也替你开心。"],
+                "tired": ["辛苦了，先慢一点，我陪你缓缓。"],
+                "anxious": ["先呼吸一下，我们一件一件来。"]
+            },
+            "care": {
+                "rest": ["累了就先休息几分钟，我会在旁边等你。"]
+            }
+        }),
+    )?;
+    write_seed_json_file(
+        &pet_state_dir.join("pet-stories.json"),
+        json!({
+            "version": 1,
+            "entries": [],
+            "prompt_summary": "蛋黄是安静、亲近、不过度打扰的桌面陪伴。",
+            "role_prompt": "",
+            "role_prompt_updated_at": "",
+            "summary_updated_at": now.clone(),
+            "summary_source": "builtin-template",
+            "updated_at": now.clone()
+        }),
+    )?;
+    write_seed_json_file(
+        &pet_state_dir.join("companion-state.json"),
+        json!({ "xp": 0, "level": 1, "interactions": 0, "talks": 0 }),
+    )?;
+    write_seed_text_file(
+        &root.join(SOUL_PROFILE_PATH),
+        "你是桌宠蛋黄，安静、亲近、真诚。称呼用户为主人，默认短句陪伴，不假装拥有现实身体或真实感知。\n",
+    )?;
+
+    Ok(())
+}
+
 fn product_root() -> Result<PathBuf, String> {
     let mut candidates = Vec::new();
 
@@ -823,7 +1156,9 @@ fn product_root() -> Result<PathBuf, String> {
         let mut cursor = candidate.as_path();
         for _ in 0..8 {
             if cursor.join(RUNTIME_DIR).is_dir() {
-                return Ok(cursor.to_path_buf());
+                let root = cursor.to_path_buf();
+                ensure_builtin_runtime(&root)?;
+                return Ok(root);
             }
             match cursor.parent() {
                 Some(parent) => cursor = parent,
@@ -832,7 +1167,53 @@ fn product_root() -> Result<PathBuf, String> {
         }
     }
 
-    Err("未找到 DanhuangProduct 产品根目录；请设置 DANHUANG_PRODUCT_ROOT 指向包含 data-dev/current-runtime/danhuang 的产品根".to_string())
+    for root in app_data_product_roots() {
+        ensure_builtin_runtime(&root)?;
+        if root.join(RUNTIME_DIR).is_dir() {
+            return Ok(root);
+        }
+    }
+
+    Err(
+        "未找到蛋黄桌宠运行数据目录，也无法初始化本机应用数据目录；请检查系统应用数据目录权限"
+            .to_string(),
+    )
+}
+
+fn source_product_root() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Ok(current_dir) = env::current_dir() {
+        candidates.push(current_dir);
+    }
+    if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+        candidates.push(PathBuf::from(manifest_dir));
+    }
+
+    for candidate in candidates {
+        let mut cursor = candidate.as_path();
+        for _ in 0..8 {
+            if cursor
+                .join("src-tauri-vue")
+                .join("src-tauri")
+                .join("tauri.conf.json")
+                .is_file()
+            {
+                return Some(cursor.to_path_buf());
+            }
+            if cursor.join("src-tauri").join("tauri.conf.json").is_file() {
+                if let Some(parent) = cursor.parent() {
+                    return Some(parent.to_path_buf());
+                }
+            }
+            match cursor.parent() {
+                Some(parent) => cursor = parent,
+                None => break,
+            }
+        }
+    }
+
+    None
 }
 
 fn read_json_file<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
@@ -891,20 +1272,219 @@ fn runtime_file_path(root: &Path, relative_path: &str) -> Result<PathBuf, String
     let runtime_root = root
         .join(RUNTIME_DIR)
         .canonicalize()
-        .map_err(|err| format!("运行镜像目录不可用: {}", err))?;
+        .map_err(|err| format!("本机数据目录不可用: {}", err))?;
     let path = root.join(relative_path);
     let parent = path
         .parent()
         .ok_or_else(|| format!("文件路径无父目录: {}", path.display()))?;
     let parent_canonical = parent
         .canonicalize()
-        .map_err(|err| format!("运行镜像文件目录不可用 {}: {}", parent.display(), err))?;
+        .map_err(|err| format!("本机数据文件目录不可用 {}: {}", parent.display(), err))?;
 
     if !parent_canonical.starts_with(&runtime_root) {
-        return Err("文件路径越过运行镜像边界".to_string());
+        return Err("文件路径越过本机数据目录边界".to_string());
     }
 
     Ok(path)
+}
+
+fn family_file_path(root: &Path) -> Result<PathBuf, String> {
+    runtime_file_path(root, FAMILY_PATH)
+}
+
+fn runtime_dir_path(root: &Path) -> Result<PathBuf, String> {
+    root.join(RUNTIME_DIR)
+        .canonicalize()
+        .map_err(|err| format!("本机数据目录不可用: {}", err))
+}
+
+fn security_result(
+    title: &str,
+    message: &str,
+    tone: &str,
+    items: Vec<String>,
+    path: Option<PathBuf>,
+) -> SecurityActionResult {
+    SecurityActionResult {
+        title: title.to_string(),
+        message: message.to_string(),
+        tone: tone.to_string(),
+        items,
+        path: path.map(|value| value.display().to_string()),
+    }
+}
+
+fn open_system_path(path: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    let mut command = {
+        let mut command = Command::new("explorer");
+        command.arg(path);
+        command
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(path);
+        command
+    };
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(path);
+        command
+    };
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| format!("打开目录失败 {}: {}", path.display(), err))
+}
+
+fn copy_private_runtime_file(
+    root: &Path,
+    backup_dir: &Path,
+    relative_path: &str,
+    copied: &mut Vec<String>,
+) -> Result<(), String> {
+    let source = root.join(relative_path);
+    if !source.is_file() {
+        return Ok(());
+    }
+    let file_name = source
+        .file_name()
+        .ok_or_else(|| format!("备份源文件名不可用: {}", source.display()))?;
+    let target = backup_dir.join(file_name);
+    fs::copy(&source, &target).map_err(|err| format!("备份失败 {}: {}", source.display(), err))?;
+    copied.push(file_name.to_string_lossy().to_string());
+    Ok(())
+}
+
+fn create_personal_backup(root: &Path) -> Result<SecurityActionResult, String> {
+    let runtime_dir = runtime_dir_path(root)?;
+    let timestamp = Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let backup_dir = runtime_dir
+        .join("backups")
+        .join(format!("personal-backup-{}", timestamp));
+    fs::create_dir_all(&backup_dir)
+        .map_err(|err| format!("创建备份目录失败 {}: {}", backup_dir.display(), err))?;
+
+    let mut copied = Vec::new();
+    for relative in [
+        SETTINGS_PATH,
+        TODOS_PATH,
+        REMINDER_HISTORY_PATH,
+        CHAT_MEMORY_PATH,
+        AI_PROVIDERS_PATH,
+    ] {
+        copy_private_runtime_file(root, &backup_dir, relative, &mut copied)?;
+    }
+
+    let manifest = json!({
+        "created_at": Local::now().to_rfc3339(),
+        "source": runtime_dir.display().to_string(),
+        "copied_files": copied,
+        "note": "个人备份保存在本机应用数据目录下，不进入公开分发包。"
+    });
+    fs::write(
+        backup_dir.join("backup-manifest.json"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&manifest).map_err(|err| err.to_string())?
+        ),
+    )
+    .map_err(|err| format!("写入备份清单失败: {}", err))?;
+
+    let copied_count = manifest
+        .get("copied_files")
+        .and_then(Value::as_array)
+        .map(|items| items.len())
+        .unwrap_or(0);
+    Ok(security_result(
+        "个人备份已生成",
+        "已把本机应用数据目录中的私有配置和记录复制到备份目录。",
+        "success",
+        vec![
+            format!("已复制 {} 个私有文件。", copied_count),
+            "备份目录位于本机应用数据目录的 backups 文件夹。".to_string(),
+            "这是个人备份，不会用于公开分发。".to_string(),
+        ],
+        Some(backup_dir),
+    ))
+}
+
+fn public_export_check(root: &Path) -> Result<SecurityActionResult, String> {
+    let private_paths = [
+        ("AI Key 配置", AI_PROVIDERS_PATH),
+        ("聊天记忆", CHAT_MEMORY_PATH),
+        ("待办提醒", TODOS_PATH),
+        ("提醒历史", REMINDER_HISTORY_PATH),
+        ("桌宠设置", SETTINGS_PATH),
+    ];
+    let mut items = Vec::new();
+    for (label, relative) in private_paths {
+        let exists = root.join(relative).exists();
+        items.push(format!(
+            "{}: {}，公开包必须排除。",
+            label,
+            if exists {
+                "本机存在"
+            } else {
+                "本机未发现"
+            }
+        ));
+    }
+    items.push(
+        "公开包允许包含内置宠物模板（蛋黄、小墨、橘宝、小白、胖久）、默认形象逻辑、动作定义、公开说明和空白新用户模板。"
+            .to_string(),
+    );
+    items.push(
+        "公开包不得包含 API Key、Token、本机加密材料、日志、本机绝对路径、聊天、提醒和记忆。"
+            .to_string(),
+    );
+    items.push(
+        "新用户首次启动会在本机应用数据目录生成空白个人数据，不需要手工复制开发文件。".to_string(),
+    );
+    Ok(security_result(
+        "公开包清洁检查完成",
+        "本次只读检查已列出必须排除的本机私人数据。",
+        "warn",
+        items,
+        Some(runtime_dir_path(root)?),
+    ))
+}
+
+fn installer_status(root: &Path) -> Result<SecurityActionResult, String> {
+    let source_root = source_product_root().unwrap_or_else(|| root.to_path_buf());
+    let nsis_dir = source_root
+        .join("src-tauri-vue")
+        .join("src-tauri")
+        .join("target")
+        .join("release")
+        .join("bundle")
+        .join("nsis");
+    let package_dir = source_root.join("packages");
+    let has_nsis = nsis_dir.is_dir();
+    Ok(security_result(
+        if has_nsis {
+            "已发现安装包目录"
+        } else {
+            "尚未生成安装包"
+        },
+        if has_nsis {
+            "检测到安装包输出目录；正式发布前仍需跑公开包清洁检查。"
+        } else {
+            "当前未发现安装包输出；发布前需要先生成安装包。"
+        },
+        if has_nsis { "success" } else { "warn" },
+        vec![
+            "内置宠物: 5 个，蛋黄默认启动，小墨、橘宝、小白、胖久可直接切换。".to_string(),
+            "安装包不要求用户先安装额外运行环境。".to_string(),
+            "开机启动默认关闭，不自动写入可疑自启动快捷方式。".to_string(),
+            format!("本机数据目录: {}", runtime_dir_path(root)?.display()),
+            format!("packages 目录: {}", package_dir.display()),
+        ],
+        Some(if has_nsis { nsis_dir } else { package_dir }),
+    ))
 }
 
 fn current_pet_id_from_settings(root: &Path) -> Result<String, String> {
@@ -918,14 +1498,14 @@ fn pet_state_dir(root: &Path, pet_id: &str) -> Result<PathBuf, String> {
     let runtime_root = root
         .join(RUNTIME_DIR)
         .canonicalize()
-        .map_err(|err| format!("运行镜像目录不可用: {}", err))?;
+        .map_err(|err| format!("本机数据目录不可用: {}", err))?;
     let state_root = runtime_root.join("pet-state");
     if !state_root.exists() {
         fs::create_dir_all(&state_root).map_err(|err| format!("无法创建宠物状态目录: {}", err))?;
     }
     let dir = state_root.join(safe_pet_id);
     if !dir.starts_with(&runtime_root) {
-        return Err("宠物状态路径越过运行镜像边界".to_string());
+        return Err("宠物状态路径越过本机数据目录边界".to_string());
     }
     Ok(dir)
 }
@@ -2740,7 +3320,7 @@ fn dpapi_encrypt_text(value: &str) -> Result<String, String> {
         )
     };
     if ok == 0 {
-        return Err("Windows DPAPI 加密失败".to_string());
+        return Err("本机安全存储加密失败".to_string());
     }
 
     let bytes =
@@ -2766,7 +3346,7 @@ fn dpapi_decrypt_text(value: &str) -> Result<String, String> {
 
     let mut encrypted = BASE64
         .decode(value.trim_start_matches("dpapi:"))
-        .map_err(|_| "DPAPI Key 数据不是合法 base64".to_string())?;
+        .map_err(|_| "本机安全存储数据不是合法 base64".to_string())?;
     let mut blob_in = DATA_BLOB {
         cbData: encrypted.len() as u32,
         pbData: encrypted.as_mut_ptr(),
@@ -2788,7 +3368,7 @@ fn dpapi_decrypt_text(value: &str) -> Result<String, String> {
         )
     };
     if ok == 0 {
-        return Err("Windows DPAPI 解密失败".to_string());
+        return Err("本机安全存储解密失败".to_string());
     }
 
     let bytes =
@@ -2796,7 +3376,7 @@ fn dpapi_decrypt_text(value: &str) -> Result<String, String> {
     unsafe {
         LocalFree(blob_out.pbData.cast());
     }
-    String::from_utf8(bytes).map_err(|_| "DPAPI Key 解密后不是 UTF-8".to_string())
+    String::from_utf8(bytes).map_err(|_| "本机安全存储解密后不是 UTF-8".to_string())
 }
 
 #[cfg(not(windows))]
@@ -2842,7 +3422,7 @@ fn active_ai_provider(file: &AiProvidersFile) -> Option<(String, AiProviderFile)
 }
 
 fn current_pet_entry(root: &Path, pet_id: &str) -> Option<PetEntryFile> {
-    let family_path = root.join(FAMILY_PATH);
+    let family_path = family_file_path(root).ok()?;
     let family = read_optional_json_file::<PetFamilyFile>(&family_path)?;
     family.pets.into_iter().find(|pet| pet.id == pet_id)
 }
@@ -3340,7 +3920,7 @@ fn safe_asset_path(asset_path: &str) -> Result<String, String> {
         return Err("资源路径为空".to_string());
     }
     if normalized.contains(':') || normalized.starts_with('/') || normalized.starts_with('~') {
-        return Err("只允许运行镜像内的相对资源路径".to_string());
+        return Err("只允许本机数据目录内的相对资源路径".to_string());
     }
 
     let path = Path::new(&normalized);
@@ -3396,7 +3976,7 @@ fn runtime_asset_write_path(root: &Path, asset_path: &str) -> Result<PathBuf, St
     let runtime_root = root
         .join(RUNTIME_DIR)
         .canonicalize()
-        .map_err(|err| format!("运行镜像目录不可用: {}", err))?;
+        .map_err(|err| format!("本机数据目录不可用: {}", err))?;
     let target = runtime_root.join(&safe_path);
     let parent = target
         .parent()
@@ -3408,7 +3988,7 @@ fn runtime_asset_write_path(root: &Path, asset_path: &str) -> Result<PathBuf, St
         .canonicalize()
         .map_err(|err| format!("资源目录不可用 {}: {}", parent.display(), err))?;
     if !parent_canonical.starts_with(&runtime_root) {
-        return Err("资源路径越过运行镜像边界".to_string());
+        return Err("资源路径越过本机数据目录边界".to_string());
     }
 
     Ok(target)
@@ -3487,19 +4067,19 @@ fn validate_upload_image(input: &UploadPetImageInput) -> Result<(Vec<u8>, &'stat
 fn normalized_custom_action_id(raw: &str) -> Result<String, String> {
     let value = raw.trim().to_ascii_lowercase();
     if value.is_empty() {
-        return Err("动作 ID 不能为空，例如 custom:petting".to_string());
+        return Err("动作编号不能为空".to_string());
     }
     if value.len() > 64 {
-        return Err("动作 ID 过长".to_string());
+        return Err("动作编号过长".to_string());
     }
     if !value
         .chars()
         .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, ':' | '-' | '_'))
     {
-        return Err("动作 ID 只能包含小写字母、数字、冒号、短横线和下划线".to_string());
+        return Err("动作编号包含不支持的字符".to_string());
     }
     if !value.starts_with("custom:") && action_row_metadata(&value).is_none() {
-        return Err("新增动作 ID 建议使用 custom: 前缀，避免覆盖基础动作".to_string());
+        return Err("新增动作编号不合法，请重新导入动作".to_string());
     }
     Ok(value)
 }
@@ -3608,16 +4188,16 @@ fn validate_upload_action_strip(
 fn normalized_action_ref(raw: &str) -> Result<String, String> {
     let value = raw.trim().to_ascii_lowercase();
     if value.is_empty() {
-        return Err("动作 ID 不能为空".to_string());
+        return Err("动作编号不能为空".to_string());
     }
     if value.len() > 64 {
-        return Err("动作 ID 过长".to_string());
+        return Err("动作编号过长".to_string());
     }
     if !value
         .chars()
         .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, ':' | '-' | '_'))
     {
-        return Err("动作 ID 只能包含小写字母、数字、冒号、短横线和下划线".to_string());
+        return Err("动作编号包含不支持的字符".to_string());
     }
     Ok(value)
 }
@@ -3921,7 +4501,7 @@ fn prepare_pet_window(app: &AppHandle) {
 #[tauri::command]
 fn get_runtime_summary() -> Result<RuntimeSummary, String> {
     let root = product_root()?;
-    let family_path = root.join(FAMILY_PATH);
+    let family_path = family_file_path(&root)?;
     let settings_path = root.join(SETTINGS_PATH);
     let family: PetFamilyFile = read_json_file(&family_path)?;
     let settings: RuntimeSettingsFile = read_json_file(&settings_path)?;
@@ -3951,9 +4531,9 @@ fn get_runtime_summary() -> Result<RuntimeSummary, String> {
     let features = feature_summary(&root, &current_pet_id);
 
     let notes = vec![
-        "只通过白名单命令读写 E 盘 data-dev 运行镜像".to_string(),
+        "只通过白名单命令读写本机应用数据目录".to_string(),
         "未返回 API Key、Token、聊天、待办、提醒历史、本机导出路径".to_string(),
-        "图片读取仅允许注册表中的 identity、reference、spritesheet 和 extension 动作条".to_string(),
+        "图片读取仅允许已登记的形象图片和动作素材".to_string(),
     ];
 
     Ok(RuntimeSummary {
@@ -4083,7 +4663,7 @@ fn update_quick_menu_actions(
     input: UpdateQuickMenuActionsInput,
 ) -> Result<RuntimeSummary, String> {
     let root = product_root()?;
-    let family_path = root.join(FAMILY_PATH);
+    let family_path = family_file_path(&root)?;
     let settings_path = runtime_file_path(&root, SETTINGS_PATH)?;
     let family: PetFamilyFile = read_json_file(&family_path)?;
     let pet_id = normalized_pet_id(&input.pet_id)?;
@@ -4222,9 +4802,154 @@ fn update_ai_provider_key(
 }
 
 #[tauri::command]
+fn test_ai_provider_connection(input: TestAiProviderInput) -> Result<AiProviderTestResult, String> {
+    let root = product_root()?;
+    let path = runtime_file_path(&root, AI_PROVIDERS_PATH)?;
+    let file: AiProvidersFile = read_json_file(&path)?;
+    let provider_id = normalized_pet_id(&input.provider_id)?;
+    let provider = file
+        .providers
+        .get(&provider_id)
+        .ok_or_else(|| "未找到这个 AI 厂商".to_string())?;
+    let model = provider_model_name(provider);
+    let endpoint = provider_endpoint_url(provider)?;
+    let api_key = provider_api_key(provider);
+    let display_name = if provider.display_name.trim().is_empty() {
+        provider_id.clone()
+    } else {
+        provider.display_name.trim().to_string()
+    };
+
+    if api_key.is_empty() {
+        return Ok(AiProviderTestResult {
+            provider_id,
+            ok: false,
+            title: "缺少 Key".to_string(),
+            message: format!("{} 还没有可用 Key。", display_name),
+            details: vec![
+                "先保存 Key，再点测试连接。".to_string(),
+                "Key 只用于本次请求，不会返回前端或写入日志。".to_string(),
+            ],
+        });
+    }
+
+    let api_format = provider_api_format(provider);
+    let payload = if api_format == "responses" {
+        json!({
+            "model": model,
+            "input": "请只回复 OK",
+            "max_output_tokens": 8,
+            "store": false
+        })
+    } else {
+        json!({
+            "model": model,
+            "messages": [
+                { "role": "user", "content": "请只回复 OK" }
+            ],
+            "temperature": 0,
+            "max_tokens": 8,
+            "stream": false
+        })
+    };
+    let client = Client::builder()
+        .timeout(Duration::from_secs(18))
+        .build()
+        .map_err(|_| "AI HTTP 客户端初始化失败".to_string())?;
+    let response = client
+        .post(&endpoint)
+        .bearer_auth(api_key)
+        .header("Content-Type", "application/json")
+        .json(&payload)
+        .send();
+
+    let response = match response {
+        Ok(response) => response,
+        Err(err) => {
+            return Ok(AiProviderTestResult {
+                provider_id,
+                ok: false,
+                title: "连接失败".to_string(),
+                message: format!("{} 暂时连不上。", display_name),
+                details: vec![
+                    format!("错误: {}", err),
+                    "检查网络、Base URL、代理和厂商服务状态。".to_string(),
+                ],
+            });
+        }
+    };
+
+    let status = response.status();
+    let body = response.text().unwrap_or_default();
+    if !status.is_success() {
+        let detail: String = body.chars().take(180).collect();
+        return Ok(AiProviderTestResult {
+            provider_id,
+            ok: false,
+            title: "厂商返回错误".to_string(),
+            message: format!("{} 返回 HTTP {}。", display_name, status.as_u16()),
+            details: vec![
+                format!("模型: {}", model),
+                format!("Base URL: {}", endpoint),
+                if detail.trim().is_empty() {
+                    "响应为空，请检查 Key 权限和模型名。".to_string()
+                } else {
+                    format!("响应摘要: {}", detail)
+                },
+            ],
+        });
+    }
+
+    let value: Value = match serde_json::from_str(&body) {
+        Ok(value) => value,
+        Err(_) => {
+            return Ok(AiProviderTestResult {
+                provider_id,
+                ok: false,
+                title: "响应格式异常".to_string(),
+                message: format!("{} 已响应，但不是可解析的 JSON。", display_name),
+                details: vec![
+                    format!("模型: {}", model),
+                    "检查 Base URL 是否指向兼容的对话接口。".to_string(),
+                ],
+            });
+        }
+    };
+    let reply = if api_format == "responses" {
+        extract_responses_text(&value)
+    } else {
+        extract_chat_completion_text(&value)
+    };
+    if reply.trim().is_empty() {
+        return Ok(AiProviderTestResult {
+            provider_id,
+            ok: false,
+            title: "模型未返回文本".to_string(),
+            message: format!("{} 已连通，但模型返回内容为空。", display_name),
+            details: vec![
+                format!("模型: {}", model),
+                "检查模型名、账号权限和接口兼容模式。".to_string(),
+            ],
+        });
+    }
+
+    Ok(AiProviderTestResult {
+        provider_id,
+        ok: true,
+        title: "连接可用".to_string(),
+        message: format!("{} 的 Key、模型和 Base URL 已通过测试。", display_name),
+        details: vec![
+            format!("模型: {}", model),
+            format!("Base URL: {}", endpoint),
+            "测试请求不会写入聊天记录。".to_string(),
+        ],
+    })
+}
+
+#[tauri::command]
 fn switch_pet(app: AppHandle, input: SwitchPetInput) -> Result<RuntimeSummary, String> {
     let root = product_root()?;
-    let family_path = root.join(FAMILY_PATH);
+    let family_path = family_file_path(&root)?;
     let settings_path = runtime_file_path(&root, SETTINGS_PATH)?;
     let family: PetFamilyFile = read_json_file(&family_path)?;
     let pet_id = normalized_pet_id(&input.pet_id)?;
@@ -4237,8 +4962,12 @@ fn switch_pet(app: AppHandle, input: SwitchPetInput) -> Result<RuntimeSummary, S
     if target.status != "ready" {
         return Err("这个形象还没有准备好，不能切换为当前桌宠".to_string());
     }
-    if !asset_exists(&root, &target.spritesheet) {
-        return Err("这个形象缺少可播放 spritesheet，暂不能切换".to_string());
+    if target.spritesheet.trim().is_empty() {
+        if pet_action_summaries(target).is_empty() {
+            return Err("这个形象缺少可播放动作，暂不能切换".to_string());
+        }
+    } else if !asset_exists(&root, &target.spritesheet) {
+        return Err("这个形象素材文件不存在，请先修复形象后再切换".to_string());
     }
 
     let mut settings: RuntimeSettingsFile = read_json_file(&settings_path)?;
@@ -4259,7 +4988,7 @@ fn update_pet_profile(
     input: UpdatePetProfileInput,
 ) -> Result<RuntimeSummary, String> {
     let root = product_root()?;
-    let family_path = runtime_file_path(&root, FAMILY_PATH)?;
+    let family_path = family_file_path(&root)?;
     let mut family: PetFamilyFile = read_json_file(&family_path)?;
     let pet_id = normalized_pet_id(&input.pet_id)?;
     let display_name = normalize_text(&input.display_name, "", 24);
@@ -4292,7 +5021,7 @@ fn update_pet_profile(
 #[tauri::command]
 fn upload_pet_image(app: AppHandle, input: UploadPetImageInput) -> Result<RuntimeSummary, String> {
     let root = product_root()?;
-    let family_path = runtime_file_path(&root, FAMILY_PATH)?;
+    let family_path = family_file_path(&root)?;
     let mut family: PetFamilyFile = read_json_file(&family_path)?;
     let pet_id = normalized_pet_id(&input.pet_id)?;
     let kind = normalize_upload_kind(&input.kind)?;
@@ -4344,7 +5073,7 @@ fn upload_pet_action_strip(
     input: UploadPetActionStripInput,
 ) -> Result<RuntimeSummary, String> {
     let root = product_root()?;
-    let family_path = runtime_file_path(&root, FAMILY_PATH)?;
+    let family_path = family_file_path(&root)?;
     let mut family: PetFamilyFile = read_json_file(&family_path)?;
     let pet_id = normalized_pet_id(&input.pet_id)?;
     let action_id = normalized_custom_action_id(&input.action_id)?;
@@ -4400,6 +5129,45 @@ fn upload_pet_action_strip(
     let _ = app.emit(
         "danhuang-runtime-changed",
         json!({ "pet_action_uploaded": pet_id, "action_id": action_id, "asset": asset_path }),
+    );
+    Ok(summary)
+}
+
+#[tauri::command]
+fn clear_pet_action_strip(
+    app: AppHandle,
+    input: ClearPetActionStripInput,
+) -> Result<RuntimeSummary, String> {
+    let root = product_root()?;
+    let family_path = family_file_path(&root)?;
+    let settings_path = runtime_file_path(&root, SETTINGS_PATH)?;
+    let mut family: PetFamilyFile = read_json_file(&family_path)?;
+    let mut settings: RuntimeSettingsFile = read_json_file(&settings_path)?;
+    let pet_id = normalized_pet_id(&input.pet_id)?;
+    let action_id = normalized_custom_action_id(&input.action_id)?;
+    let target = family
+        .pets
+        .iter_mut()
+        .find(|pet| pet.id == pet_id)
+        .ok_or_else(|| "没有在宠物注册表中找到这个形象".to_string())?;
+
+    let before_count = target.extension_assets.len();
+    target
+        .extension_assets
+        .retain(|asset| asset.id != action_id);
+    if before_count == target.extension_assets.len() {
+        return Err("没有找到可清空的扩展动作条".to_string());
+    }
+
+    target.supported_actions.retain(|id| id != &action_id);
+    settings.quick_menu_actions.retain(|id| id != &action_id);
+    write_json_file(&family_path, &family)?;
+    write_json_file(&settings_path, &settings)?;
+
+    let summary = get_runtime_summary()?;
+    let _ = app.emit(
+        "danhuang-runtime-changed",
+        json!({ "pet_action_cleared": pet_id, "action_id": action_id }),
     );
     Ok(summary)
 }
@@ -4475,7 +5243,14 @@ fn update_todo_state(input: UpdateTodoInput) -> Result<TodoSummary, String> {
 
     {
         let item = &mut file.items[index];
-        if let Some(done) = input.done {
+        if input.deleted.unwrap_or(false) {
+            item.status = "deleted".to_string();
+            item.deleted_at = now.clone();
+            item.completed_at.clear();
+            item.pinned = false;
+            item.snooze_until.clear();
+            event_type = "deleted";
+        } else if let Some(done) = input.done {
             if done {
                 item.status = "done".to_string();
                 item.completed_at = now.clone();
@@ -4802,20 +5577,45 @@ fn create_pet_story(app: AppHandle, input: CreatePetStoryInput) -> Result<PetSta
 }
 
 #[tauri::command]
+fn run_security_action(input: SecurityActionInput) -> Result<SecurityActionResult, String> {
+    let root = product_root()?;
+    match input.action.as_str() {
+        "personal-backup" => create_personal_backup(&root),
+        "public-export-check" => public_export_check(&root),
+        "open-data-dir" => {
+            let path = runtime_dir_path(&root)?;
+            open_system_path(&path)?;
+            Ok(security_result(
+                "已打开数据目录",
+                "这是本机数据目录，公开包不会直接打包这里的私人数据。",
+                "success",
+                vec![
+                    "可在这里核对设置、提醒、聊天、记忆和本机日志。".to_string(),
+                    "不要把该目录整体发给其他用户。".to_string(),
+                ],
+                Some(path),
+            ))
+        }
+        "installer-status" => installer_status(&root),
+        _ => Err("未知安全操作".to_string()),
+    }
+}
+
+#[tauri::command]
 fn get_runtime_asset(asset_path: String) -> Result<RuntimeAsset, String> {
     let root = product_root()?;
     let safe_path = safe_asset_path(&asset_path)?;
     let runtime_root = root
         .join(RUNTIME_DIR)
         .canonicalize()
-        .map_err(|err| format!("运行镜像目录不可用: {}", err))?;
+        .map_err(|err| format!("本机数据目录不可用: {}", err))?;
     let asset = runtime_root.join(&safe_path);
     let asset_canonical = asset
         .canonicalize()
         .map_err(|err| format!("资源不存在 {}: {}", safe_path, err))?;
 
     if !asset_canonical.starts_with(&runtime_root) {
-        return Err("资源越过运行镜像边界".to_string());
+        return Err("资源越过本机数据目录边界".to_string());
     }
 
     let metadata = fs::metadata(&asset_canonical).map_err(|err| err.to_string())?;
@@ -4943,10 +5743,12 @@ pub fn run() {
             update_quick_menu_actions,
             update_ai_provider_state,
             update_ai_provider_key,
+            test_ai_provider_connection,
             switch_pet,
             update_pet_profile,
             upload_pet_image,
             upload_pet_action_strip,
+            clear_pet_action_strip,
             get_todos,
             create_todo,
             update_todo_state,
@@ -4956,6 +5758,7 @@ pub fn run() {
             send_chat_message,
             get_pet_state,
             create_pet_story,
+            run_security_action,
             get_runtime_asset,
             show_panel,
             show_pet,
@@ -5033,6 +5836,53 @@ mod tests {
         let (from, to) = exchange_pair_from_text("100美元等于多少人民币");
         assert_eq!(from.code, "USD");
         assert_eq!(to.code, "CNY");
+    }
+
+    #[test]
+    fn builtin_runtime_seeds_all_current_pets_and_assets() {
+        let root = env::temp_dir().join(format!("danhuang-builtin-test-{}", current_millis()));
+        let _ = fs::remove_dir_all(&root);
+
+        ensure_builtin_runtime(&root).expect("seed builtin runtime");
+        let family: PetFamilyFile =
+            read_json_file(&root.join(FAMILY_PATH)).expect("read pet family");
+        let names: HashSet<&str> = family
+            .pets
+            .iter()
+            .map(|pet| pet.display_name.as_str())
+            .collect();
+
+        assert_eq!(family.current_pet_id, "danhuang");
+        assert_eq!(family.pets.len(), 5);
+        assert!(names.contains("蛋黄"));
+        assert!(names.contains("小墨"));
+        assert!(names.contains("橘宝"));
+        assert!(names.contains("小白"));
+        assert!(names.contains("胖久"));
+        assert!(asset_exists(
+            &root,
+            "family/ju-bao/extension-custom-licking-paw.webp"
+        ));
+        assert!(asset_exists(
+            &root,
+            "family/pet-20260520-112213/extension-custom-petting.webp"
+        ));
+
+        for pet in &family.pets {
+            assert_eq!(pet.status, "ready", "{} should be ready", pet.id);
+            assert!(
+                !pet.spritesheet.trim().is_empty(),
+                "{} should have a spritesheet",
+                pet.id
+            );
+            assert!(
+                asset_exists(&root, &pet.spritesheet),
+                "{} spritesheet should be available",
+                pet.id
+            );
+        }
+
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[cfg(windows)]

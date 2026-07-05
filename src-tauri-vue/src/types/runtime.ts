@@ -141,6 +141,7 @@ export interface UpdateTodoInput {
   id: string;
   done?: boolean;
   pinned?: boolean;
+  deleted?: boolean;
   snooze_until?: string;
   now: string;
 }
@@ -283,6 +284,11 @@ export interface UpdateQuickMenuActionsInput {
   action_ids: string[];
 }
 
+export interface ClearPetActionStripInput {
+  pet_id: string;
+  action_id: string;
+}
+
 export interface UpdateAiProviderStateInput {
   provider_id: string;
   enabled?: boolean;
@@ -295,6 +301,30 @@ export interface UpdateAiProviderKeyInput {
   clear?: boolean;
 }
 
+export interface TestAiProviderInput {
+  provider_id: string;
+}
+
+export interface AiProviderTestResult {
+  provider_id: string;
+  ok: boolean;
+  title: string;
+  message: string;
+  details: string[];
+}
+
+export interface SecurityActionInput {
+  action: "personal-backup" | "public-export-check" | "open-data-dir" | "installer-status";
+}
+
+export interface SecurityActionResult {
+  title: string;
+  message: string;
+  tone: "success" | "info" | "warn" | "danger-soft";
+  items: string[];
+  path?: string;
+}
+
 export interface RuntimeApi {
   getRuntimeSummary(): Promise<RuntimeSummary>;
   getRuntimeAsset(assetPath: string): Promise<RuntimeAsset>;
@@ -302,10 +332,12 @@ export interface RuntimeApi {
   updateQuickMenuActions(input: UpdateQuickMenuActionsInput): Promise<RuntimeSummary>;
   updateAiProviderState(input: UpdateAiProviderStateInput): Promise<RuntimeSummary>;
   updateAiProviderKey(input: UpdateAiProviderKeyInput): Promise<RuntimeSummary>;
+  testAiProviderConnection(input: TestAiProviderInput): Promise<AiProviderTestResult>;
   switchPet(input: SwitchPetInput): Promise<RuntimeSummary>;
   updatePetProfile(input: UpdatePetProfileInput): Promise<RuntimeSummary>;
   uploadPetImage(input: UploadPetImageInput): Promise<RuntimeSummary>;
   uploadPetActionStrip(input: UploadPetActionStripInput): Promise<RuntimeSummary>;
+  clearPetActionStrip(input: ClearPetActionStripInput): Promise<RuntimeSummary>;
   getTodos(): Promise<TodoSummary[]>;
   createTodo(input: CreateTodoInput): Promise<TodoSummary>;
   updateTodoState(input: UpdateTodoInput): Promise<TodoSummary>;
@@ -321,5 +353,6 @@ export interface RuntimeApi {
   setPetAlwaysOnTop(enabled: boolean): Promise<void>;
   setPetClickThrough(enabled: boolean): Promise<void>;
   refreshPetWindow(): Promise<void>;
+  runSecurityAction(input: SecurityActionInput): Promise<SecurityActionResult>;
   quitApp(): Promise<void>;
 }
