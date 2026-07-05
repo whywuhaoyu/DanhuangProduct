@@ -1,79 +1,55 @@
-# 蛋黄桌宠 Tauri + Vue3
+# DanhuangProduct
 
-这是蛋黄桌宠前端化产品版，使用 Tauri 2 + Vue3 + TypeScript。当前仓库只同步源码和安全工程配置，不包含个人运行镜像、聊天、待办、提醒、宠物照片、API Key 或打包产物。
+这是蛋黄桌宠从个人原型走向产品化的工程根目录。
 
-## 窗口
+## 当前状态
 
-- `main`：控制面板窗口，承载首页、形象、档案、故事、动作、对话、AI、提醒、外观、行为和安全页。
-- `pet`：透明无边框桌宠窗口，默认置顶、跳过任务栏，可拖动、巡游、显示气泡和右键互动。
+- C 盘运行版已同步到 `data-dev/current-runtime/danhuang/`，后续开发和试运行优先只使用 E 盘镜像。
+- 产品化工程放在 `E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct`。
+- 已冻结原型归档：`archives/DanhuangPrototype-20260614-121543`。
+- 已复制当前 Tk 单文件原型到 `src-prototype/legacy-monolith/`，用于后续拆分验证。
+- 已生成当前审计文件到 `docs/product/当前审计/`。
+- Tk Phase 3 正在拆分运行层 UI：右键菜单、气泡 view model/renderer 和基础窗口尺寸已优先接入 E 盘运行镜像。
+- 当前电脑的可运行主线是 Python/Tk 版本；另一台电脑的 Vue/Tauri 版本作为并行产品化分支维护。WPF Spike/技术验证目录已移除，不再作为当前产品路线。
 
-## 数据边界
+## 工作原则
 
-Rust 命令只通过白名单路径读取产品根目录下的 `data-dev/current-runtime/danhuang/` 运行镜像。该目录是本机开发数据，不随本仓库同步。
+1. 后续新增功能、UI 优化和试运行优先只在 E 盘进行；C 盘不再作为开发源。
+2. E 盘产品化工程承载长期文档、新代码、运行镜像、审计、QA 和构建产物。
+3. Python/Tk 和 Vue/Tauri 分别通过 `tk/main`、`vue/main` 维护，目录边界清晰隔离；WPF 当前版本已移除。
+4. 用户照片、故事、聊天、待办、API Key 和日志默认不公开、不进安装包。
+5. 每次完成 Tk 功能优化、UI 优化或运行逻辑修复后，都要同步 E 盘运行镜像，并重新生成 Windows 可执行 exe 包。
 
-前端不直接扫描任意本机目录；API Key 只在 Rust 侧从 DPAPI 加密字段或环境变量读取，不向 Vue 返回、不写日志。
+## 运行当前 E 盘版本
 
-如果本仓库被单独 clone 到另一台电脑，请设置：
-
-```powershell
-$env:DANHUANG_PRODUCT_ROOT="D:\DanhuangProduct"
-```
-
-该目录需要包含 `data-dev/current-runtime/danhuang/`。也可以把完整产品根和本仓库保持原来的父子目录结构，让程序自动向上查找运行镜像。
-
-## 开发命令
-
-```powershell
-npm install
-npm run type-check
-npm run build
-npm run tauri dev
-```
-
-开发环境检查：
+推荐从产品工程里的当前运行镜像启动：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\check-dev.ps1
+PowerShell -ExecutionPolicy Bypass -File "E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct\data-dev\current-runtime\danhuang\start-danhuang-desktop-pet.ps1"
 ```
 
-## 调试打包
+这个脚本会先停止旧的 C 盘蛋黄进程和 E 盘镜像进程，再用本机 Codex Python runtime 启动当前 `data-dev/current-runtime/danhuang/run-danhuang-desktop-pet.py`。
 
-Windows 当前默认 bundle target 是已验证通过的 NSIS：
+如果需要在终端里看报错，用可见 Python 直接运行：
 
 ```powershell
-npm run tauri build
+& "C:\Users\27176\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" "E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct\data-dev\current-runtime\danhuang\run-danhuang-desktop-pet.py"
 ```
 
-产物路径：
-
-```text
-src-tauri\target\release\bundle\nsis\蛋黄桌宠_0.1.0_x64-setup.exe
-```
-
-MSI/WiX 链路曾在 `light.exe` 阶段失败，后续需要 MSI 时再单独排查。
-
-## 同步到 GitHub
-
-本仓库默认按私有仓库发布。首次发布前需要本机 GitHub CLI 完成登录：
+确认当前运行的是 E 盘版本：
 
 ```powershell
-gh auth login --hostname github.com --git-protocol https --web
+Get-CimInstance Win32_Process | Where-Object { ($_.Name -in @("python.exe","pythonw.exe")) -and ($_.CommandLine -like "*run-danhuang-desktop-pet.py*") } | Select-Object ProcessId,Name,CommandLine
 ```
 
-登录完成后执行：
+## 入口文档
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\publish-github.ps1
-```
-
-默认目标仓库：
-
-```text
-whywuhaoyu/danhuang-desktop-pet-tauri-vue
-```
-
-如需公开仓库，追加 `-Public`。
-
-## 当前边界
-
-当前版本继续复用 spritesheet/atlas 和 strip 动作资产。Live2D、Lottie、WebGL 和粒子 renderer 作为后续 renderer 预留。
+- 产品需求：[docs/product/蛋黄桌宠产品需求.md](docs/product/蛋黄桌宠产品需求.md)
+- 路线图：[docs/product/产品路线图.md](docs/product/产品路线图.md)
+- 目标架构：[docs/product/目标架构.md](docs/product/目标架构.md)
+- UI 重构：[docs/product/UI重构规格.md](docs/product/UI重构规格.md)
+- 目录治理：[docs/product/目录治理.md](docs/product/目录治理.md)
+- Git 分支维护：[docs/product/蛋黄GitHub分支维护方案_20260703.md](docs/product/蛋黄GitHub分支维护方案_20260703.md)
+- Vue 版本跨电脑推送：[docs/product/Vue版本跨电脑推送操作文档_20260703.md](docs/product/Vue版本跨电脑推送操作文档_20260703.md)
+- 隐私和商业化：[docs/product/隐私和商业化设计.md](docs/product/隐私和商业化设计.md)
+- 执行追踪：[docs/product/执行追踪.md](docs/product/执行追踪.md)

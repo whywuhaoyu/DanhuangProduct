@@ -1,38 +1,60 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-src-tauri/target
-src-tauri/.tauri
+# Local archives and bulky generated output
+archives/
+packages/
+archive-staging/
+data-dev/
 qa/
-*.local
+docs/product/current-audit/
+docs/product/当前审计/
+
+# Runtime and private data
+*.log
+*.lock
+!src-tauri-vue/src-tauri/Cargo.lock
 .env
 .env.*
-!.env.example
+*.local
+*.pem
 *.key
-*.token
 *.pfx
 *.p12
-*.pem
-*dpapi*
-*secret*
-*secrets*
+*ai-providers*.json
+*chat-memory*.json
+*memory-summary*.json
+*reminder-history*.json
+*todos*.json
+companion-state.json
+desktop-pet-settings.json
+pet-state/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Local agent and editor state
+.agents/
+.codex/
+.vscode/
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node / Vue / Tauri generated output
+node_modules/
+dist/
+dist-ssr/
+src-tauri-vue/node_modules/
+src-tauri-vue/dist/
+src-tauri-vue/dist-ssr/
+src-tauri-vue/src-tauri/target/
+src-tauri-vue/src-tauri/gen/
+
+# Rust build output
+target/
+
+# .NET build output
+bin/
+obj/
+
+# Windows and IDE noise
+.vs/
+Thumbs.db
+Desktop.ini

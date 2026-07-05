@@ -1,0 +1,53 @@
+# 目录治理
+
+## 当前策略
+
+C 盘历史运行目录已复制同步到 E 盘本地开发镜像。后续新增功能、UI 优化和试运行优先只在 E 盘进行；C 盘不再作为开发源，也不自动删除。
+
+产品化工程统一放在：
+
+```text
+E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct
+```
+
+## 目录分层
+
+```text
+DanhuangProduct/
+  archives/            # 只读原型归档，不提交
+  src-prototype/       # Tk 原型副本和拆分实验
+  src-tauri-vue/       # Vue/Tauri 并行产品化分支
+  assets/pets/         # 产品化宠物资产包
+  data-dev/            # 本机开发数据，不公开
+    current-runtime/   # 从 C 盘同步来的 E 盘运行镜像，不公开
+  packages/            # 安装包和导出包，不提交
+  qa/                  # 截图、contact sheet、验收记录
+  docs/product/        # 产品和工程文档
+  archive-staging/     # 后续目录清理的暂存区
+```
+
+## 文件迁移规则
+
+- 用户源图：只复制，不移动，不删除。
+- 运行数据：只复制到 `data-dev/`，不进公开包。
+- 当前运行镜像：优先使用 `data-dev/current-runtime/danhuang/`，代码改动后同步 `src-prototype/legacy-monolith/run-danhuang-desktop-pet.py` 和该镜像主程序。
+- 当前产品主线：当前电脑优先维护 Python/Tk，另一台电脑优先维护 Vue/Tauri；通过 `tk/main`、`vue/main` 分支隔离代码，WPF 技术验证目录已移除，不再作为新功能同步目标。
+- 打包规则：每次完成 Tk 功能优化、UI 优化或运行逻辑修复后，都要在 `packages/` 生成新的 Windows 可执行 exe 包和 zip；新包验证通过后，只保留最新一组 `danhuang-desktop-pet-windows-*` 文件夹和 zip。
+- E 盘启动脚本可停止旧 C 盘同名桌宠进程；不要手动启动 C 盘脚本作为开发验证入口。
+- QA 图片和 contact sheet：可复制到 `qa/`，原文件暂不删除。
+- 旧备份源码：可复制到 `archive-staging/`，删除前需要单独确认。
+- 导出包：统一放 `packages/`。
+- 原型冻结版：统一放 `archives/`，设为只读。
+
+## 后续清理步骤
+
+1. 用 `file-inventory-*.json` 找出根目录 93 个实验、备份和 QA 文件。
+2. 先复制到 `qa/` 或 `archive-staging/`。
+3. 确认 E 盘运行镜像不依赖这些文件。
+4. 再由你确认是否删除 C 盘原文件。
+
+## 禁止项
+
+- 禁止把 API Key、Token、DPAPI blob、聊天、待办、提醒历史、日志打进安装包。
+- 禁止未经确认删除用户源图、真实宠物照片、纪念故事和运行数据。
+- 禁止默认创建可疑 `.lnk` 自启动项、注册表 Run 项或计划任务。
