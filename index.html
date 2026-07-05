@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      document.documentElement.dataset.window = new URLSearchParams(window.location.search).get("window") === "pet" ? "pet" : "panel";
+    </script>
+    <style>
+      html[data-window="pet"],
+      html[data-window="pet"] body,
+      html[data-window="pet"] #app {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: transparent !important;
+      }
+    </style>
     <title>蛋黄桌宠</title>
   </head>
 

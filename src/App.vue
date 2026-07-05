@@ -6,11 +6,13 @@ import {
   currentMonitor,
   cursorPosition,
   getCurrentWindow,
+  LogicalSize,
   PhysicalPosition,
   PhysicalSize,
   primaryMonitor,
   type Monitor,
 } from "@tauri-apps/api/window";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
   Bell,
   BookOpen,
@@ -84,6 +86,7 @@ const PET_REFRESH_KEY = "danhuang-runtime-refresh";
 const REMINDER_SIGNAL_KEY = "danhuang-reminder-signal";
 const CHAT_SIGNAL_KEY = "danhuang-chat-signal";
 const PET_BUBBLE_SIGNAL_KEY = "danhuang-pet-bubble-signal";
+const PET_COMMAND_SIGNAL_KEY = "danhuang-pet-command-signal";
 const REMINDER_CHECK_INTERVAL_MS = 30_000;
 const PET_ROAM_INTERVAL_MS = 180;
 const PET_ROAM_PAUSE_MS = 2_200;
@@ -93,20 +96,46 @@ const PET_DRAG_DIRECTION_THRESHOLD = 6;
 const PET_DRAG_FEEDBACK_INTERVAL_MS = 16;
 const PET_DRAG_IDLE_RESET_MS = 650;
 const PET_DRAG_SAFETY_MS = 8_000;
+const PET_DRAG_HINT_MS = 1_000;
 const PET_DRAG_DIRECTION_SCORE_DECAY = 0.62;
 const PET_DRAG_DIRECTION_TRIGGER_MULTIPLIER = 1.55;
 const PET_DRAG_QUIET_MS = 180;
+const PET_CLICK_MOVE_TOLERANCE = 8;
+const PET_TOUCH_COOLDOWN_MS = 620;
+const PET_TOUCH_EFFECT_MS = 920;
 const PET_WINDOW_MIN_POSITION_DELTA = 1;
+const PET_CURSOR_FOLLOW_INTERVAL_MS = 120;
+const PET_CURSOR_FOLLOW_DURATION_MS = 12_000;
+const PET_CURSOR_FOLLOW_STOP_DISTANCE = 46;
+const PET_CURSOR_FOLLOW_POINTER_OFFSET_Y = 34;
+const PET_RECALL_POINTER_OFFSET_X = 34;
+const PET_RECALL_POINTER_OFFSET_Y = 42;
+const PET_SETTLE_PAUSE_MS = 180_000;
+const PET_TEMP_CLICK_THROUGH_MS = 30_000;
 const AUTO_TALK_MIN_MS = 90_000;
 const AUTO_TALK_MAX_MS = 180_000;
 const PET_BUBBLE_TYPE_INTERVAL_MS = 28;
 const PET_BUBBLE_MAX_QUEUE = 8;
 const PET_BUBBLE_RECENT_SIGNAL_MS = 120_000;
+const PET_COMMAND_RECENT_SIGNAL_MS = 20_000;
+const PET_ATLAS_COLUMNS = 8;
 
 type PanelThemeId = "studio" | "garden" | "daylight" | "soft-blue";
 type ReminderTone = "sage" | "info" | "danger-soft" | "warn";
 type ReminderFilter = "全部" | "今日" | "重要" | "已完成";
 type ProviderState = "待配置 Key" | "可接入" | "测试中" | "已启用" | "当前" | "连接失败" | "高级";
+type PresencePresetId = "companion" | "focus" | "playful" | "edge";
+type PetCommandId =
+  | "quick-talk"
+  | "quick-chat"
+  | "pet-touch"
+  | "follow-cursor"
+  | "stop-follow"
+  | "recall-near-cursor"
+  | "settle-near-edge"
+  | "play-action"
+  | "clear-bubbles";
+type QuickToolAction = "pet-touch" | "pet-talk" | "recall-pet" | "settle-pet" | "reminder" | "chat" | "identity" | "motion";
 
 interface ThemeOption {
   id: PanelThemeId;
@@ -122,6 +151,16 @@ interface BubblePaletteOption {
   fill: string;
   outline: string;
   text: string;
+}
+
+interface PresencePreset {
+  id: PresencePresetId;
+  label: string;
+  caption: string;
+  icon: typeof Heart;
+  settings: UpdateSettingsInput;
+  bubble: string;
+  status: string;
 }
 
 interface ReminderItem {
@@ -176,6 +215,14 @@ interface PetBubbleSignal {
   time: string;
 }
 
+interface PetCommandSignal {
+  command: PetCommandId;
+  action_id: string;
+  source: string;
+  time: string;
+  nonce: number;
+}
+
 interface PetBubbleQueueItem {
   id: string;
   message: string;
@@ -183,6 +230,14 @@ interface PetBubbleQueueItem {
   source: string;
   priority: number;
   time: string;
+}
+
+interface PetTouchEffect {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+  drift: number;
 }
 
 interface ProviderCard {
@@ -196,6 +251,13 @@ interface ProviderCard {
   hasSavedKey: boolean;
 }
 
+interface QuickTool {
+  action: QuickToolAction;
+  label: string;
+  caption: string;
+  icon: typeof Heart;
+}
+
 interface PetRoamArea {
   monitor: Monitor;
   monitorKey: string;
@@ -206,6 +268,18 @@ interface PetRoamArea {
   allowCenter: boolean;
   clampCurrentPosition: boolean;
 }
+
+const petCommandIds: PetCommandId[] = [
+  "quick-talk",
+  "quick-chat",
+  "pet-touch",
+  "follow-cursor",
+  "stop-follow",
+  "recall-near-cursor",
+  "settle-near-edge",
+  "play-action",
+  "clear-bubbles",
+];
 
 const runtime = ref<RuntimeSummary | null>(null);
 const currentAsset = ref("");
@@ -251,6 +325,15 @@ let petDragDirectionScore = 0;
 let petDragLastMoveAt = 0;
 let petDragLastWindowX: number | null = null;
 let petDragLastWindowY: number | null = null;
+let petDragMoved = false;
+let petDragHintShown = false;
+let petDragHintTimer: number | undefined;
+let suppressNextPetClick = false;
+let lastPetTouchAt = 0;
+let cursorFollowTimer: number | undefined;
+let cursorFollowEndsAt = 0;
+let cursorFollowBusy = false;
+let temporaryClickThroughTimer: number | undefined;
 let spriteLoadVersion = 0;
 let unlistenRuntimeChanged: UnlistenFn | undefined;
 let unlistenReminderTriggered: UnlistenFn | undefined;
@@ -258,6 +341,7 @@ let unlistenChatReply: UnlistenFn | undefined;
 let lastHandledReminderSignal = "";
 let lastHandledChatSignal = "";
 let lastHandledPetBubbleSignal = "";
+let lastHandledPetCommandSignal = "";
 const activePetBubbleId = ref("");
 const SPRITE_CELL_WIDTH = 192;
 const SPRITE_CELL_HEIGHT = 208;
@@ -333,6 +417,92 @@ const bubblePaletteOptions: BubblePaletteOption[] = [
     text: "#262b28",
   },
 ];
+const presencePresets: PresencePreset[] = [
+  {
+    id: "companion",
+    label: "陪伴模式",
+    caption: "低频说话、贴边巡游，适合日常一直挂着。",
+    icon: Heart,
+    status: "低打扰",
+    bubble: "我会安静陪着你，主人。",
+    settings: {
+      talk_enabled: true,
+      roam_enabled: true,
+      roam_allow_center: false,
+      multi_monitor_roam: false,
+      primary_monitor_edge_only: true,
+      secondary_monitor_full_roam: false,
+      click_through_enabled: false,
+      roam_speed: 70,
+      roam_distance: 0.35,
+      talk_interval: 180,
+      talk_after_interaction_delay: 18,
+    },
+  },
+  {
+    id: "focus",
+    label: "专注勿扰",
+    caption: "停止巡游和自动说话，保留右键和拖动恢复入口。",
+    icon: Moon,
+    status: "不打扰",
+    bubble: "我先趴好，不打扰你。",
+    settings: {
+      talk_enabled: false,
+      roam_enabled: false,
+      roam_allow_center: false,
+      multi_monitor_roam: false,
+      primary_monitor_edge_only: true,
+      secondary_monitor_full_roam: false,
+      click_through_enabled: false,
+      roam_speed: 55,
+      roam_distance: 0.2,
+      talk_interval: 300,
+      talk_after_interaction_delay: 45,
+    },
+  },
+  {
+    id: "playful",
+    label: "活跃互动",
+    caption: "更积极地跑动、冒泡和响应摸摸。",
+    icon: Zap,
+    status: "更活泼",
+    bubble: "主人，我跑一会儿给你看。",
+    settings: {
+      talk_enabled: true,
+      roam_enabled: true,
+      roam_allow_center: true,
+      multi_monitor_roam: true,
+      primary_monitor_edge_only: false,
+      secondary_monitor_full_roam: true,
+      click_through_enabled: false,
+      roam_speed: 120,
+      roam_distance: 0.78,
+      talk_interval: 70,
+      talk_after_interaction_delay: 6,
+    },
+  },
+  {
+    id: "edge",
+    label: "桌边巡游",
+    caption: "只沿当前屏边缘活动，保留手动互动。",
+    icon: Map,
+    status: "贴边",
+    bubble: "我贴着桌边慢慢走。",
+    settings: {
+      talk_enabled: true,
+      roam_enabled: true,
+      roam_allow_center: false,
+      multi_monitor_roam: true,
+      primary_monitor_edge_only: true,
+      secondary_monitor_full_roam: false,
+      click_through_enabled: false,
+      roam_speed: 60,
+      roam_distance: 0.28,
+      talk_interval: 220,
+      talk_after_interaction_delay: 22,
+    },
+  },
+];
 const storedTheme = localStorage.getItem(THEME_KEY);
 const activeThemeId = ref<PanelThemeId>(themeOptions.some((theme) => theme.id === storedTheme) ? (storedTheme as PanelThemeId) : "studio");
 const reminderFilters: ReminderFilter[] = ["全部", "今日", "重要", "已完成"];
@@ -377,13 +547,15 @@ const navGroups = [
   },
 ];
 
-const quickTools = [
-  { label: "摸摸", caption: "给它一个轻反馈", icon: Heart },
-  { label: "说句话", caption: "低频陪伴短句", icon: MessageCircle },
-  { label: "加提醒", caption: "本地待办", icon: Bell },
-  { label: "查资料", caption: "资料检索", icon: CloudSun },
-  { label: "切形象", caption: "家人列表", icon: Image },
-  { label: "动作页", caption: "预览动作", icon: Play },
+const quickTools: QuickTool[] = [
+  { action: "pet-touch", label: "摸摸", caption: "给它一个轻反馈", icon: Heart },
+  { action: "pet-talk", label: "说句话", caption: "低频陪伴短句", icon: MessageCircle },
+  { action: "recall-pet", label: "召回", caption: "拉到鼠标旁边", icon: PanelRightOpen },
+  { action: "settle-pet", label: "靠边", caption: "安静停在底边", icon: Moon },
+  { action: "reminder", label: "加提醒", caption: "本地待办", icon: Bell },
+  { action: "chat", label: "查资料", caption: "问答和资料检索", icon: CloudSun },
+  { action: "identity", label: "切形象", caption: "家人列表", icon: Image },
+  { action: "motion", label: "动作页", caption: "预览动作", icon: Play },
 ];
 
 const baseActionIds = ["idle", "running-right", "running-left", "waving", "jumping"];
@@ -428,6 +600,9 @@ const chatMessages = ref<ChatMessageSummary[]>([]);
 const chatLoading = ref(false);
 const chatSending = ref(false);
 const chatDraft = ref("");
+const petInlineChatOpen = ref(false);
+const petInlineChatDraft = ref("");
+const petInlineChatInputRef = ref<HTMLInputElement | null>(null);
 const selectedRoleStyle = ref("蛋黄本色");
 const petState = ref<PetStateSummary | null>(null);
 const petStateLoading = ref(false);
@@ -465,6 +640,11 @@ const petBubbleVisible = ref(false);
 const petBubbleText = ref("我在这里，主人。");
 const petBubbleFullText = ref("我在这里，主人。");
 const petBubbleQueue = ref<PetBubbleQueueItem[]>([]);
+const petTouchEffects = ref<PetTouchEffect[]>([]);
+const petDragHintVisible = ref(false);
+const petDragHintText = ref("我跟着你移动。");
+const cursorFollowActive = ref(false);
+const cursorFollowRemainingSeconds = ref(0);
 const talkEnabled = ref(true);
 const roamEnabled = ref(true);
 const scaleValue = ref(0.46);
@@ -552,6 +732,18 @@ const visibleReminders = computed(() => {
   return items;
 });
 const selectedReminder = computed(() => reminders.value.find((item) => item.id === selectedReminderId.value) ?? visibleReminders.value[0] ?? null);
+const companionLevel = computed(() => Math.max(1, Math.round(Number(runtime.value?.features.companion_level ?? 1) || 1)));
+const companionXp = computed(() => Math.max(0, Math.round(Number(runtime.value?.features.companion_xp ?? 0) || 0)));
+const companionInteractions = computed(() => Math.max(0, Math.round(Number(runtime.value?.features.companion_interactions ?? 0) || 0)));
+const companionTalks = computed(() => Math.max(0, Math.round(Number(runtime.value?.features.companion_talks ?? 0) || 0)));
+const companionLevelSpan = computed(() => Math.max(240, (companionLevel.value + 1) * 240));
+const companionProgressXp = computed(() => companionXp.value % companionLevelSpan.value);
+const companionXpToNext = computed(() => companionLevelSpan.value - companionProgressXp.value);
+const companionProgressPercent = computed(() => clamp(Math.round((companionProgressXp.value / companionLevelSpan.value) * 100), 4, 100));
+const companionProgressText = computed(() => {
+  const prefix = runtime.value?.runtime_available ? "当前宠物真实陪伴状态" : "浏览器预览示例状态";
+  return `${prefix}: ${companionXp.value} XP、互动 ${companionInteractions.value} 次、对话 ${companionTalks.value} 轮；按当前等级进度估算，距离下一阶段约 ${companionXpToNext.value} XP。`;
+});
 const capabilityCards = computed(() => [
   {
     label: "云端",
@@ -605,6 +797,29 @@ const pageCaption = computed(() => {
   };
   return map[activePage.value] ?? "Tauri/Vue 产品版基础页面。";
 });
+const activePresencePresetId = computed(() => presencePresets.find((preset) => presencePresetMatches(preset))?.id ?? "");
+
+function numberSettingMatches(expected: number | undefined, actual: number, tolerance = 0.01) {
+  if (expected === undefined) return true;
+  return Math.abs(expected - actual) <= tolerance;
+}
+
+function presencePresetMatches(preset: PresencePreset) {
+  const settings = preset.settings;
+  return (
+    (settings.talk_enabled === undefined || settings.talk_enabled === talkEnabled.value) &&
+    (settings.roam_enabled === undefined || settings.roam_enabled === roamEnabled.value) &&
+    (settings.roam_allow_center === undefined || settings.roam_allow_center === roamAllowCenter.value) &&
+    (settings.multi_monitor_roam === undefined || settings.multi_monitor_roam === multiMonitorRoam.value) &&
+    (settings.primary_monitor_edge_only === undefined || settings.primary_monitor_edge_only === primaryMonitorEdgeOnly.value) &&
+    (settings.secondary_monitor_full_roam === undefined || settings.secondary_monitor_full_roam === secondaryMonitorFullRoam.value) &&
+    (settings.click_through_enabled === undefined || settings.click_through_enabled === clickThroughEnabled.value) &&
+    numberSettingMatches(settings.roam_speed, roamSpeedValue.value) &&
+    numberSettingMatches(settings.roam_distance, roamDistanceValue.value) &&
+    numberSettingMatches(settings.talk_interval, talkIntervalValue.value) &&
+    numberSettingMatches(settings.talk_after_interaction_delay, talkAfterInteractionDelayValue.value)
+  );
+}
 
 function chatSourceLabel(source: string) {
   if (source.startsWith("ai-research:")) {
@@ -684,8 +899,8 @@ const extensionActionItems = computed(() => playableActions.value.filter((action
 const petScale = computed(() => Math.min(Math.max(Number(scaleValue.value) || 0.46, 0.2), 1.2));
 const petStageWidth = computed(() => Math.max(SPRITE_CELL_WIDTH, Math.round(SPRITE_CELL_WIDTH * petScale.value) + 20));
 const petStageHeight = computed(() => Math.max(SPRITE_CELL_HEIGHT, Math.round(SPRITE_CELL_HEIGHT * petScale.value) + 34));
-const petWindowWidth = computed(() => Math.max(260, Math.min(420, petStageWidth.value + 64)));
-const petWindowHeight = computed(() => Math.max(260, Math.min(420, petStageHeight.value + 92)));
+const petWindowWidth = computed(() => Math.max(320, Math.min(420, petStageWidth.value + 96)));
+const petWindowHeight = computed(() => Math.max(300, Math.min(420, petStageHeight.value + 84)));
 const petWindowSizeLabel = computed(() => `${petWindowWidth.value} x ${petWindowHeight.value}`);
 const roamPolicyLabel = computed(() => {
   if (roamCurrentMonitorOnly.value) return "当前屏限制";
@@ -712,18 +927,15 @@ const petSpriteStyle = computed(() => {
   const frameCount = Math.max(action.frames, 1);
   const frame = spriteFrame.value % frameCount;
   const row = action.source === "strip" ? 0 : (action.row ?? 0);
-  const style: Record<string, string> = {
-    width: `${SPRITE_CELL_WIDTH}px`,
-    height: `${SPRITE_CELL_HEIGHT}px`,
+  const scale = Math.min(Math.max(petScale.value || 1, 0.2), 2.5);
+  const columns = action.source === "strip" ? frameCount : PET_ATLAS_COLUMNS;
+  return {
+    width: `${Math.round(SPRITE_CELL_WIDTH * scale)}px`,
+    height: `${Math.round(SPRITE_CELL_HEIGHT * scale)}px`,
     backgroundImage: `url("${petSpriteAsset.value}")`,
-    backgroundPosition: `-${frame * SPRITE_CELL_WIDTH}px -${row * SPRITE_CELL_HEIGHT}px`,
-    transform: `scale(${petScale.value})`,
-    transformOrigin: "center bottom",
+    backgroundPosition: `-${Math.round(frame * SPRITE_CELL_WIDTH * scale)}px -${Math.round(row * SPRITE_CELL_HEIGHT * scale)}px`,
+    backgroundSize: `${Math.round(columns * SPRITE_CELL_WIDTH * scale)}px auto`,
   };
-  if (action.source === "strip") {
-    style.backgroundSize = `${frameCount * SPRITE_CELL_WIDTH}px ${SPRITE_CELL_HEIGHT}px`;
-  }
-  return style;
 });
 const currentAssetIsSpritesheet = computed(
   () => Boolean(currentAsset.value && currentAssetPath.value && currentPet.value?.spritesheet_asset === currentAssetPath.value),
@@ -745,10 +957,17 @@ const panelSpritePreviewStyle = computed(() => {
   }
   return style;
 });
-const quickMenuStyle = computed(() => ({
-  left: `${clamp(quickMenuPos.value.x, 8, Math.max(8, window.innerWidth - Math.min(320, window.innerWidth - 16) - 8))}px`,
-  top: `${clamp(quickMenuPos.value.y, 8, Math.max(8, window.innerHeight - Math.min(420, window.innerHeight - 16) - 8))}px`,
-}));
+
+const quickMenuStyle = computed(() => {
+  return {
+    top: "10px",
+    right: "auto",
+    left: "24px",
+    width: "210px",
+    maxWidth: "calc(100vw - 48px)",
+    maxHeight: "calc(100vh - 20px)",
+  };
+});
 const bubbleCssVars = computed<Record<string, string>>(() => ({
   "--bubble-fill": bubbleFill.value,
   "--bubble-outline": bubbleOutline.value,
@@ -780,6 +999,10 @@ function showToast(message: string) {
   window.setTimeout(() => {
     if (toast.value === message) toast.value = "";
   }, 2800);
+}
+
+function publishRuntimeRefresh(reason: string) {
+  localStorage.setItem(PET_REFRESH_KEY, `${Date.now()}:${reason}`);
 }
 
 function clearPetBubbleTimer() {
@@ -1011,6 +1234,131 @@ function publishPetBubbleSignal(message: string, source = "manual-preview", acti
   localStorage.setItem(PET_BUBBLE_SIGNAL_KEY, JSON.stringify({ ...signal, nonce: Date.now() }));
 }
 
+function isPetCommandId(value: string): value is PetCommandId {
+  return petCommandIds.includes(value as PetCommandId);
+}
+
+function petCommandSignalFromPayload(payload: unknown): PetCommandSignal | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as Record<string, unknown>;
+  const command = String(record.command ?? "");
+  if (!isPetCommandId(command)) return null;
+  const nonce = Number(record.nonce ?? Date.now());
+  return {
+    command,
+    action_id: String(record.action_id ?? ""),
+    source: String(record.source ?? "panel"),
+    time: String(record.time ?? nowIso()),
+    nonce: Number.isFinite(nonce) ? nonce : Date.now(),
+  };
+}
+
+function petCommandSignalKey(signal: PetCommandSignal) {
+  return `${signal.time}:${signal.source}:${signal.command}:${signal.action_id}:${signal.nonce}`;
+}
+
+async function handlePetCommandSignal(signal: PetCommandSignal) {
+  if (viewMode !== "pet") return;
+  const key = petCommandSignalKey(signal);
+  if (lastHandledPetCommandSignal === key) return;
+  lastHandledPetCommandSignal = key;
+
+  quickMenuOpen.value = false;
+  petSwitcherOpen.value = false;
+  switch (signal.command) {
+    case "quick-talk":
+      quickPetTalk();
+      break;
+    case "quick-chat":
+      await quickPetChat();
+      break;
+    case "pet-touch":
+      triggerPetTouch(undefined, signal.source || "panel-command");
+      break;
+    case "follow-cursor":
+      startCursorFollow();
+      break;
+    case "stop-follow":
+      stopCursorFollow();
+      break;
+    case "recall-near-cursor":
+      await recallPetNearCursor(signal.source || "panel-recall");
+      break;
+    case "settle-near-edge":
+      await settlePetNearEdge(signal.source || "panel-settle");
+      break;
+    case "play-action":
+      if (signal.action_id) {
+        queueAction(signal.action_id);
+      }
+      break;
+    case "clear-bubbles":
+      clearAllPetBubbles();
+      break;
+  }
+}
+
+function publishPetCommandSignal(command: PetCommandId, options: { actionId?: string; source?: string } = {}) {
+  const signal: PetCommandSignal = {
+    command,
+    action_id: options.actionId ?? "",
+    source: options.source ?? (viewMode === "panel" ? "panel" : "pet"),
+    time: nowIso(),
+    nonce: Date.now(),
+  };
+  localStorage.setItem(PET_COMMAND_SIGNAL_KEY, JSON.stringify(signal));
+  if (viewMode === "pet") {
+    void handlePetCommandSignal(signal);
+  }
+}
+
+async function sendPetCommand(command: PetCommandId, options: { actionId?: string; source?: string; toast?: string } = {}) {
+  try {
+    if (viewMode === "panel") {
+      await runtimeApi.showPet();
+    }
+    publishPetCommandSignal(command, options);
+    if (options.toast) {
+      showToast(options.toast);
+    }
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+function runQuickTool(tool: QuickTool) {
+  switch (tool.action) {
+    case "pet-touch":
+      void sendPetCommand("pet-touch", { source: "quick-tool:touch", toast: "已让桌宠做摸摸反馈" });
+      break;
+    case "pet-talk":
+      void sendPetCommand("quick-talk", { source: "quick-tool:talk", toast: "已让桌宠说一句" });
+      break;
+    case "recall-pet":
+      void sendPetCommand("recall-near-cursor", { source: "quick-tool:recall", toast: "已把桌宠召回到鼠标附近" });
+      break;
+    case "settle-pet":
+      void sendPetCommand("settle-near-edge", { source: "quick-tool:settle", toast: "已让桌宠靠边休息" });
+      break;
+    case "reminder":
+      switchPage("reminders");
+      showToast("已打开提醒页");
+      break;
+    case "chat":
+      switchPage("chat");
+      showToast("已打开对话页，可继续问资料");
+      break;
+    case "identity":
+      switchPage("identity");
+      showToast("已打开形象页");
+      break;
+    case "motion":
+      switchPage("motion");
+      showToast("已打开动作页");
+      break;
+  }
+}
+
 function previewAutoTalk() {
   publishPetBubbleSignal(pickAutoTalkMessage(), "manual-preview", pickAutoTalkAction()?.id ?? "");
   showToast("已发送一条自动说话预览到桌宠窗口");
@@ -1021,11 +1369,135 @@ function quickPetTalk() {
   publishPetBubbleSignal(pickAutoTalkMessage(), "quick-menu", pickAutoTalkAction()?.id ?? "");
 }
 
-function quickPetTouch() {
+async function quickPetChat() {
+  if (chatSending.value) return;
   quickMenuOpen.value = false;
+  petSwitcherOpen.value = false;
+  chatSending.value = true;
+  showPetBubble("我想想，马上回你。", {
+    replace: true,
+    source: "quick-chat",
+    actionId: pickAutoTalkAction()?.id ?? "",
+  });
+  try {
+    const message = await runtimeApi.sendChatMessage({
+      text: "和我打个招呼，短短陪我一句。",
+      role_style: selectedRoleStyle.value,
+      now: nowIso(),
+    });
+    chatMessages.value = [...chatMessages.value, message].slice(-30);
+    publishChatSignal(message, { replace: true });
+    showToast("桌宠已回复一句聊天");
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : String(error));
+  } finally {
+    chatSending.value = false;
+  }
+}
+
+function openPetInlineChat() {
+  if (viewMode !== "pet") {
+    openPanelPage("chat");
+    return;
+  }
+  quickMenuOpen.value = false;
+  petSwitcherOpen.value = false;
+  clearAllPetBubbles();
+  petInlineChatOpen.value = true;
+  pausePetRoam(4_000);
+  void nextTick(() => {
+    petInlineChatInputRef.value?.focus({ preventScroll: true });
+  });
+}
+
+function closePetInlineChat() {
+  petInlineChatOpen.value = false;
+}
+
+async function sendPetInlineChat() {
+  const text = petInlineChatDraft.value.trim();
+  if (!text) {
+    showPetBubble("主人，先和我说一句吧。", {
+      replace: true,
+      source: "pet-inline-chat-empty",
+      actionId: pickAutoTalkAction()?.id ?? "",
+    });
+    return;
+  }
+  if (chatSending.value) return;
+
+  petInlineChatOpen.value = false;
+  chatSending.value = true;
+  showPetBubble("我听到了，想一想。", {
+    replace: true,
+    source: "pet-inline-chat",
+    actionId: pickAutoTalkAction()?.id ?? "",
+  });
+  try {
+    const message = await runtimeApi.sendChatMessage({
+      text,
+      role_style: selectedRoleStyle.value,
+      now: nowIso(),
+    });
+    chatMessages.value = [...chatMessages.value, message].slice(-30);
+    petInlineChatDraft.value = "";
+    publishChatSignal(message, { replace: true });
+    pausePetRoam(2_600);
+  } catch (error) {
+    showPetBubble("我刚刚没听清，再和我说一次好吗。", {
+      replace: true,
+      source: "pet-inline-chat-error",
+      actionId: pickAutoTalkAction()?.id ?? "",
+    });
+    showToast(error instanceof Error ? error.message : String(error));
+  } finally {
+    chatSending.value = false;
+  }
+}
+
+function petTouchMessage() {
+  const name = currentPet.value?.display_name || "蛋黄";
+  return `摸摸头，${name}摇了摇尾巴。`;
+}
+
+function pickPetTouchAction() {
   const action =
     playableActions.value.find((item) => item.id === "waving") ?? playableActions.value.find((item) => item.label.includes("挥")) ?? actionForRoam("idle");
-  publishPetBubbleSignal("摸摸头，蛋黄摇了摇尾巴。", "quick-menu", action?.id ?? "");
+  return action;
+}
+
+function addPetTouchEffect(x = window.innerWidth / 2, y = window.innerHeight / 2) {
+  const effect: PetTouchEffect = {
+    id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    x,
+    y,
+    size: 16 + Math.round(Math.random() * 5),
+    drift: Math.round((Math.random() - 0.5) * 24),
+  };
+  petTouchEffects.value = [...petTouchEffects.value, effect].slice(-6);
+  window.setTimeout(() => {
+    petTouchEffects.value = petTouchEffects.value.filter((item) => item.id !== effect.id);
+  }, PET_TOUCH_EFFECT_MS);
+}
+
+function triggerPetTouch(event?: MouseEvent, source = "touch") {
+  const now = Date.now();
+  if (now - lastPetTouchAt < PET_TOUCH_COOLDOWN_MS) return;
+  lastPetTouchAt = now;
+  quickMenuOpen.value = false;
+  petSwitcherOpen.value = false;
+  pausePetRoam(2_400);
+  const action = pickPetTouchAction();
+  addPetTouchEffect(event?.clientX ?? window.innerWidth / 2, event?.clientY ?? window.innerHeight / 2);
+  showPetBubble(petTouchMessage(), {
+    replace: true,
+    source,
+    actionId: action?.id ?? "",
+  });
+}
+
+function quickPetTouch() {
+  triggerPetTouch(undefined, "quick-menu");
 }
 
 function clearAutoTalkTimer() {
@@ -1172,12 +1644,39 @@ async function syncPetWindowSize() {
   if (viewMode !== "pet" || petWindowSizeBusy) return;
   petWindowSizeBusy = true;
   try {
-    await getCurrentWindow().setSize(new PhysicalSize(petWindowWidth.value, petWindowHeight.value));
+    await getCurrentWindow().setSize(new LogicalSize(petWindowWidth.value, petWindowHeight.value));
+    resetPetRoamTarget();
   } catch {
     // Browser preview and unsupported environments do not expose native window sizing.
   } finally {
     petWindowSizeBusy = false;
   }
+}
+
+async function syncPetWindowChrome() {
+  if (viewMode !== "pet") return;
+  try {
+    const windowRef = getCurrentWindow();
+    await Promise.allSettled([
+      windowRef.setDecorations(false),
+      windowRef.setShadow(false),
+      windowRef.setBackgroundColor([0, 0, 0, 0]),
+      getCurrentWebviewWindow().setBackgroundColor([0, 0, 0, 0]),
+    ]);
+    await runtimeApi.refreshPetWindow();
+  } catch {
+    // Browser preview and older WebView hosts can ignore native chrome cleanup.
+  }
+}
+
+function schedulePetWindowChromeRefresh() {
+  if (viewMode !== "pet") return;
+  window.setTimeout(() => {
+    void syncPetWindowChrome();
+  }, 120);
+  window.setTimeout(() => {
+    void syncPetWindowChrome();
+  }, 480);
 }
 
 function selectTheme(themeId: PanelThemeId) {
@@ -1231,9 +1730,11 @@ function applySettings(settings: SafeSettingsSummary) {
   roamCurrentMonitorOnly.value = settings.roam_current_monitor_only ?? roamCurrentMonitorOnly.value;
   keepOnScreen.value = settings.keep_on_screen ?? keepOnScreen.value;
   lockSizeAcrossMonitors.value = settings.lock_size_across_monitors ?? lockSizeAcrossMonitors.value;
-  clickThroughEnabled.value = settings.click_through_enabled ?? clickThroughEnabled.value;
+  clickThroughEnabled.value = viewMode === "pet" ? false : settings.click_through_enabled ?? clickThroughEnabled.value;
   void syncPetWindowSize();
-  void syncPetClickThrough();
+  if (viewMode === "pet") {
+    void syncPetClickThrough(false);
+  }
 }
 
 function commitRuntimeSettings(settings: SafeSettingsSummary) {
@@ -1246,16 +1747,69 @@ function commitRuntimeSettings(settings: SafeSettingsSummary) {
   }
 }
 
+function applySettingsInputLocally(input: UpdateSettingsInput) {
+  if (input.scale !== undefined) scaleValue.value = input.scale;
+  if (input.animation_speed !== undefined) animationSpeedValue.value = input.animation_speed;
+  if (input.always_on_top !== undefined) petPinned.value = input.always_on_top;
+  if (input.bubble_style !== undefined) selectedBubbleStyle.value = input.bubble_style;
+  if (input.bubble_fill !== undefined) bubbleFill.value = input.bubble_fill;
+  if (input.bubble_outline !== undefined) bubbleOutline.value = input.bubble_outline;
+  if (input.bubble_text !== undefined) bubbleTextColor.value = input.bubble_text;
+  if (input.bubble_duration !== undefined) bubbleDuration.value = input.bubble_duration;
+  if (input.talk_enabled !== undefined) talkEnabled.value = input.talk_enabled;
+  if (input.roam_enabled !== undefined) roamEnabled.value = input.roam_enabled;
+  if (input.drag_sensitivity !== undefined) dragSensitivityValue.value = input.drag_sensitivity;
+  if (input.inertia !== undefined) inertiaValue.value = input.inertia;
+  if (input.roam_speed !== undefined) roamSpeedValue.value = input.roam_speed;
+  if (input.roam_distance !== undefined) roamDistanceValue.value = input.roam_distance;
+  if (input.roam_interval !== undefined) roamIntervalValue.value = input.roam_interval;
+  if (input.idle_action_interval !== undefined) idleActionIntervalValue.value = input.idle_action_interval;
+  if (input.talk_interval !== undefined) talkIntervalValue.value = input.talk_interval;
+  if (input.talk_after_interaction_delay !== undefined) talkAfterInteractionDelayValue.value = input.talk_after_interaction_delay;
+  if (input.roam_allow_center !== undefined) roamAllowCenter.value = input.roam_allow_center;
+  if (input.multi_monitor_roam !== undefined) multiMonitorRoam.value = input.multi_monitor_roam;
+  if (input.primary_monitor_edge_only !== undefined) primaryMonitorEdgeOnly.value = input.primary_monitor_edge_only;
+  if (input.secondary_monitor_full_roam !== undefined) secondaryMonitorFullRoam.value = input.secondary_monitor_full_roam;
+  if (input.roam_current_monitor_only !== undefined) roamCurrentMonitorOnly.value = input.roam_current_monitor_only;
+  if (input.keep_on_screen !== undefined) keepOnScreen.value = input.keep_on_screen;
+  if (input.lock_size_across_monitors !== undefined) lockSizeAcrossMonitors.value = input.lock_size_across_monitors;
+  if (input.click_through_enabled !== undefined) clickThroughEnabled.value = input.click_through_enabled;
+}
+
 async function saveRuntimeSettings(input: UpdateSettingsInput, successMessage: string) {
   settingsSaving.value = true;
   try {
     const settings = await runtimeApi.updateSettings(input);
     commitRuntimeSettings(settings);
+    publishRuntimeRefresh("settings");
     showToast(successMessage);
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
   } finally {
     settingsSaving.value = false;
+  }
+}
+
+async function applyPresencePreset(preset: PresencePreset) {
+  quickMenuOpen.value = false;
+  petSwitcherOpen.value = false;
+  applySettingsInputLocally(preset.settings);
+  settingsSaving.value = true;
+  if (preset.settings.click_through_enabled !== undefined) clickThroughBusy.value = true;
+  try {
+    const settings = await runtimeApi.updateSettings(preset.settings);
+    commitRuntimeSettings(settings);
+    if (preset.settings.click_through_enabled !== undefined) {
+      await runtimeApi.setPetClickThrough(preset.settings.click_through_enabled);
+    }
+    publishRuntimeRefresh(`settings:presence:${preset.id}`);
+    publishPetBubbleSignal(preset.bubble, `presence:${preset.id}`, pickAutoTalkAction()?.id ?? "");
+    showToast(`${preset.label} 已保存并应用`);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : String(error));
+  } finally {
+    settingsSaving.value = false;
+    clickThroughBusy.value = false;
   }
 }
 
@@ -1296,7 +1850,6 @@ async function saveBehaviorSettings() {
       keep_on_screen: keepOnScreen.value,
       lock_size_across_monitors: lockSizeAcrossMonitors.value,
       always_on_top: petPinned.value,
-      click_through_enabled: clickThroughEnabled.value,
     },
     "行为设置已写入 E 盘运行镜像",
   );
@@ -1481,7 +2034,7 @@ function chatSignalKey(signal: ChatSignal) {
   return `${signal.time}:${signal.reply.slice(0, 32)}`;
 }
 
-function showChatFeedback(signal: ChatSignal) {
+function showChatFeedback(signal: ChatSignal, options: { replace?: boolean } = {}) {
   const key = chatSignalKey(signal);
   if (lastHandledChatSignal === key) return;
   lastHandledChatSignal = key;
@@ -1489,17 +2042,18 @@ function showChatFeedback(signal: ChatSignal) {
   showPetBubble(signal.reply, {
     source: signal.source || "chat",
     actionId: action?.id ?? "",
+    replace: options.replace,
   });
 }
 
-function publishChatSignal(message: ChatMessageSummary) {
+function publishChatSignal(message: ChatMessageSummary, options: { replace?: boolean } = {}) {
   const signal: ChatSignal = {
     reply: message.reply,
     mood: message.mood,
     source: message.source,
     time: message.time,
   };
-  showChatFeedback(signal);
+  showChatFeedback(signal, options);
   localStorage.setItem(CHAT_SIGNAL_KEY, JSON.stringify({ ...signal, nonce: Date.now() }));
 }
 
@@ -1972,6 +2526,7 @@ async function loadPetSpriteForAction(
 }
 
 async function setPetAction(action: PetActionSummary) {
+  stopCursorFollow(false);
   pausePetRoam(2_800);
   activePetActionId.value = action.id;
   spriteFrame.value = 0;
@@ -2009,6 +2564,253 @@ async function setPetActionSilently(action: PetActionSummary | null | undefined)
   await loadPetSpriteForAction(action);
 }
 
+function clearCursorFollowTimer() {
+  if (cursorFollowTimer !== undefined) {
+    window.clearInterval(cursorFollowTimer);
+    cursorFollowTimer = undefined;
+  }
+}
+
+function clearTemporaryClickThroughTimer() {
+  if (temporaryClickThroughTimer !== undefined) {
+    window.clearTimeout(temporaryClickThroughTimer);
+    temporaryClickThroughTimer = undefined;
+  }
+}
+
+function stopCursorFollow(showFeedback = true) {
+  const wasActive = cursorFollowActive.value;
+  clearCursorFollowTimer();
+  cursorFollowActive.value = false;
+  cursorFollowRemainingSeconds.value = 0;
+  cursorFollowEndsAt = 0;
+  cursorFollowBusy = false;
+  if (wasActive) {
+    if (showFeedback) {
+      showPetBubble("我先停下来，主人。", {
+        replace: true,
+        source: "cursor-follow",
+        actionId: actionForRoam("idle")?.id ?? "",
+      });
+    }
+    void setPetActionSilently(actionForRoam("idle"));
+  }
+}
+
+function cursorInsideMonitor(point: { x: number; y: number }, monitor: Monitor) {
+  const area = monitor.workArea;
+  return (
+    point.x >= area.position.x &&
+    point.x <= area.position.x + area.size.width &&
+    point.y >= area.position.y &&
+    point.y <= area.position.y + area.size.height
+  );
+}
+
+async function resolveCursorFollowArea(cursor: { x: number; y: number }, windowSize: PhysicalSize) {
+  const [current, monitors] = await Promise.all([currentMonitor().catch(() => null), availableMonitors().catch(() => [] as Monitor[])]);
+  const monitor = monitors.find((item) => cursorInsideMonitor(cursor, item)) ?? current ?? monitors[0] ?? null;
+  if (!monitor) return null;
+
+  const workArea = monitor.workArea;
+  const minX = workArea.position.x + PET_ROAM_EDGE_PADDING;
+  const maxX = workArea.position.x + workArea.size.width - windowSize.width - PET_ROAM_EDGE_PADDING;
+  const minY = workArea.position.y + PET_ROAM_EDGE_PADDING;
+  const maxY = workArea.position.y + workArea.size.height - windowSize.height - PET_ROAM_EDGE_PADDING;
+  if (maxX <= minX || maxY <= minY) return null;
+  return { minX, maxX, minY, maxY };
+}
+
+async function resolveRecallMonitor(cursor: { x: number; y: number }) {
+  const [current, primary, monitors] = await Promise.all([
+    currentMonitor().catch(() => null),
+    primaryMonitor().catch(() => null),
+    availableMonitors().catch(() => [] as Monitor[]),
+  ]);
+  return monitors.find((monitor) => cursorInsideMonitor(cursor, monitor)) ?? current ?? primary ?? monitors[0] ?? null;
+}
+
+async function recallPetNearCursor(source = "panel-recall") {
+  if (viewMode !== "pet") {
+    showToast("召回桌宠请从控制面板触发");
+    return;
+  }
+  stopCursorFollow(false);
+  quickMenuOpen.value = false;
+  petSwitcherOpen.value = false;
+  pausePetRoam(2_800);
+
+  try {
+    const windowRef = getCurrentWindow();
+    const [cursor, size] = await Promise.all([cursorPosition(), windowRef.outerSize()]);
+    const monitor = await resolveRecallMonitor({ x: cursor.x, y: cursor.y });
+    if (!monitor) throw new Error("未获取到屏幕区域");
+
+    const workArea = monitor.workArea;
+    const minX = workArea.position.x + PET_ROAM_EDGE_PADDING;
+    const maxX = workArea.position.x + workArea.size.width - size.width - PET_ROAM_EDGE_PADDING;
+    const minY = workArea.position.y + PET_ROAM_EDGE_PADDING;
+    const maxY = workArea.position.y + workArea.size.height - size.height - PET_ROAM_EDGE_PADDING;
+    const nextX = clamp(cursor.x + PET_RECALL_POINTER_OFFSET_X, Math.min(minX, maxX), Math.max(minX, maxX));
+    const nextY = clamp(cursor.y + PET_RECALL_POINTER_OFFSET_Y, Math.min(minY, maxY), Math.max(minY, maxY));
+    await windowRef.setPosition(new PhysicalPosition(Math.round(nextX), Math.round(nextY)));
+    await setPetActionSilently(actionForRoam("idle"));
+    addPetTouchEffect(window.innerWidth / 2, window.innerHeight / 2);
+    showPetBubble("我回到你旁边了，主人。", {
+      replace: true,
+      source,
+      actionId: actionForRoam("idle")?.id ?? "",
+    });
+  } catch {
+    showPetBubble("我在这里，主人。", {
+      replace: true,
+      source,
+      actionId: actionForRoam("idle")?.id ?? "",
+    });
+    showToast("当前环境无法移动桌宠，打包桌面版可用");
+  }
+}
+
+async function settlePetNearEdge(source = "panel-settle") {
+  if (viewMode !== "pet") {
+    showToast("靠边休息请从控制面板触发");
+    return;
+  }
+  stopCursorFollow(false);
+  quickMenuOpen.value = false;
+  petSwitcherOpen.value = false;
+  pausePetRoam(PET_SETTLE_PAUSE_MS);
+
+  try {
+    const windowRef = getCurrentWindow();
+    const [cursor, size] = await Promise.all([cursorPosition(), windowRef.outerSize()]);
+    const monitor = await resolveRecallMonitor({ x: cursor.x, y: cursor.y });
+    if (!monitor) throw new Error("未获取到屏幕区域");
+
+    const workArea = monitor.workArea;
+    const minX = workArea.position.x + PET_ROAM_EDGE_PADDING;
+    const maxX = workArea.position.x + workArea.size.width - size.width - PET_ROAM_EDGE_PADDING;
+    const minY = workArea.position.y + PET_ROAM_EDGE_PADDING;
+    const maxY = workArea.position.y + workArea.size.height - size.height - PET_ROAM_EDGE_PADDING;
+    const targetX = clamp(cursor.x - size.width * 0.5, Math.min(minX, maxX), Math.max(minX, maxX));
+    const targetY = Math.max(minY, maxY);
+    await windowRef.setPosition(new PhysicalPosition(Math.round(targetX), Math.round(targetY)));
+    await setPetActionSilently(actionForRoam("idle"));
+    addPetTouchEffect(window.innerWidth / 2, window.innerHeight / 2);
+    showPetBubble("我靠边趴一会儿，安静陪你。", {
+      replace: true,
+      source,
+      actionId: actionForRoam("idle")?.id ?? "",
+    });
+  } catch {
+    showPetBubble("我先安静待着，主人。", {
+      replace: true,
+      source,
+      actionId: actionForRoam("idle")?.id ?? "",
+    });
+    showToast("当前环境无法移动桌宠，打包桌面版可用");
+  }
+}
+
+function cursorFollowStepPx() {
+  const intervalSeconds = PET_CURSOR_FOLLOW_INTERVAL_MS / 1000;
+  const speed = Math.min(Math.max(Number(roamSpeedValue.value) || 90, 40), 260);
+  return Math.min(Math.max(Math.round(speed * intervalSeconds * 1.45), 8), 42);
+}
+
+async function tickCursorFollow() {
+  if (!cursorFollowActive.value || cursorFollowBusy) return;
+  if (viewMode !== "pet" || petDragActive || quickMenuOpen.value || clickThroughEnabled.value) {
+    stopCursorFollow(false);
+    return;
+  }
+
+  const remainingMs = cursorFollowEndsAt - Date.now();
+  cursorFollowRemainingSeconds.value = Math.max(0, Math.ceil(remainingMs / 1000));
+  if (remainingMs <= 0) {
+    stopCursorFollow(false);
+    return;
+  }
+
+  cursorFollowBusy = true;
+  try {
+    const windowRef = getCurrentWindow();
+    const [cursor, position, size] = await Promise.all([cursorPosition(), windowRef.outerPosition(), windowRef.outerSize()]);
+    const targetX = cursor.x - size.width * 0.5;
+    const targetY = cursor.y + PET_CURSOR_FOLLOW_POINTER_OFFSET_Y - size.height * 0.45;
+    const deltaX = targetX - position.x;
+    const deltaY = targetY - position.y;
+    const distance = Math.hypot(deltaX, deltaY);
+
+    if (distance < PET_CURSOR_FOLLOW_STOP_DISTANCE) {
+      await setPetActionSilently(actionForRoam("idle"));
+      return;
+    }
+
+    const step = Math.min(cursorFollowStepPx(), distance);
+    let nextX = position.x + (deltaX / distance) * step;
+    let nextY = position.y + (deltaY / distance) * step;
+    if (keepOnScreen.value) {
+      const area = await resolveCursorFollowArea({ x: cursor.x, y: cursor.y }, size);
+      if (area) {
+        nextX = clamp(nextX, area.minX, area.maxX);
+        nextY = clamp(nextY, area.minY, area.maxY);
+      }
+    }
+
+    const direction = deltaX >= 0 ? "right" : "left";
+    await setPetActionSilently(actionForRoam(direction));
+    const roundedNextX = Math.round(nextX);
+    const roundedNextY = Math.round(nextY);
+    if (shouldMoveWindow(roundedNextX, roundedNextY, Math.round(position.x), Math.round(position.y))) {
+      await windowRef.setPosition(new PhysicalPosition(roundedNextX, roundedNextY));
+    }
+  } catch {
+    stopCursorFollow(false);
+    showToast("当前环境不支持跟随光标，打包桌面版可用");
+  } finally {
+    cursorFollowBusy = false;
+  }
+}
+
+function startCursorFollow(durationMs = PET_CURSOR_FOLLOW_DURATION_MS) {
+  if (viewMode !== "pet") {
+    showToast("跟随光标请在桌宠窗口右键使用");
+    return;
+  }
+  if (clickThroughEnabled.value) {
+    showToast("鼠标穿透开启时不能跟随光标，请先恢复桌宠交互");
+    return;
+  }
+
+  clearCursorFollowTimer();
+  quickMenuOpen.value = false;
+  petSwitcherOpen.value = false;
+  resetPetRoamTarget();
+  cursorFollowActive.value = true;
+  cursorFollowEndsAt = Date.now() + durationMs;
+  cursorFollowRemainingSeconds.value = Math.ceil(durationMs / 1000);
+  pausePetRoam(durationMs + 1_200);
+  addPetTouchEffect(window.innerWidth / 2, window.innerHeight / 2);
+  showPetBubble("我跟着鼠标走一小会儿。", {
+    replace: true,
+    source: "cursor-follow",
+    actionId: actionForRoam("right")?.id ?? "",
+  });
+  cursorFollowTimer = window.setInterval(() => {
+    void tickCursorFollow();
+  }, PET_CURSOR_FOLLOW_INTERVAL_MS);
+  void tickCursorFollow();
+}
+
+function toggleCursorFollow() {
+  if (cursorFollowActive.value) {
+    stopCursorFollow();
+    return;
+  }
+  startCursorFollow();
+}
+
 function clearPetDragIdleTimer() {
   if (petDragIdleTimer !== undefined) {
     window.clearTimeout(petDragIdleTimer);
@@ -2028,6 +2830,28 @@ function clearPetDragSafetyTimer() {
     window.clearTimeout(petDragSafetyTimer);
     petDragSafetyTimer = undefined;
   }
+}
+
+function clearPetDragHintTimer() {
+  if (petDragHintTimer !== undefined) {
+    window.clearTimeout(petDragHintTimer);
+    petDragHintTimer = undefined;
+  }
+}
+
+function hidePetDragHint() {
+  clearPetDragHintTimer();
+  petDragHintVisible.value = false;
+}
+
+function showPetDragHint(text = "我跟着你移动。") {
+  petDragHintText.value = text;
+  petDragHintVisible.value = true;
+  clearPetDragHintTimer();
+  petDragHintTimer = window.setTimeout(() => {
+    petDragHintTimer = undefined;
+    petDragHintVisible.value = false;
+  }, PET_DRAG_HINT_MS);
 }
 
 function schedulePetDragIdleReset(delay = PET_DRAG_IDLE_RESET_MS) {
@@ -2069,6 +2893,13 @@ async function pollPetDragCursor() {
   try {
     const position = await cursorPosition();
     if (petDragStartCursor && petDragStartWindow) {
+      if (Math.abs(position.x - petDragStartCursor.x) > PET_CLICK_MOVE_TOLERANCE || Math.abs(position.y - petDragStartCursor.y) > PET_CLICK_MOVE_TOLERANCE) {
+        petDragMoved = true;
+        if (!petDragHintShown) {
+          petDragHintShown = true;
+          showPetDragHint("我跟着你移动。");
+        }
+      }
       const nextX = Math.round(petDragStartWindow.x + position.x - petDragStartCursor.x);
       const nextY = Math.round(petDragStartWindow.y + position.y - petDragStartCursor.y);
       if (shouldMoveWindow(nextX, nextY, petDragLastWindowX, petDragLastWindowY)) {
@@ -2090,6 +2921,7 @@ async function pollPetDragCursor() {
 
 function finishPetDragFeedback() {
   if (!petDragActive && petDragFeedbackTimer === undefined && petDragSafetyTimer === undefined) return;
+  const moved = petDragMoved;
   petDragActive = false;
   petDragFeedbackBusy = false;
   petDragStartCursor = null;
@@ -2099,12 +2931,23 @@ function finishPetDragFeedback() {
   petDragLastMoveAt = 0;
   petDragLastWindowX = null;
   petDragLastWindowY = null;
+  petDragHintShown = false;
+  suppressNextPetClick = moved;
+  petDragMoved = false;
   window.removeEventListener("mouseup", finishPetDragFeedback);
   window.removeEventListener("blur", finishPetDragFeedback);
   clearPetDragFeedbackTimer();
   clearPetDragSafetyTimer();
+  hidePetDragHint();
   pausePetRoam(1_500);
   schedulePetDragIdleReset(petDragIdleResetDelay());
+  if (moved && viewMode === "pet") {
+    showPetBubble("我就在这里陪你，主人。", {
+      replace: true,
+      source: "drag-release",
+      actionId: actionForRoam("idle")?.id ?? "",
+    });
+  }
 }
 
 async function beginPetDragFeedback(_event: MouseEvent) {
@@ -2115,8 +2958,12 @@ async function beginPetDragFeedback(_event: MouseEvent) {
   petDragLastMoveAt = Date.now();
   petDragLastWindowX = null;
   petDragLastWindowY = null;
+  petDragMoved = false;
+  petDragHintShown = false;
+  suppressNextPetClick = false;
   petDragStartCursor = null;
   petDragStartWindow = null;
+  hidePetDragHint();
   clearPetDragIdleTimer();
   clearPetDragFeedbackTimer();
   clearPetDragSafetyTimer();
@@ -2156,6 +3003,7 @@ async function settlePetRoamIdle() {
 async function tickPetRoam() {
   if (viewMode !== "pet" || petRoamBusy) return;
   if (petDragActive) return;
+  if (cursorFollowActive.value) return;
   if (!roamEnabled.value || quickMenuOpen.value || Date.now() < petRoamPausedUntil) {
     await settlePetRoamIdle();
     return;
@@ -2258,7 +3106,18 @@ function queueAction(action: string | PetActionSummary) {
   const label = item?.label ?? String(action);
   actionQueue.value = [label, ...actionQueue.value.filter((queued) => queued !== label)].slice(0, 5);
   if (item) {
-    void setPetAction(item);
+    if (viewMode === "panel") {
+      activePetActionId.value = item.id;
+      spriteFrame.value = 0;
+      void loadPetSpriteForAction(item);
+      void sendPetCommand("play-action", {
+        actionId: item.id,
+        source: "panel-action",
+        toast: `已让桌宠播放${item.label}`,
+      });
+    } else {
+      void setPetAction(item);
+    }
   } else {
     showToast(`${label} 已加入播放队列`);
   }
@@ -2357,12 +3216,17 @@ async function refreshRuntime() {
 
 async function showPetWindow() {
   await runtimeApi.showPet();
+  await runtimeApi.refreshPetWindow();
+  if (clickThroughEnabled.value) {
+    await setClickThrough(false, { persist: true });
+  }
   showToast("桌宠窗口已显示");
 }
 
 async function hidePetWindow() {
   quickMenuOpen.value = false;
   petSwitcherOpen.value = false;
+  petInlineChatOpen.value = false;
   await runtimeApi.hidePet();
   showToast("桌宠窗口已隐藏");
 }
@@ -2388,11 +3252,15 @@ async function syncPetClickThrough(enabled = clickThroughEnabled.value) {
 }
 
 async function setClickThrough(enabled: boolean, options: { persist?: boolean } = {}) {
+  if (!enabled) {
+    clearTemporaryClickThroughTimer();
+  }
   const previous = clickThroughEnabled.value;
   clickThroughBusy.value = true;
   try {
     clickThroughEnabled.value = enabled;
     if (enabled) {
+      stopCursorFollow(false);
       quickMenuOpen.value = false;
       petSwitcherOpen.value = false;
     }
@@ -2400,7 +3268,7 @@ async function setClickThrough(enabled: boolean, options: { persist?: boolean } 
     if (options.persist) {
       await saveRuntimeSettings({ click_through_enabled: enabled }, enabled ? "鼠标穿透已开启并保存" : "鼠标穿透已关闭并保存");
     } else {
-      showToast(enabled ? "鼠标穿透已开启，可从控制面板关闭" : "鼠标穿透已关闭");
+      showToast(enabled ? "短时穿透已开启，约 30 秒后自动恢复" : "桌宠交互已恢复");
     }
   } catch (error) {
     clickThroughEnabled.value = previous;
@@ -2410,11 +3278,27 @@ async function setClickThrough(enabled: boolean, options: { persist?: boolean } 
   }
 }
 
+async function enableTemporaryClickThrough(durationMs = PET_TEMP_CLICK_THROUGH_MS) {
+  clearTemporaryClickThroughTimer();
+  if (viewMode === "pet") {
+    showPetBubble("我先不挡鼠标，半分钟后回来。", {
+      replace: true,
+      source: "quick-menu",
+      actionId: pickAutoTalkAction()?.id ?? "",
+    });
+  }
+  await setClickThrough(true);
+  temporaryClickThroughTimer = window.setTimeout(() => {
+    void setClickThrough(false);
+  }, durationMs);
+}
+
 async function startPetDrag(event: MouseEvent) {
   if (event.button !== 0 || quickMenuOpen.value) return;
   const target = event.target instanceof HTMLElement ? event.target : null;
-  if (target?.closest("button, input, textarea, select, a, .quick-menu, .pet-bubble")) return;
+  if (target?.closest("button, input, textarea, select, a, .quick-menu, .pet-bubble, .pet-inline-chat")) return;
   event.preventDefault();
+  stopCursorFollow(false);
   pausePetRoam(4_000);
   try {
     await beginPetDragFeedback(event);
@@ -2428,10 +3312,28 @@ async function startPetDrag(event: MouseEvent) {
   }
 }
 
+function handlePetWindowClick(event: MouseEvent) {
+  if (viewMode !== "pet") return;
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  if (target?.closest("button, input, textarea, select, a, .quick-menu, .pet-bubble, .pet-inline-chat")) return;
+  if (quickMenuOpen.value) {
+    quickMenuOpen.value = false;
+    return;
+  }
+  if (suppressNextPetClick) {
+    suppressNextPetClick = false;
+    return;
+  }
+  triggerPetTouch(event, "touch");
+}
+
 function openQuickMenu(event: MouseEvent) {
+  event.stopPropagation();
+  stopCursorFollow(false);
   pausePetRoam(4_000);
   quickMenuPos.value = { x: event.clientX, y: event.clientY };
   petSwitcherOpen.value = false;
+  petInlineChatOpen.value = false;
   quickMenuOpen.value = true;
 }
 
@@ -2445,6 +3347,7 @@ function resetPageScroll() {
     const scroller = pageScrollRef.value;
     if (!scroller) return;
     scroller.scrollTo({ top: 0, left: 0 });
+    scroller.focus({ preventScroll: true });
   });
 }
 
@@ -2463,18 +3366,55 @@ function findPanelScrollableElement(target: EventTarget | null, boundary: HTMLEl
   return null;
 }
 
+function canScrollElementInDirection(element: HTMLElement, deltaY: number) {
+  if (deltaY < 0) return element.scrollTop > 1;
+  if (deltaY > 0) return element.scrollTop + element.clientHeight < element.scrollHeight - 1;
+  return false;
+}
+
+function scrollPageBy(delta: number) {
+  const scroller = pageScrollRef.value;
+  if (!scroller || !delta || scroller.scrollHeight <= scroller.clientHeight + 1) return false;
+  const nextTop = clamp(scroller.scrollTop + delta, 0, scroller.scrollHeight - scroller.clientHeight);
+  if (Math.abs(nextTop - scroller.scrollTop) < 1) return false;
+  scroller.scrollTop = nextTop;
+  return true;
+}
+
 function handleWorkspaceWheel(event: WheelEvent) {
   if (viewMode !== "panel" || !event.deltaY) return;
   const scroller = pageScrollRef.value;
-  if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 1) return;
+  if (!scroller) return;
   const target = event.target instanceof HTMLElement ? event.target : null;
-  if (target && scroller.contains(target)) return;
   const localScroller = findPanelScrollableElement(target, scroller.parentElement ?? scroller);
-  if (localScroller && localScroller !== scroller) return;
+  if (localScroller && localScroller !== scroller && canScrollElementInDirection(localScroller, event.deltaY)) return;
 
   const deltaUnit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scroller.clientHeight : 1;
-  scroller.scrollTop += event.deltaY * deltaUnit;
-  event.preventDefault();
+  if (scrollPageBy(event.deltaY * deltaUnit)) event.preventDefault();
+}
+
+function handlePageScrollKeydown(event: KeyboardEvent) {
+  if (viewMode !== "panel") return;
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  if (target?.closest("input, textarea, select, button, [contenteditable='true']")) return;
+  const scroller = pageScrollRef.value;
+  if (!scroller) return;
+  const line = 54;
+  let handled = false;
+  if (event.key === "ArrowDown") handled = scrollPageBy(line);
+  if (event.key === "ArrowUp") handled = scrollPageBy(-line);
+  if (event.key === "PageDown" || event.key === " ") handled = scrollPageBy(scroller.clientHeight * 0.86);
+  if (event.key === "PageUp") handled = scrollPageBy(-scroller.clientHeight * 0.86);
+  if (event.key === "Home") {
+    handled = scroller.scrollTop > 0;
+    scroller.scrollTop = 0;
+  }
+  if (event.key === "End") {
+    const maxTop = scroller.scrollHeight - scroller.clientHeight;
+    handled = scroller.scrollTop < maxTop - 1;
+    scroller.scrollTop = maxTop;
+  }
+  if (handled) event.preventDefault();
 }
 
 function switchPage(page: string) {
@@ -2495,13 +3435,15 @@ function switchPage(page: string) {
 function openPanelPage(page: string) {
   if (isKnownPage(page)) {
     localStorage.setItem(PANEL_PAGE_KEY, page);
-    activePage.value = page;
-    resetPageScroll();
-    if (page === "chat") {
-      void refreshChatMessages();
-    }
-    if (page === "profile" || page === "story") {
-      void refreshPetState();
+    if (viewMode === "panel") {
+      activePage.value = page;
+      resetPageScroll();
+      if (page === "chat") {
+        void refreshChatMessages();
+      }
+      if (page === "profile" || page === "story") {
+        void refreshPetState();
+      }
     }
     showToast(`已请求打开${navigationItems.value.find((item) => item.id === page)?.label ?? "控制面板"}`);
   }
@@ -2762,11 +3704,19 @@ function handleStorage(event: StorageEvent) {
       // Ignore malformed pet bubble signals from stale previews.
     }
   }
+  if (event.key === PET_COMMAND_SIGNAL_KEY && event.newValue) {
+    try {
+      const signal = petCommandSignalFromPayload(JSON.parse(event.newValue));
+      if (signal) void handlePetCommandSignal(signal);
+    } catch {
+      // Ignore malformed pet command signals from stale previews.
+    }
+  }
 }
 
-function isRecentSignalTime(raw: string) {
+function isRecentSignalTime(raw: string, maxAgeMs = PET_BUBBLE_RECENT_SIGNAL_MS) {
   const time = new Date(raw).getTime();
-  return Number.isFinite(time) && Date.now() - time <= PET_BUBBLE_RECENT_SIGNAL_MS;
+  return Number.isFinite(time) && Date.now() - time <= maxAgeMs;
 }
 
 function readStoredSignal<T>(key: string, parse: (payload: unknown) => T | null) {
@@ -2795,6 +3745,11 @@ function hydrateRecentPetSignals() {
   const reminderSignal = readStoredSignal(REMINDER_SIGNAL_KEY, reminderSignalFromPayload);
   if (reminderSignal && isRecentSignalTime(reminderSignal.time)) {
     showDueReminderFeedback(reminderSignal);
+  }
+
+  const commandSignal = readStoredSignal(PET_COMMAND_SIGNAL_KEY, petCommandSignalFromPayload);
+  if (commandSignal && isRecentSignalTime(commandSignal.time, PET_COMMAND_RECENT_SIGNAL_MS)) {
+    void handlePetCommandSignal(commandSignal);
   }
 }
 
@@ -2840,6 +3795,8 @@ onMounted(() => {
   startReminderCheckTimer();
   startPetRoamTimer();
   if (viewMode === "pet") {
+    void syncPetWindowChrome();
+    schedulePetWindowChromeRefresh();
     showPetBubble(petBubbleFullText.value || petBubbleText.value, {
       replace: true,
       source: "startup",
@@ -2855,6 +3812,7 @@ onMounted(() => {
     if (activePage.value === "profile" || activePage.value === "story") {
       void refreshPetState();
     }
+    resetPageScroll();
   });
 });
 
@@ -2918,9 +3876,12 @@ onBeforeUnmount(() => {
   clearPetBubbleTypingTimer();
   clearReminderCheckTimer();
   clearPetRoamTimer();
+  clearCursorFollowTimer();
+  clearTemporaryClickThroughTimer();
   clearAutoTalkTimer();
   finishPetDragFeedback();
   clearPetDragIdleTimer();
+  hidePetDragHint();
   if (unlistenRuntimeChanged) {
     unlistenRuntimeChanged();
     unlistenRuntimeChanged = undefined;
@@ -2942,13 +3903,8 @@ onBeforeUnmount(() => {
     v-if="viewMode === 'pet'"
     class="pet-window"
     @mousedown="startPetDrag"
+    @click="handlePetWindowClick"
     @contextmenu.prevent="openQuickMenu"
-    @dblclick="
-      showPetBubble('摸摸头，蛋黄摇了摇尾巴。', {
-        source: 'touch',
-        actionId: pickAutoTalkAction()?.id ?? '',
-      })
-    "
   >
     <div v-if="petBubbleVisible" class="pet-bubble" :class="`pet-bubble--${selectedBubbleStyle}`" :style="bubbleCssVars" aria-live="polite">
       <span>{{ petBubbleText }}</span>
@@ -2956,6 +3912,36 @@ onBeforeUnmount(() => {
         <X :size="13" />
       </button>
     </div>
+    <div v-if="petDragHintVisible" class="pet-drag-hint" aria-live="polite">{{ petDragHintText }}</div>
+    <section
+      v-if="petInlineChatOpen"
+      class="pet-inline-chat"
+      aria-label="桌宠迷你对话"
+      @mousedown.stop
+      @click.stop
+      @contextmenu.stop
+    >
+      <header>
+        <span>和{{ currentPet?.display_name ?? "蛋黄" }}说话</span>
+        <button class="icon-button compact" type="button" title="关闭对话" @click="closePetInlineChat">
+          <X :size="14" />
+        </button>
+      </header>
+      <div class="pet-inline-chat__row">
+        <input
+          ref="petInlineChatInputRef"
+          v-model="petInlineChatDraft"
+          aria-label="桌宠聊天输入"
+          placeholder="说一句..."
+          :disabled="chatSending"
+          @keydown.enter.prevent="sendPetInlineChat"
+          @keydown.esc.prevent="closePetInlineChat"
+        />
+        <button class="button primary" type="button" :disabled="chatSending" @click="sendPetInlineChat">
+          {{ chatSending ? "想着" : "发送" }}
+        </button>
+      </div>
+    </section>
     <div class="pet-stage" :class="{ 'pet-stage--fallback': !petSpriteAsset && !currentAsset }" :style="petStageStyle">
       <div
         v-if="petSpriteAsset && activePetAction"
@@ -2971,6 +3957,15 @@ onBeforeUnmount(() => {
       <span v-if="activePetAction" class="pet-action-badge">{{ activePetAction.label }}</span>
       <span v-if="petSpriteError && !petSpriteAsset" class="pet-action-hint">{{ petSpriteError }}</span>
     </div>
+    <span
+      v-for="effect in petTouchEffects"
+      :key="effect.id"
+      class="pet-touch-effect"
+      :style="{ left: `${effect.x}px`, top: `${effect.y}px`, '--touch-drift': `${effect.drift}px` }"
+      aria-hidden="true"
+    >
+      <Heart :size="effect.size" />
+    </span>
 
     <section v-if="quickMenuOpen" class="quick-menu" :style="quickMenuStyle" @mousedown.stop>
       <header class="quick-menu__header">
@@ -2985,14 +3980,35 @@ onBeforeUnmount(() => {
       </header>
       <div class="quick-menu__section">
         <p>常用</p>
-        <div class="quick-menu__grid">
+        <div class="quick-menu__grid quick-menu__grid--list">
           <button type="button" @click="quickPetTalk">说句话</button>
           <button type="button" @click="quickPetTouch">摸摸</button>
-          <button type="button" @click="openPanelPage('chat')">对话</button>
+          <button type="button" :disabled="chatSending" @click="quickPetChat">{{ chatSending ? "思考中" : "聊一句" }}</button>
+          <button type="button" @click="openPetInlineChat">直接对话</button>
+          <button type="button" @click="openPanelPage('chat')">打开对话</button>
           <button type="button" @click="openPanelPage('reminders')">提醒</button>
+          <button type="button" :class="{ active: cursorFollowActive }" @click="toggleCursorFollow">
+            {{ cursorFollowActive ? `停止跟随 ${cursorFollowRemainingSeconds}s` : "跟随光标" }}
+          </button>
+          <button type="button" @click="settlePetNearEdge('quick-menu')">靠边休息</button>
           <button type="button" @click="quickClearPetBubbles">清空气泡</button>
           <button type="button" :class="{ active: petSwitcherOpen }" @click="petSwitcherOpen = !petSwitcherOpen">切换形象</button>
           <button type="button" @click="openPanelPage('overview')">控制面板</button>
+        </div>
+      </div>
+      <div class="quick-menu__section">
+        <p>陪伴模式</p>
+        <div class="quick-menu__grid quick-menu__grid--list quick-menu__grid--presence">
+          <button
+            v-for="preset in presencePresets"
+            :key="preset.id"
+            type="button"
+            :class="{ active: activePresencePresetId === preset.id }"
+            :disabled="settingsSaving || clickThroughBusy"
+            @click="applyPresencePreset(preset)"
+          >
+            {{ preset.label }}
+          </button>
         </div>
       </div>
       <div v-if="petSwitcherOpen" class="quick-menu__pet-switcher">
@@ -3020,7 +4036,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="quick-menu__section">
         <p>右键动作</p>
-        <div class="quick-menu__grid">
+        <div class="quick-menu__grid quick-menu__grid--actions">
           <button v-for="item in activeQuickMenuActionItems.slice(0, 8)" :key="item.id" type="button" @click="queueAction(item)">
             {{ item.label }}
           </button>
@@ -3034,7 +4050,7 @@ onBeforeUnmount(() => {
         <button class="button ghost" type="button" @click="setPinned(!petPinned)">
           {{ petPinned ? "取消置顶" : "窗口置顶" }}
         </button>
-        <button class="button ghost" type="button" :disabled="clickThroughBusy" @click="setClickThrough(true, { persist: true })">鼠标穿透</button>
+        <button class="button ghost" type="button" :disabled="clickThroughBusy" @click="enableTemporaryClickThrough()">短时穿透</button>
         <button class="button ghost" type="button" @click="hidePetWindow">隐藏</button>
       </footer>
     </section>
@@ -3108,6 +4124,10 @@ onBeforeUnmount(() => {
             <X :size="16" />
             隐藏桌宠
           </button>
+          <button class="button ghost" type="button" @click="sendPetCommand('recall-near-cursor', { source: 'topbar-recall', toast: '已把桌宠召回到鼠标附近' })">
+            <PanelRightOpen :size="16" />
+            召回桌宠
+          </button>
           <button class="button primary" type="button" @click="showPetWindow">
             <PanelRightOpen :size="16" />
             显示桌宠
@@ -3127,7 +4147,7 @@ onBeforeUnmount(() => {
         <span>正在读取 E 盘运行镜像...</span>
       </div>
 
-      <div v-else ref="pageScrollRef" class="page-scroll" tabindex="0" aria-label="页面内容">
+      <div v-else ref="pageScrollRef" class="page-scroll" tabindex="0" aria-label="页面内容" @keydown="handlePageScrollKeydown">
         <section v-if="activePage === 'overview'" class="dashboard-grid">
           <article class="panel hero-panel">
             <div class="hero-copy">
@@ -3173,10 +4193,10 @@ onBeforeUnmount(() => {
             </div>
             <div class="progress-block">
               <div>
-                <span>陪伴等级</span><strong>Lv. {{ runtime?.features.companion_level ?? 1 }}</strong>
+                <span>陪伴等级</span><strong>Lv. {{ companionLevel }}</strong>
               </div>
-              <div class="progress-track"><span style="width: 68%" /></div>
-              <p>下一等级还需要 32 次轻互动。这里是产品 UI 示例，后续接宠物级 companion-state。</p>
+              <div class="progress-track"><span :style="{ width: `${companionProgressPercent}%` }" /></div>
+              <p>{{ companionProgressText }}</p>
             </div>
           </article>
 
@@ -3211,7 +4231,7 @@ onBeforeUnmount(() => {
               <Sparkles :size="22" />
             </div>
             <div class="quick-tool-grid">
-              <button v-for="tool in quickTools" :key="tool.label" class="action-card" type="button" @click="showToast(`${tool.label} 已触发`)">
+              <button v-for="tool in quickTools" :key="tool.label" class="action-card" type="button" @click="runQuickTool(tool)">
                 <component :is="tool.icon" :size="18" />
                 <span
                   ><strong>{{ tool.label }}</strong
@@ -3352,9 +4372,9 @@ onBeforeUnmount(() => {
               <FolderHeart :size="22" />
             </div>
             <div class="metric-row">
-              <MetricCard label="等级" :value="`Lv. ${runtime?.features.companion_level ?? 1}`" />
-              <MetricCard label="互动" :value="runtime?.features.companion_interactions ?? 0" />
-              <MetricCard label="聊天" :value="runtime?.features.companion_talks ?? 0" />
+              <MetricCard label="等级" :value="`Lv. ${companionLevel}`" />
+              <MetricCard label="互动" :value="companionInteractions" />
+              <MetricCard label="聊天" :value="companionTalks" />
             </div>
             <div class="memory-card">
               <StatusPill label="宠物级隔离" tone="sage" />
@@ -3479,7 +4499,7 @@ onBeforeUnmount(() => {
             <div class="operation-section">
               <h3>常用操作</h3>
               <div class="quick-tool-grid compact-grid">
-                <button v-for="tool in quickTools.slice(0, 4)" :key="tool.label" class="action-card" type="button" @click="showToast(`${tool.label} 已触发`)">
+                <button v-for="tool in quickTools.slice(0, 4)" :key="tool.label" class="action-card" type="button" @click="runQuickTool(tool)">
                   <component :is="tool.icon" :size="18" />
                   <span
                     ><strong>{{ tool.label }}</strong
@@ -3517,6 +4537,13 @@ onBeforeUnmount(() => {
               <h3>窗口操作</h3>
               <div class="button-row">
                 <button class="button ghost" type="button" @click="showPetWindow">显示桌宠</button>
+                <button class="button ghost" type="button" @click="sendPetCommand('recall-near-cursor', { source: 'actions-panel', toast: '已把桌宠召回到鼠标附近' })">召回桌宠</button>
+                <button class="button ghost" type="button" @click="sendPetCommand('settle-near-edge', { source: 'actions-panel', toast: '已让桌宠靠边休息' })">靠边休息</button>
+                <button class="button ghost" type="button" @click="sendPetCommand('follow-cursor', { source: 'actions-panel', toast: '已让桌宠跟随光标 12 秒' })">跟随光标</button>
+                <button class="button ghost" type="button" :disabled="chatSending" @click="sendPetCommand('quick-chat', { source: 'actions-panel', toast: '已让桌宠聊一句' })">
+                  {{ chatSending ? "思考中" : "聊一句" }}
+                </button>
+                <button class="button ghost" type="button" @click="sendPetCommand('pet-touch', { source: 'actions-panel', toast: '已让桌宠做摸摸反馈' })">摸摸反馈</button>
                 <button class="button ghost" type="button" @click="setPinned(!petPinned)">
                   {{ petPinned ? "取消置顶" : "窗口置顶" }}
                 </button>
@@ -4159,6 +5186,33 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-else-if="activePage === 'behavior'" class="content-grid">
+          <article class="panel wide-panel">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">陪伴场景</span>
+                <h2>把复杂参数收成可直接使用的桌宠模式</h2>
+              </div>
+              <Sparkles :size="22" />
+            </div>
+            <div class="presence-preset-grid">
+              <button
+                v-for="preset in presencePresets"
+                :key="preset.id"
+                class="presence-preset-card"
+                type="button"
+                :class="{ selected: activePresencePresetId === preset.id }"
+                :disabled="settingsSaving || clickThroughBusy"
+                @click="applyPresencePreset(preset)"
+              >
+                <component :is="preset.icon" :size="20" />
+                <span>
+                  <strong>{{ preset.label }}</strong>
+                  <small>{{ preset.caption }}</small>
+                </span>
+                <StatusPill :label="activePresencePresetId === preset.id ? '当前' : preset.status" :tone="activePresencePresetId === preset.id ? 'info' : 'sage'" />
+              </button>
+            </div>
+          </article>
           <article class="panel">
             <div class="panel-header">
               <div>
@@ -4220,11 +5274,11 @@ onBeforeUnmount(() => {
                 :class="{ selected: clickThroughEnabled }"
                 type="button"
                 :disabled="clickThroughBusy"
-                @click="setClickThrough(!clickThroughEnabled, { persist: true })"
+                @click="clickThroughEnabled ? setClickThrough(false) : enableTemporaryClickThrough()"
               >
                 <ShieldCheck :size="19" />
-                <strong>鼠标穿透</strong>
-                <span>{{ clickThroughEnabled ? "开启，桌宠不挡桌面；从控制面板关闭" : "关闭，可拖动和右键互动" }}</span>
+                <strong>短时穿透</strong>
+                <span>{{ clickThroughEnabled ? "短时开启，会自动恢复；也可立即恢复" : "关闭，可拖动和右键互动" }}</span>
               </button>
             </div>
             <div class="movement-summary">
@@ -4254,10 +5308,10 @@ onBeforeUnmount(() => {
                 <span>保存或拖动滑杆后，透明桌宠窗口和精灵图会按当前比例同步调整。</span>
               </div>
               <div>
-                <StatusPill :label="clickThroughEnabled ? '穿透开启' : '可交互'" :tone="clickThroughEnabled ? 'info' : 'sage'" />
-                <strong>鼠标穿透可切换</strong>
+                <StatusPill :label="clickThroughEnabled ? '短时穿透' : '可交互'" :tone="clickThroughEnabled ? 'info' : 'sage'" />
+                <strong>短时穿透防锁死</strong>
                 <span>{{
-                  clickThroughEnabled ? "桌宠不会挡住下面的软件，恢复交互请回到控制面板关闭。" : "桌宠可拖动、右键打开快捷菜单，也能响应摸摸和说句话。"
+                  clickThroughEnabled ? "桌宠暂时不挡下面的软件，约半分钟后自动恢复交互。" : "桌宠可拖动、右键打开快捷菜单，也能响应摸摸和说句话。"
                 }}</span>
               </div>
               <div>
@@ -4411,9 +5465,16 @@ onBeforeUnmount(() => {
                 <Save :size="16" />
                 {{ settingsSaving ? "保存中" : "保存行为设置" }}
               </button>
+              <button class="button ghost" type="button" @click="sendPetCommand('recall-near-cursor', { source: 'behavior-panel', toast: '已把桌宠召回到鼠标附近' })">召回桌宠</button>
+              <button class="button ghost" type="button" @click="sendPetCommand('settle-near-edge', { source: 'behavior-panel', toast: '已让桌宠靠边休息' })">让桌宠靠边休息</button>
+              <button class="button ghost" type="button" @click="sendPetCommand('follow-cursor', { source: 'behavior-panel', toast: '已让桌宠跟随光标 12 秒' })">让桌宠跟随光标</button>
+              <button class="button ghost" type="button" :disabled="chatSending" @click="sendPetCommand('quick-chat', { source: 'behavior-panel', toast: '已让桌宠聊一句' })">
+                {{ chatSending ? "思考中" : "让桌宠聊一句" }}
+              </button>
+              <button class="button ghost" type="button" @click="sendPetCommand('pet-touch', { source: 'behavior-panel', toast: '已让桌宠做摸摸反馈' })">摸摸桌宠</button>
               <button class="button ghost" type="button" @click="previewAutoTalk">预览自动说话</button>
-              <button class="button ghost" type="button" :disabled="clickThroughBusy" @click="setClickThrough(!clickThroughEnabled, { persist: true })">
-                {{ clickThroughEnabled ? "恢复桌宠交互" : "开启鼠标穿透" }}
+              <button class="button ghost" type="button" :disabled="clickThroughBusy" @click="clickThroughEnabled ? setClickThrough(false) : enableTemporaryClickThrough()">
+                {{ clickThroughEnabled ? "立即恢复桌宠交互" : "短时穿透 30 秒" }}
               </button>
               <button class="button ghost" type="button" @click="setPinned(!petPinned)">
                 {{ petPinned ? "取消置顶" : "窗口置顶" }}

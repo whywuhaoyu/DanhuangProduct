@@ -12,7 +12,21 @@ use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::utils::config::Color;
+use tauri::{AppHandle, Emitter, Manager, PhysicalSize, Size};
+#[cfg(windows)]
+use winapi::shared::windef::HWND as WinHwnd;
+#[cfg(windows)]
+use winapi::um::dwmapi::{
+    DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND,
+};
+#[cfg(windows)]
+use winapi::um::wingdi::{CreateRectRgn, DeleteObject};
+#[cfg(windows)]
+use winapi::um::winuser::{
+    SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER,
+    SWP_NOSENDCHANGING, SWP_NOSIZE,
+};
 
 const RUNTIME_DIR: &str = "data-dev/current-runtime/danhuang";
 const FAMILY_PATH: &str = "data-dev/current-runtime/danhuang/danhuang-failed-identity-backup-20260521-140133/pet-family.json";
@@ -3828,11 +3842,80 @@ fn show_window(app: &AppHandle, label: &str, focus: bool) -> Result<(), String> 
     let window = app
         .get_webview_window(label)
         .ok_or_else(|| format!("窗口不存在: {}", label))?;
+    if label == "pet" {
+        prepare_pet_window_for_interaction(&window);
+    }
     window.show().map_err(|err| err.to_string())?;
     if focus {
         window.set_focus().map_err(|err| err.to_string())?;
     }
     Ok(())
+}
+
+fn prepare_pet_window_for_interaction(window: &tauri::WebviewWindow) {
+    let _ = window.set_decorations(false);
+    let _ = window.set_shadow(false);
+    let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
+    apply_windows_pet_transparency(window);
+    refresh_pet_transparency(window);
+    apply_windows_pet_transparency(window);
+}
+
+fn refresh_pet_transparency(window: &tauri::WebviewWindow) {
+    let Ok(size) = window.outer_size() else {
+        return;
+    };
+    let bumped = PhysicalSize {
+        width: size.width.saturating_add(1),
+        height: size.height.saturating_add(1),
+    };
+    let _ = window.set_size(Size::Physical(bumped));
+    let _ = window.set_size(Size::Physical(size));
+}
+
+#[cfg(windows)]
+fn apply_windows_pet_transparency(window: &tauri::WebviewWindow) {
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let hwnd = hwnd.0 as WinHwnd;
+    unsafe {
+        let region = CreateRectRgn(0, 0, -1, -1);
+        if !region.is_null() {
+            let blur = DWM_BLURBEHIND {
+                dwFlags: DWM_BB_ENABLE | DWM_BB_BLURREGION,
+                fEnable: 1,
+                hRgnBlur: region,
+                fTransitionOnMaximized: 0,
+            };
+            let _ = DwmEnableBlurBehindWindow(hwnd, &blur);
+            let _ = DeleteObject(region as _);
+        }
+
+        let _ = SetWindowPos(
+            hwnd,
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE
+                | SWP_NOSIZE
+                | SWP_NOACTIVATE
+                | SWP_NOOWNERZORDER
+                | SWP_NOSENDCHANGING
+                | SWP_FRAMECHANGED,
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn apply_windows_pet_transparency(_window: &tauri::WebviewWindow) {}
+
+fn prepare_pet_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("pet") {
+        prepare_pet_window_for_interaction(&window);
+    }
 }
 
 #[tauri::command]
@@ -4786,7 +4869,20 @@ fn set_pet_click_through(app: AppHandle, enabled: bool) -> Result<(), String> {
         .ok_or_else(|| "窗口不存在: pet".to_string())?;
     window
         .set_ignore_cursor_events(enabled)
-        .map_err(|err| err.to_string())
+        .map_err(|err| err.to_string())?;
+    if !enabled {
+        prepare_pet_window_for_interaction(&window);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn refresh_pet_window(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("pet")
+        .ok_or_else(|| "窗口不存在: pet".to_string())?;
+    prepare_pet_window_for_interaction(&window);
+    Ok(())
 }
 
 #[tauri::command]
@@ -4838,6 +4934,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             build_tray(app)?;
+            prepare_pet_window(&app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -4865,6 +4962,7 @@ pub fn run() {
             hide_pet,
             set_pet_always_on_top,
             set_pet_click_through,
+            refresh_pet_window,
             quit_app
         ])
         .run(tauri::generate_context!())

@@ -652,6 +652,11 @@ export const runtimeApi: RuntimeApi = {
     await invoke("set_pet_click_through", { enabled });
   },
 
+  async refreshPetWindow() {
+    if (!isTauri()) return;
+    await invoke("refresh_pet_window");
+  },
+
   async quitApp() {
     if (!isTauri()) return;
     await invoke("quit_app");

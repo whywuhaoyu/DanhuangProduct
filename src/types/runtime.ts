@@ -320,5 +320,6 @@ export interface RuntimeApi {
   hidePet(): Promise<void>;
   setPetAlwaysOnTop(enabled: boolean): Promise<void>;
   setPetClickThrough(enabled: boolean): Promise<void>;
+  refreshPetWindow(): Promise<void>;
   quitApp(): Promise<void>;
 }

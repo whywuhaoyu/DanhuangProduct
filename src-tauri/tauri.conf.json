@@ -17,8 +17,8 @@
         "url": "index.html?window=panel",
         "width": 1040,
         "height": 700,
-        "minWidth": 620,
-        "minHeight": 620,
+        "minWidth": 520,
+        "minHeight": 420,
         "center": true,
         "resizable": true
       },
@@ -32,6 +32,7 @@
         "minHeight": 260,
         "decorations": false,
         "transparent": true,
+        "backgroundColor": [0, 0, 0, 0],
         "shadow": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,

@@ -5,11 +5,17 @@
   "windows": ["main", "pet"],
   "permissions": [
     "core:default",
+    "core:webview:allow-set-webview-background-color",
+    "core:window:allow-available-monitors",
     "core:window:allow-current-monitor",
     "core:window:allow-cursor-position",
     "core:window:allow-outer-position",
     "core:window:allow-outer-size",
+    "core:window:allow-primary-monitor",
+    "core:window:allow-set-background-color",
+    "core:window:allow-set-decorations",
     "core:window:allow-set-position",
+    "core:window:allow-set-shadow",
     "core:window:allow-set-size",
     "opener:default"
   ]
