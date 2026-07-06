@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.72")
+                    self.assertEqual(module.APP_VERSION, "0.11.73")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -265,6 +265,22 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertIn("def choose_pet_identity_image(self, pet_id=None, on_done=None, feedback_parent=None):", source)
                 self.assertIn("self.update_pet_identity_image(pet_id, path, on_done, feedback_parent=feedback_parent or self.panel)", source)
                 self.assertNotIn('messagebox.showerror("主像素图失败"', source)
+
+    def test_new_pet_import_feedback_uses_panel_toast(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn('def create_pet_from_assets(self, display_name, species="", category="", notes="", identity_path="", atlas_path="", reference_paths=None, activate=False, action_paths=None, category_detail="", feedback_parent=None):', source)
+                self.assertIn('self.show_panel_toast("导入失败", "请先填写宠物名字。", "warning", parent=feedback_parent)', source)
+                self.assertIn('self.show_panel_toast("导入失败", "至少选择一张主像素图或参考照片。", "warning", parent=feedback_parent)', source)
+                self.assertIn('self.show_panel_toast("无法上传", "只支持拖入 png、webp、jpg、jpeg 图片。", "warning", parent=window)', source)
+                self.assertIn('self.show_panel_toast("上传失败", "拖动上传时发生异常，已记录到错误日志。", "error", parent=window)', source)
+                self.assertIn("feedback_parent=window", source)
+                self.assertNotIn('messagebox.showerror("导入失败", "请先填写宠物名字。"', source)
+                self.assertNotIn('messagebox.showerror("导入失败", "至少选择一张主像素图或参考照片。"', source)
+                self.assertNotIn('messagebox.showwarning("无法上传"', source)
+                self.assertNotIn('messagebox.showerror("上传失败"', source)
 
     def test_clipboard_copy_feedback_uses_panel_toast(self) -> None:
         for path in RUNTIME_FILES:

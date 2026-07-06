@@ -124,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.72"
+APP_VERSION = "0.11.73"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -7373,14 +7373,14 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 draw.rectangle((x0, y0 + header_h, x0 + cell_w - 1, y0 + header_h + cell_h - 1), outline=(93, 145, 112, 255))
         sheet.convert("RGB").save(output)
 
-    def create_pet_from_assets(self, display_name, species="", category="", notes="", identity_path="", atlas_path="", reference_paths=None, activate=False, action_paths=None, category_detail=""):
+    def create_pet_from_assets(self, display_name, species="", category="", notes="", identity_path="", atlas_path="", reference_paths=None, activate=False, action_paths=None, category_detail="", feedback_parent=None):
         display_name = str(display_name or "").strip()
         if not display_name:
-            messagebox.showerror("导入失败", "请先填写宠物名字。")
+            self.show_panel_toast("导入失败", "请先填写宠物名字。", "warning", parent=feedback_parent)
             return False
         reference_paths = list(reference_paths or [])
         if not identity_path and not reference_paths:
-            messagebox.showerror("导入失败", "至少选择一张主像素图或参考照片。")
+            self.show_panel_toast("导入失败", "至少选择一张主像素图或参考照片。", "warning", parent=feedback_parent)
             return False
         atlas = None
         warnings = []
@@ -7388,20 +7388,20 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         if action_paths:
             missing = [ACTION_LABELS.get(state, state) for state in BASIC_ATLAS_ACTIONS if not action_paths.get(state)]
             if missing:
-                messagebox.showerror("导入失败", "基础动作还没传齐：\n" + "、".join(missing))
+                self.show_panel_toast("导入失败", "基础动作还没传齐：" + "、".join(missing), "warning", parent=feedback_parent)
                 return False
             try:
                 atlas, warnings = self.assemble_basic_atlas_from_strips(action_paths)
             except ValueError as exc:
-                messagebox.showerror("导入失败", str(exc))
+                self.show_panel_toast("导入失败", str(exc)[:180], "error", parent=feedback_parent)
                 return False
         elif atlas_path:
             if not identity_path:
-                messagebox.showerror("导入失败", "导入可切换形象时必须选择主像素图。")
+                self.show_panel_toast("导入失败", "导入可切换形象时必须选择主像素图。", "warning", parent=feedback_parent)
                 return False
             atlas, errors, warnings = self.validate_basic_atlas_image(atlas_path)
             if errors:
-                messagebox.showerror("导入失败", "\n".join(errors))
+                self.show_panel_toast("导入失败", "；".join(errors)[:180], "error", parent=feedback_parent)
                 return False
         slug = self.unique_pet_slug(self.sanitize_pet_slug(display_name))
         folder = self.pet_storage_folder(slug=slug)
@@ -7422,7 +7422,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 seen_sources.add(source_key)
                 refs.append(self.copy_reference_image_to_pet(source, folder, prefix=f"source-{index}"))
         except OSError as exc:
-            messagebox.showerror("导入失败", str(exc))
+            self.show_panel_toast("导入失败", str(exc)[:180], "error", parent=feedback_parent)
             return False
         ready = atlas is not None
         if ready:
@@ -7457,7 +7457,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         else:
             self.say(f"{display_name}已经归档。")
         if warnings:
-            messagebox.showwarning("导入完成，建议检查", "\n".join(warnings))
+            self.show_panel_toast("导入完成，建议检查", "；".join(warnings)[:180], "warning", parent=feedback_parent)
         return True
 
     def import_basic_pet_assets(self, on_done=None):
@@ -7698,11 +7698,11 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 return
             _strip, _count, errors, warnings = self.validate_basic_action_strip_image(state, path)
             if errors:
-                messagebox.showerror("动作不合格", "\n".join(errors))
+                self.show_panel_toast("动作不合格", "；".join(errors)[:180], "error", parent=window)
                 return
             action_paths[state] = path
             if warnings:
-                messagebox.showwarning("建议检查", "\n".join(warnings))
+                self.show_panel_toast("建议检查", "；".join(warnings)[:180], "warning", parent=window)
             refresh_preview()
 
         def choose_identity():
@@ -7758,7 +7758,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             try:
                 candidates = image_paths(files, allow_photo=True)
                 if not candidates:
-                    messagebox.showwarning("无法上传", "只支持拖入 png、webp、jpg、jpeg 图片。")
+                    self.show_panel_toast("无法上传", "只支持拖入 png、webp、jpg、jpeg 图片。", "warning", parent=window)
                     return
                 x, y = window.winfo_pointerxy()
                 for widget, handler in reversed(drop_zones):
@@ -7768,14 +7768,14 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 add_reference_paths(candidates)
             except Exception:
                 report_callback_exception(*sys.exc_info())
-                messagebox.showerror("上传失败", "拖动上传时发生异常，已记录到错误日志。")
+                self.show_panel_toast("上传失败", "拖动上传时发生异常，已记录到错误日志。", "error", parent=window)
 
         def submit(require_atlas):
             notes = notes_text.get("1.0", "end").strip()
             paths = dict(action_paths) if require_atlas else {}
             if require_atlas and len(paths) < len(BASIC_ATLAS_ACTIONS):
                 missing = [category_action_label(state) for state in BASIC_ATLAS_ACTIONS if state not in paths]
-                messagebox.showerror("导入失败", "基础动作还没传齐：\n" + "、".join(missing))
+                self.show_panel_toast("导入失败", "基础动作还没传齐：" + "、".join(missing), "warning", parent=window)
                 return
             ok = self.create_pet_from_assets(
                 name_var.get(),
@@ -7788,6 +7788,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 activate=require_atlas,
                 action_paths=paths,
                 category_detail=category_detail_var.get(),
+                feedback_parent=window,
             )
             if ok:
                 window.destroy()

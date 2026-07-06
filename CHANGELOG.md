@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.73-tk-new-pet-import-feedback-polish - 2026-07-06
+
+- 继续按付费用户严苛审计新增宠物链路：新增宠物向导的创建失败、基础动作缺失、拖拽格式不支持和拖拽异常反馈统一改为当前窗口 Toast。
+- `create_pet_from_assets()` 新增可选 `feedback_parent` 参数，导入校验错误可以锚定到新增宠物窗口。
+- 基础动作条上传校验错误和建议检查不再弹系统窗口，减少上传素材时被工程弹窗打断。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.73-new-pet-import-feedback-20260706/new-pet-import-feedback-evidence.json`、`qa/tk-ui-0.11.73-new-pet-import-feedback-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-223303.zip`，ZIP SHA256 `89D0453FB2D1C8A165035DE2873BCEC665265BA4EB17915823FA939E6FFA84C4`，EXE SHA256 `637B629CC9733738A4D6AE8E4CEFABB0D7A36AE0C1267F9F8457003B992326ED`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-223303/` 和对应 zip。
+
 ## 0.11.72-tk-identity-image-feedback-polish - 2026-07-06
 
 - 继续按付费用户严苛审计形象导入链路：更换主像素图时，图片不存在或无法读取不再弹 Windows 系统错误框，改为面板 Toast。
