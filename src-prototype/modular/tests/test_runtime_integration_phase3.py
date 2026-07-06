@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.71")
+                    self.assertEqual(module.APP_VERSION, "0.11.72")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -253,6 +253,18 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertIn("window.after(80, lambda: (window.lift(), window.focus_force()))", source)
                 self.assertNotIn('messagebox.showwarning("没有图片"', source)
                 self.assertNotIn('messagebox.showerror("添加失败"', source)
+
+    def test_pet_identity_image_feedback_uses_panel_toast(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def update_pet_identity_image(self, pet_id, source_path, on_done=None, feedback_parent=None):", source)
+                self.assertIn('self.show_panel_toast("主像素图失败", "图片不存在。", "error", parent=feedback_parent)', source)
+                self.assertIn('self.show_panel_toast("主像素图失败", f"无法读取图片：{exc}", "error", parent=feedback_parent)', source)
+                self.assertIn("def choose_pet_identity_image(self, pet_id=None, on_done=None, feedback_parent=None):", source)
+                self.assertIn("self.update_pet_identity_image(pet_id, path, on_done, feedback_parent=feedback_parent or self.panel)", source)
+                self.assertNotIn('messagebox.showerror("主像素图失败"', source)
 
     def test_clipboard_copy_feedback_uses_panel_toast(self) -> None:
         for path in RUNTIME_FILES:

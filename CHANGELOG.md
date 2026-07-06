@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.72-tk-identity-image-feedback-polish - 2026-07-06
+
+- 继续按付费用户严苛审计形象导入链路：更换主像素图时，图片不存在或无法读取不再弹 Windows 系统错误框，改为面板 Toast。
+- `update_pet_identity_image()` 新增可选 `feedback_parent` 参数；`choose_pet_identity_image()` 默认把反馈锚定到当前控制面板。
+- 主像素图失败反馈和现实照片、提示词复制反馈保持一致，减少用户上传私密形象资产时的工程感和割裂感。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.72-identity-image-feedback-20260706/identity-image-feedback-evidence.json`、`qa/tk-ui-0.11.72-identity-image-feedback-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-223000.zip`，ZIP SHA256 `9C012538AEABCEB4331CB30C370509188F945AB21F6A526E1EFFBD47EA3D93FD`，EXE SHA256 `E54260A1B62BFE19712397C196A90335E579DD189CA1E5DE9A25D47C4C9EDBBC`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-223000/` 和对应 zip。
+
 ## 0.11.71-tk-clipboard-feedback-polish - 2026-07-06
 
 - 继续按付费用户严苛审计动作/新增宠物辅助链路：复制提示词、扩展动作提示词和使用教学的空内容、成功、失败反馈统一改为面板 Toast。

@@ -124,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.71"
+APP_VERSION = "0.11.72"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -6247,10 +6247,10 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             pass
         return ImageTk.PhotoImage(base, master=self.root)
 
-    def update_pet_identity_image(self, pet_id, source_path, on_done=None):
+    def update_pet_identity_image(self, pet_id, source_path, on_done=None, feedback_parent=None):
         source = Path(str(source_path or ""))
         if not source.exists():
-            messagebox.showerror("主像素图失败", "图片不存在。")
+            self.show_panel_toast("主像素图失败", "图片不存在。", "error", parent=feedback_parent)
             return False
         self.pet_family = self.load_pet_family()
         pet = self.pet_by_id(pet_id)
@@ -6262,7 +6262,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             image = self.remove_cyan_background(image)
             image.save(target)
         except OSError as exc:
-            messagebox.showerror("主像素图失败", f"无法读取图片：{exc}")
+            self.show_panel_toast("主像素图失败", f"无法读取图片：{exc}", "error", parent=feedback_parent)
             return False
         updated = None
         for index, item in enumerate(self.pet_family.get("pets", [])):
@@ -6338,7 +6338,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         )
         return False
 
-    def choose_pet_identity_image(self, pet_id=None, on_done=None):
+    def choose_pet_identity_image(self, pet_id=None, on_done=None, feedback_parent=None):
         pet_id = pet_id or self.active_pet.get("id", "danhuang")
         path = filedialog.askopenfilename(
             title="选择主像素图",
@@ -6348,7 +6348,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         if not path:
             return False
         self.remember_directory_setting("default_image_dir", path)
-        return self.update_pet_identity_image(pet_id, path, on_done)
+        return self.update_pet_identity_image(pet_id, path, on_done, feedback_parent=feedback_parent or self.panel)
 
     def copy_reference_image_to_pet(self, source_path, folder, prefix="reference"):
         source = Path(source_path)
