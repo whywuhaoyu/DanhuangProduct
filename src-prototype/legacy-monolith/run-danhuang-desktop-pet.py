@@ -49,6 +49,7 @@ MODULAR_COMPUTE_BUBBLE_POSITION = None
 MODULAR_COMPUTE_RIGHT_MENU_POSITION = None
 MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION = None
 MODULAR_COMPUTE_RIGHT_MENU_VIEWPORT_SIZE = None
+MODULAR_LOCK_EDGE_ROAM_POSITION = None
 MODULAR_PET_WINDOW_SIZE = None
 MODULAR_RIGHT_MENU_POPUP_LAYOUT = None
 MODULAR_RIGHT_MENU_STYLE_TOKENS = None
@@ -73,6 +74,7 @@ if _install_product_modular_path():
         from assets.manifest import build_pet_action_manifest as MODULAR_BUILD_PET_ACTION_MANIFEST
         from ui.tk_bubble import bubble_preview_model as MODULAR_BUBBLE_PREVIEW_MODEL
         from ui.tk_bubble import compute_bubble_position as MODULAR_COMPUTE_BUBBLE_POSITION
+        from ui.tk_pet_window import lock_edge_roam_position as MODULAR_LOCK_EDGE_ROAM_POSITION
         from ui.tk_pet_window import pet_window_size as MODULAR_PET_WINDOW_SIZE
         from ui.tk_pet_window import window_behavior_model as MODULAR_WINDOW_BEHAVIOR_MODEL
         from ui.tk_right_menu import build_pet_switcher_model as MODULAR_BUILD_PET_SWITCHER_MODEL
@@ -95,6 +97,7 @@ if _install_product_modular_path():
         MODULAR_COMPUTE_RIGHT_MENU_POSITION = None
         MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION = None
         MODULAR_COMPUTE_RIGHT_MENU_VIEWPORT_SIZE = None
+        MODULAR_LOCK_EDGE_ROAM_POSITION = None
         MODULAR_PET_WINDOW_SIZE = None
         MODULAR_RIGHT_MENU_POPUP_LAYOUT = None
         MODULAR_RIGHT_MENU_STYLE_TOKENS = None
@@ -121,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.65"
+APP_VERSION = "0.11.66"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -8868,6 +8871,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         self.save_settings()
         speed = abs(self.velocity_x) + abs(self.velocity_y)
         if speed > 700 and self.settings["inertia"] > 0.05:
+            self.reset_drag_direction()
             self.inertia_until = time.monotonic() + 0.45 * self.settings["inertia"]
         else:
             self.stop_position_motion()
@@ -14356,7 +14360,12 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         self.velocity_x = 0.0
         self.velocity_y = 0.0
         self.inertia_until = 0.0
+        self.reset_drag_direction()
         self.hide_butterfly()
+
+    def reset_drag_direction(self):
+        self.drag_direction = "center"
+        self.drag_intent_x = 0.0
 
     def can_interrupt_for_roam(self):
         return self.activity_mode in {"idle", "roam"} and self.state in {"idle", *MOVEMENT_STATES}
@@ -14472,6 +14481,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 forced,
             )
             target_x, target_y = self.clamp_position(target_x, target_y, monitors=monitors)
+            _edge_x, _edge_y, edge = self.snap_to_screen_edge(target_x, target_y, area)
             if abs(target_x - current_x) < 5 and abs(target_y - current_y) < 5:
                 self.next_roam_at = self.next_roam_time()
                 return
@@ -14479,6 +14489,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 "x": target_x,
                 "y": target_y,
                 "direction": direction,
+                "edge": edge,
                 "forced": forced,
                 "allow_virtual_gap": self.target_crosses_monitor(current_x, current_y, target_x, target_y, monitors),
             }
@@ -14803,6 +14814,28 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             return int(clamp(x, min_x, max_x)), max_y, edge
         return min_x, int(clamp(y, min_y, max_y)), edge
 
+    def lock_edge_roam_position(self, x, y, edge, area):
+        if MODULAR_LOCK_EDGE_ROAM_POSITION is not None:
+            try:
+                return MODULAR_LOCK_EDGE_ROAM_POSITION(x, y, edge, area)
+            except Exception:
+                pass
+        min_x = area["left"]
+        min_y = area["top"]
+        max_x = area["right"]
+        max_y = area["bottom"]
+        locked_x = int(clamp(x, min_x, max_x))
+        locked_y = int(clamp(y, min_y, max_y))
+        if edge == "top":
+            return locked_x, min_y
+        if edge == "right":
+            return max_x, locked_y
+        if edge == "bottom":
+            return locked_x, max_y
+        if edge == "left":
+            return min_x, locked_y
+        return locked_x, locked_y
+
     def is_screen_corner(self, x, y, area, tolerance=6):
         near_x = abs(x - area["left"]) <= tolerance or abs(area["right"] - x) <= tolerance
         near_y = abs(y - area["top"]) <= tolerance or abs(area["bottom"] - y) <= tolerance
@@ -14860,6 +14893,11 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         ny = current_y + dy / distance * step
         self.velocity_x = dx / max(0.12, distance) * self.settings["roam_speed"]
         self.velocity_y = dy / max(0.12, distance) * self.settings["roam_speed"]
+        edge = self.roam_target.get("edge")
+        if edge and not is_chase:
+            monitor = self.monitor_for_position(self.roam_target["x"], self.roam_target["y"])
+            area = self.monitor_area(monitor)
+            nx, ny = self.lock_edge_roam_position(nx, ny, edge, area)
         if self.roam_target.get("allow_virtual_gap"):
             monitors = self.available_monitors()
             current_monitor = self.monitor_for_position(current_x, current_y, monitors)
@@ -15530,6 +15568,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             self.inertia_until = 0.0
             self.velocity_x = 0.0
             self.velocity_y = 0.0
+            self.reset_drag_direction()
             self.set_mode("idle")
             self.set_state("idle")
 

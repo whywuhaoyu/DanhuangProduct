@@ -13,6 +13,7 @@
 
 | 版本 | 日期 | 更新内容 |
 | --- | --- | --- |
+| v1.15 | 2026-07-06 | 第二十二批执行：桌宠本体边缘巡游固定轴锁定和拖动方向清理，生成 0.11.66 发行包并只保留最新包 |
 | v1.14 | 2026-07-06 | 第二十一批执行：导出安装包弹窗成功/失败/GitHub 前置错误从系统弹窗改为状态卡 + 面板 Toast，生成 0.11.65 发行包并只保留最新包 |
 | v1.13 | 2026-07-06 | 第二十批执行：安全页个人备份/恢复/精灵图备份反馈从系统弹窗改为面板 Toast，生成 0.11.64 发行包并清理旧包 |
 | v1.12 | 2026-07-05 | 第十九批执行：故事页删除确认和关键反馈从系统弹窗改为暖色面板组件，生成 0.11.63 发行包 |
@@ -339,3 +340,14 @@ src-prototype/modular/ui/tk_panel.py
 - 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.65-installer-export-feedback-20260706/installer-export-feedback-evidence.json`、`qa/tk-ui-0.11.65-installer-export-feedback-20260706/exe-smoke-desktop.png`。
 - 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-210701/` 和 zip；ZIP SHA256 `24F268CC65760B2F8EDBD142FA0067D938169495F9CADE13A76D7FEFDF5B9FEA`；EXE SHA256 `91129C3F83A8C6E66953A73115BF2396FE841191807EB894CCF8CBD36C3226E8`。
 - 包清理状态：按用户最新要求，`packages/` 只保留最新一组 Tk Windows 包目录和 zip；旧 0.11.64 包已删除。
+
+### 2026-07-06 第二十二批
+
+- 目标线别：Tk/Python 线，版本号更新到 `0.11.66`。
+- 审计口径：继续按付费用户桌面本体体验检查运动手感，要求边缘巡游不能逐渐向屏幕中间偏移，拖动松手后不能残留错误左右跑动方向。
+- 严格问题：前序批次主要收敛控制面板和弹窗；桌宠本体运动仍缺少边缘固定轴的可测试保障，且惯性结束没有显式清理拖动方向状态。
+- 改动内容：新增 `lock_edge_roam_position()` 纯函数；边缘巡游目标写入 `edge` 并在 `update_roam()` 每帧锁轴；`stop_position_motion()`、进入惯性和惯性结束时清理拖动方向。
+- 验证状态：legacy、当前运行镜像和发行包 app `py_compile` 已通过；44 个 modular 单元测试通过；当前运行镜像和发行包 `validate_phase3.py` 均无 warnings；包内 JSON、UTF-8、真实隐私扫描、zip 缓存残留检查和 exe 8 秒桌面烟测已完成。
+- 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.66-pet-motion-edge-lock-20260706/pet-motion-edge-lock-evidence.json`、`qa/tk-ui-0.11.66-pet-motion-edge-lock-20260706/exe-smoke-desktop.png`。
+- 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-211839/` 和 zip；ZIP SHA256 `B99C42C1981B0F05225DBE1956400AB843106E6AF246B8AE946AACF845C320A3`；EXE SHA256 `EC10930053D9EF34F727F25BE7B5C74F502226C431406FBC2C8F46244D7B11F4`。
+- 包清理状态：按用户最新要求，`packages/` 只保留最新一组 Tk Windows 包目录和 zip；旧 0.11.65 包已删除。

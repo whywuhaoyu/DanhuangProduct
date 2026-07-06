@@ -10,7 +10,7 @@ if str(MODULAR_ROOT) not in sys.path:
 
 from ui.tk_bubble import bubble_preview_model, compute_bubble_position, normalize_bubble_colors  # noqa: E402
 from ui.tk_bubble_render import bubble_fold_color, render_bubble_image  # noqa: E402
-from ui.tk_pet_window import clamp_pet_position, monitor_allows_center_roam, window_behavior_model  # noqa: E402
+from ui.tk_pet_window import clamp_pet_position, lock_edge_roam_position, monitor_allows_center_roam, window_behavior_model  # noqa: E402
 from ui.tk_right_menu import (  # noqa: E402
     build_pet_switcher_model,
     build_right_menu_model,
@@ -285,6 +285,15 @@ class Phase3UiTests(unittest.TestCase):
         self.assertTrue(
             monitor_allows_center_roam(settings, {"left": 320, "top": 0, "right": 640, "bottom": 240, "primary": False})
         )
+
+    def test_edge_roam_position_locks_fixed_axis(self) -> None:
+        area = {"left": -120, "top": 10, "right": 620, "bottom": 420}
+
+        self.assertEqual(lock_edge_roam_position(120, 34, "top", area), (120, 10))
+        self.assertEqual(lock_edge_roam_position(612, 160, "right", area), (620, 160))
+        self.assertEqual(lock_edge_roam_position(120, 384, "bottom", area), (120, 420))
+        self.assertEqual(lock_edge_roam_position(-104, 160, "left", area), (-120, 160))
+        self.assertEqual(lock_edge_roam_position(999, -99, None, area), (620, 10))
 
 
 if __name__ == "__main__":

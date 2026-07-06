@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.65")
+                    self.assertEqual(module.APP_VERSION, "0.11.66")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -39,6 +39,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertIsNotNone(module.MODULAR_COMPUTE_BUBBLE_POSITION)
                 self.assertIsNotNone(module.MODULAR_COMPUTE_RIGHT_MENU_POSITION)
                 self.assertIsNotNone(module.MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION)
+                self.assertIsNotNone(module.MODULAR_LOCK_EDGE_ROAM_POSITION)
                 self.assertIsNotNone(module.MODULAR_PET_WINDOW_SIZE)
                 self.assertIsNotNone(module.MODULAR_RIGHT_MENU_POPUP_LAYOUT)
                 self.assertIsNotNone(module.MODULAR_RIGHT_MENU_STYLE_TOKENS)
@@ -176,6 +177,17 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertNotIn('messagebox.showwarning("缺少 GitHub Token"', source)
                 self.assertNotIn('messagebox.showinfo("macOS 可运行包完成"', source)
                 self.assertNotIn('messagebox.showerror("macOS 构建失败"', source)
+
+    def test_pet_motion_edge_lock_and_drag_reset_are_wired(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def lock_edge_roam_position(self, x, y, edge, area):", source)
+                self.assertIn('self.roam_target.get("edge")', source)
+                self.assertIn("nx, ny = self.lock_edge_roam_position(nx, ny, edge, area)", source)
+                self.assertIn("def reset_drag_direction(self):", source)
+                self.assertIn("self.reset_drag_direction()", source)
 
 
 if __name__ == "__main__":

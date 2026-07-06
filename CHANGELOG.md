@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.66-tk-pet-motion-edge-lock - 2026-07-06
+
+- 继续按付费用户严苛审计桌宠本体运动体验：主屏边缘巡游目标记录当前边，并在每帧移动前锁住固定轴，避免沿边走时逐渐向屏幕中间偏移。
+- 拖动松手进入惯性和惯性结束时清理拖动方向状态，减少慢速拖动或松手后残留左/右跑动方向的割裂感。
+- `ui/tk_pet_window.py` 新增 `lock_edge_roam_position()` 纯函数，legacy 单文件优先调用 modular helper，失败时保留本地 fallback。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.66-pet-motion-edge-lock-20260706/pet-motion-edge-lock-evidence.json`、`qa/tk-ui-0.11.66-pet-motion-edge-lock-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-211839.zip`，ZIP SHA256 `B99C42C1981B0F05225DBE1956400AB843106E6AF246B8AE946AACF845C320A3`，EXE SHA256 `EC10930053D9EF34F727F25BE7B5C74F502226C431406FBC2C8F46244D7B11F4`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-211839/` 和对应 zip。
+
 ## 0.11.65-tk-installer-export-feedback-polish - 2026-07-06
 
 - 继续按付费用户严苛审计安全页公开分发体验：导出安装包弹窗的成功、失败、缺少 GitHub 仓库、缺少 GitHub Token 和 macOS 远端构建结果统一改为状态卡 + 面板 Toast。

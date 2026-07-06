@@ -80,6 +80,35 @@ def default_pet_position(
     return {"x": x, "y": y}
 
 
+def lock_edge_roam_position(
+    x: int | float,
+    y: int | float,
+    edge: str | None,
+    area: Mapping[str, Any],
+) -> tuple[int, int]:
+    """Keep an edge-roam step attached to the chosen screen edge."""
+
+    min_x = int(area.get("left", 0))
+    min_y = int(area.get("top", 0))
+    max_x = int(area.get("right", min_x))
+    max_y = int(area.get("bottom", min_y))
+    if max_x < min_x:
+        min_x, max_x = max_x, min_x
+    if max_y < min_y:
+        min_y, max_y = max_y, min_y
+    locked_x = int(clamp(x, min_x, max_x))
+    locked_y = int(clamp(y, min_y, max_y))
+    if edge == "top":
+        return locked_x, min_y
+    if edge == "right":
+        return max_x, locked_y
+    if edge == "bottom":
+        return locked_x, max_y
+    if edge == "left":
+        return min_x, locked_y
+    return locked_x, locked_y
+
+
 def monitor_allows_center_roam(settings: Mapping[str, Any] | None, monitor: Mapping[str, Any] | None = None) -> bool:
     source = settings or {}
     rect = normalize_monitor_rect(monitor)
