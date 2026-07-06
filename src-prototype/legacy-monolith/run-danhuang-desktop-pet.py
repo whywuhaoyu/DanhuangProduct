@@ -124,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.69"
+APP_VERSION = "0.11.70"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -6378,7 +6378,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             image.save(target)
         return self.relative_to_pet_dir(target)
 
-    def add_reference_paths_to_pet(self, pet_id, paths, on_done=None):
+    def add_reference_paths_to_pet(self, pet_id, paths, on_done=None, feedback_parent=None):
         self.pet_family = self.load_pet_family()
         pet_id = pet_id or self.active_pet.get("id", "danhuang")
         pet = self.pet_by_id(pet_id)
@@ -6395,7 +6395,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     refs.append(rel)
                     existing.add(rel)
         except OSError as exc:
-            messagebox.showerror("添加失败", str(exc))
+            self.show_panel_toast("添加失败", str(exc)[:160], "error", parent=feedback_parent)
             return False
         pet["reference_images"] = refs
         for idx, item in enumerate(self.pet_family.get("pets", [])):
@@ -6473,6 +6473,13 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         window.resizable(False, False)
         window.transient(self.panel if self.panel is not None else self.root)
 
+        def close_reference_window(_event=None):
+            try:
+                window.destroy()
+            except tk.TclError:
+                pass
+            return "break"
+
         shell = tk.Frame(window, bg="#fff7ec", padx=18, pady=16)
         shell.pack(fill="both", expand=True)
         tk.Label(shell, text=f"给{pet.get('display_name', '这个小家伙')}添加现实照片", bg="#fff7ec", fg="#30261d", font=("Microsoft YaHei UI", 14, "bold")).pack(anchor="w")
@@ -6510,19 +6517,21 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
         def save():
             if not staged:
-                messagebox.showwarning("没有图片", "请先选择或拖入图片。")
+                self.show_panel_toast("没有图片", "请先选择或拖入图片。", "warning", parent=window)
                 return
-            if self.add_reference_paths_to_pet(pet_id, staged, on_done):
-                window.destroy()
+            if self.add_reference_paths_to_pet(pet_id, staged, on_done, feedback_parent=window):
+                close_reference_window()
 
         footer = tk.Frame(shell, bg="#fff7ec")
         footer.pack(fill="x")
         tk.Button(footer, text="选择现实照片", command=choose, bg="#fff0d7", fg="#30261d", activebackground="#f3d4aa", relief="flat", bd=0, cursor="hand2", width=14, pady=6, font=("Microsoft YaHei UI", 9)).pack(side="left")
         tk.Button(footer, text="保存", command=save, bg="#c8732b", fg="#ffffff", activebackground="#8f4d22", activeforeground="#ffffff", relief="flat", bd=0, cursor="hand2", width=10, pady=6, font=("Microsoft YaHei UI", 9)).pack(side="left", padx=8)
-        tk.Button(footer, text="取消", command=window.destroy, bg="#f8ddd3", fg="#5d3328", activebackground="#efc2b2", relief="flat", bd=0, cursor="hand2", width=9, pady=6, font=("Microsoft YaHei UI", 9)).pack(side="right")
+        tk.Button(footer, text="取消", command=close_reference_window, bg="#f8ddd3", fg="#5d3328", activebackground="#efc2b2", relief="flat", bd=0, cursor="hand2", width=9, pady=6, font=("Microsoft YaHei UI", 9)).pack(side="right")
         self.register_file_drop(window, add_paths)
+        window.protocol("WM_DELETE_WINDOW", close_reference_window)
+        window.bind("<Escape>", close_reference_window)
         self.center_window(window)
-        window.focus_force()
+        window.after(80, lambda: (window.lift(), window.focus_force()))
         return True
 
     def build_pet_category_selector(self, parent, category_var, detail_var=None, on_change=None, wraplength=520):

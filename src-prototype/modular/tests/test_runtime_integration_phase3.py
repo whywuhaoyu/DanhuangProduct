@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.69")
+                    self.assertEqual(module.APP_VERSION, "0.11.70")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -237,6 +237,22 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertIn("columns=2,\n                width=132,\n                height=28,", source)
                 self.assertNotIn('panel_button(visual_actions, "更换主像素图"', source)
                 self.assertNotIn('panel_button(refs_actions, "添加现实照片"', source)
+
+    def test_reference_image_dialog_feedback_uses_panel_toast(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def add_reference_paths_to_pet(self, pet_id, paths, on_done=None, feedback_parent=None):", source)
+                self.assertIn('self.show_panel_toast("添加失败", str(exc)[:160], "error", parent=feedback_parent)', source)
+                self.assertIn("def add_reference_images_to_pet(self, pet_id=None, on_done=None):", source)
+                self.assertIn("def close_reference_window(_event=None):", source)
+                self.assertIn('self.show_panel_toast("没有图片", "请先选择或拖入图片。", "warning", parent=window)', source)
+                self.assertIn("self.add_reference_paths_to_pet(pet_id, staged, on_done, feedback_parent=window)", source)
+                self.assertIn('window.bind("<Escape>", close_reference_window)', source)
+                self.assertIn("window.after(80, lambda: (window.lift(), window.focus_force()))", source)
+                self.assertNotIn('messagebox.showwarning("没有图片"', source)
+                self.assertNotIn('messagebox.showerror("添加失败"', source)
 
 
 if __name__ == "__main__":

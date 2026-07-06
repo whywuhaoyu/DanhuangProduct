@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.70-tk-reference-image-feedback-polish - 2026-07-06
+
+- 继续按付费用户严苛审计形象页私密照片入口：添加现实照片窗口空提交不再弹 Windows 系统警告框，改为锚定当前窗口的暖色 Toast。
+- 复制现实照片失败时，底层 `add_reference_paths_to_pet()` 可传入 `feedback_parent`，失败反馈显示在当前窗口而不是系统错误框。
+- 添加现实照片窗口补统一关闭路径、`Esc` 关闭和打开后焦点提升。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.70-reference-image-feedback-20260706/reference-image-feedback-evidence.json`、`qa/tk-ui-0.11.70-reference-image-feedback-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-221117.zip`，ZIP SHA256 `0B9FD5EF147B237D3712023F9620345D9A0050710F1691C6B014634DE6E8510D`，EXE SHA256 `CCEE5F92D2F236720360F8C77CA5E5A23BE33CC6479AFC08B7B0A4045A2BF0A8`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-221117/` 和对应 zip。
+
 ## 0.11.69-tk-pet-identity-actions-grid - 2026-07-06
 
 - 继续按付费用户严苛审计形象页资产体验：当前主形象操作区改为共享按钮网格，避免更换主像素图、添加现实照片、管理动作、编辑资料和删除主像素图在窄窗口下横向挤压。
