@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.70")
+                    self.assertEqual(module.APP_VERSION, "0.11.71")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -253,6 +253,18 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertIn("window.after(80, lambda: (window.lift(), window.focus_force()))", source)
                 self.assertNotIn('messagebox.showwarning("没有图片"', source)
                 self.assertNotIn('messagebox.showerror("添加失败"', source)
+
+    def test_clipboard_copy_feedback_uses_panel_toast(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn('def copy_text_to_clipboard(self, text, label="内容", parent=None):', source)
+                self.assertIn('self.show_panel_toast("没有可复制内容", f"{label}为空。", "warning", parent=parent)', source)
+                self.assertIn('self.show_panel_toast("已复制", f"{label}已经放进剪贴板。", "success", parent=parent)', source)
+                self.assertIn('self.show_panel_toast("复制失败", str(exc)[:160], "error", parent=parent)', source)
+                self.assertNotIn('messagebox.showwarning("没有可复制内容"', source)
+                self.assertNotIn('messagebox.showerror("复制失败"', source)
 
 
 if __name__ == "__main__":

@@ -124,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.70"
+APP_VERSION = "0.11.71"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -6988,19 +6988,20 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         )
         return False
 
-    def copy_text_to_clipboard(self, text, label="内容"):
+    def copy_text_to_clipboard(self, text, label="内容", parent=None):
         text = str(text or "")
         if not text.strip():
-            messagebox.showwarning("没有可复制内容", f"{label}为空。")
+            self.show_panel_toast("没有可复制内容", f"{label}为空。", "warning", parent=parent)
             return False
         try:
             self.root.clipboard_clear()
             self.root.clipboard_append(text)
             self.root.update_idletasks()
             self.say(f"{label}已复制。")
+            self.show_panel_toast("已复制", f"{label}已经放进剪贴板。", "success", parent=parent)
             return True
         except tk.TclError as exc:
-            messagebox.showerror("复制失败", str(exc))
+            self.show_panel_toast("复制失败", str(exc)[:160], "error", parent=parent)
             return False
 
     def pet_prompt_identity_context(self, name="", species="", notes="", pet=None, category="", category_detail=""):

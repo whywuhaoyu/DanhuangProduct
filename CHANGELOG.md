@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.71-tk-clipboard-feedback-polish - 2026-07-06
+
+- 继续按付费用户严苛审计动作/新增宠物辅助链路：复制提示词、扩展动作提示词和使用教学的空内容、成功、失败反馈统一改为面板 Toast。
+- `copy_text_to_clipboard()` 新增可选 `parent` 参数，后续二级窗口可以把复制反馈锚定到当前窗口；旧调用保持兼容。
+- 复制成功时保留桌宠气泡，并新增短 Toast，用户能明确知道内容已经进入剪贴板。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.71-clipboard-feedback-20260706/clipboard-feedback-evidence.json`、`qa/tk-ui-0.11.71-clipboard-feedback-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-222245.zip`，ZIP SHA256 `ECD08291CF3C08066B16C29DEBF7E06E58460E1368AD1C0C79419EF987EAE761`，EXE SHA256 `956CC86B2466CAE7093369F9665FBA64F4AB72A757AE331AE753A0D59371CB55`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-222245/` 和对应 zip。
+
 ## 0.11.70-tk-reference-image-feedback-polish - 2026-07-06
 
 - 继续按付费用户严苛审计形象页私密照片入口：添加现实照片窗口空提交不再弹 Windows 系统警告框，改为锚定当前窗口的暖色 Toast。
