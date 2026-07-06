@@ -124,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.74"
+APP_VERSION = "0.11.75"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -7221,23 +7221,31 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         if target_state:
             label = ACTION_LABELS.get(target_state, target_state)
             existing = next((item for item in self.pet_extension_assets() if item.get("id") == target_state), None)
-            if existing:
-                choice = messagebox.askyesnocancel(
-                    "动作已上传",
-                    f"「{label}」已经上传。\n\n是：清空这个动作\n否：重新选择动作条\n取消：不操作",
+
+            def choose_strip_for_target():
+                strip_path = filedialog.askopenfilename(
+                    title=f"选择「{label}」动作条",
+                    initialdir=str(self.default_upload_dir()),
+                    filetypes=[("Image", "*.png;*.webp"), ("All files", "*.*")],
                 )
-                if choice is None:
-                    return False
-                if choice is True:
-                    return self.remove_extension_action_asset(target_state)
-            strip_path = filedialog.askopenfilename(
-                title=f"选择「{label}」动作条",
-                initialdir=str(self.default_upload_dir()),
-                filetypes=[("Image", "*.png;*.webp"), ("All files", "*.*")],
-            )
-            if strip_path:
-                self.remember_directory_setting("default_upload_dir", strip_path)
-            return self.save_extension_action_asset(label, strip_path, target_state, feedback_parent=self.panel)
+                if strip_path:
+                    self.remember_directory_setting("default_upload_dir", strip_path)
+                return self.save_extension_action_asset(label, strip_path, target_state, feedback_parent=self.panel)
+
+            if existing:
+                self.show_panel_choice(
+                    title="动作已上传",
+                    heading=f"「{label}」已经上传",
+                    message="你可以清空这个动作，也可以重新选择一条新的动作精灵图。",
+                    actions=[
+                        ("清空动作", lambda: self.remove_extension_action_asset(target_state), "danger"),
+                        ("重新选择", choose_strip_for_target, "primary"),
+                        ("稍后再说", None, "neutral"),
+                    ],
+                    parent=self.panel,
+                )
+                return False
+            return choose_strip_for_target()
 
         window = tk.Toplevel(self.root)
         window.title("上传自定义动作")
@@ -7713,16 +7721,33 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
         def choose_basic_action(state):
             if state in action_paths:
-                choice = messagebox.askyesnocancel(
-                    "动作已上传",
-                    f"「{category_action_label(state)}」已经上传。\n\n是：清空这个动作\n否：重新选择动作条\n取消：不操作",
-                )
-                if choice is None:
-                    return
-                if choice is True:
+                def clear_action():
                     action_paths.pop(state, None)
                     refresh_preview()
-                    return
+
+                def choose_new_strip():
+                    expected = ROWS[state][1]
+                    path = filedialog.askopenfilename(
+                        title=f"选择「{category_action_label(state)}」动作条（{expected}帧）",
+                        initialdir=str(self.default_upload_dir()),
+                        filetypes=[("Image", "*.png;*.webp"), ("All files", "*.*")],
+                    )
+                    if path:
+                        self.remember_directory_setting("default_upload_dir", path)
+                    set_basic_action_path(state, path)
+
+                self.show_panel_choice(
+                    title="动作已上传",
+                    heading=f"「{category_action_label(state)}」已经上传",
+                    message="你可以清空这个基础动作，也可以重新选择一条新的动作精灵图。",
+                    actions=[
+                        ("清空动作", clear_action, "danger"),
+                        ("重新选择", choose_new_strip, "primary"),
+                        ("稍后再说", None, "neutral"),
+                    ],
+                    parent=window,
+                )
+                return
             expected = ROWS[state][1]
             path = filedialog.askopenfilename(
                 title=f"选择「{category_action_label(state)}」动作条（{expected}帧）",
@@ -15559,6 +15584,107 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         confirm.focus_force()
         self.center_window(confirm)
         return confirm
+
+    def show_panel_choice(self, title, heading, message, actions, parent=None):
+        host = parent or self.root
+        try:
+            if parent is None and self.panel is not None and self.panel.winfo_exists():
+                host = self.panel
+        except tk.TclError:
+            host = self.root
+
+        try:
+            existing = getattr(self, "panel_confirm", None)
+            if existing is not None and existing.winfo_exists():
+                existing.destroy()
+        except tk.TclError:
+            pass
+
+        choice = tk.Toplevel(self.root)
+        self.panel_confirm = choice
+        choice.title(title)
+        choice.configure(bg="#fff8ec")
+        choice.attributes("-topmost", True)
+        choice.resizable(False, False)
+        choice.geometry("500x250")
+        try:
+            choice.transient(host)
+        except tk.TclError:
+            pass
+
+        bg = "#fff8ec"
+        text_main = "#2f261f"
+        text_muted = "#806a52"
+
+        tk.Label(
+            choice,
+            text=heading,
+            bg=bg,
+            fg=text_main,
+            font=("Microsoft YaHei UI", 14, "bold"),
+            anchor="w",
+            justify="left",
+            wraplength=450,
+        ).pack(fill="x", padx=18, pady=(18, 6))
+        tk.Label(
+            choice,
+            text=message,
+            bg=bg,
+            fg=text_muted,
+            font=("Microsoft YaHei UI", 9),
+            anchor="w",
+            justify="left",
+            wraplength=450,
+        ).pack(fill="x", padx=18, pady=(0, 14))
+
+        def close_choice():
+            try:
+                if choice.winfo_exists():
+                    choice.destroy()
+            except tk.TclError:
+                pass
+
+        def run_action(callback):
+            try:
+                result = True if callback is None else callback()
+                ok = result is not False
+            except Exception as exc:
+                self.show_panel_toast("操作失败", str(exc)[:160], "error", parent=host)
+                ok = False
+            if ok:
+                close_choice()
+
+        def choice_button(parent_widget, text, command, variant="neutral"):
+            if variant == "danger":
+                btn_bg, btn_fg, active_bg = "#f8ddd3", "#5d3328", "#efc2b2"
+            elif variant == "primary":
+                btn_bg, btn_fg, active_bg = "#c8732b", "#ffffff", "#8f4d22"
+            else:
+                btn_bg, btn_fg, active_bg = "#fff0d2", text_main, "#fbe4bf"
+            return tk.Button(
+                parent_widget,
+                text=text,
+                command=command,
+                bg=btn_bg,
+                fg=btn_fg,
+                activebackground=active_bg,
+                activeforeground=btn_fg,
+                relief="flat",
+                bd=0,
+                padx=12,
+                pady=8,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 9, "bold" if variant in {"danger", "primary"} else "normal"),
+            )
+
+        actions_row = tk.Frame(choice, bg=bg)
+        actions_row.pack(fill="x", padx=18, pady=(0, 18), side="bottom")
+        for text, callback, variant in reversed(list(actions or [])):
+            choice_button(actions_row, text, lambda cb=callback: run_action(cb), variant).pack(side="right", padx=(8, 0))
+        choice.bind("<Escape>", lambda _event: close_choice())
+        choice.focus_force()
+        self.center_window(choice)
+        return choice
 
     def companion_title(self):
         level, title, _xp = self.level_for_xp(self.companion["xp"])

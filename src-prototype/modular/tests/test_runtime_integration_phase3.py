@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.74")
+                    self.assertEqual(module.APP_VERSION, "0.11.75")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -298,6 +298,23 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertNotIn('messagebox.showerror("导入失败", "请先填写动作名称。"', source)
                 self.assertNotIn('messagebox.showerror("动作不合格"', source)
                 self.assertNotIn('messagebox.showwarning("建议检查"', source)
+
+    def test_uploaded_action_choice_uses_panel_choice(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def show_panel_choice(self, title, heading, message, actions, parent=None):", source)
+                self.assertIn('title="动作已上传"', source)
+                self.assertIn('("清空动作", lambda: self.remove_extension_action_asset(target_state), "danger")', source)
+                self.assertIn('("重新选择", choose_strip_for_target, "primary")', source)
+                self.assertIn('("清空动作", clear_action, "danger")', source)
+                self.assertIn('("重新选择", choose_new_strip, "primary")', source)
+                self.assertIn('("稍后再说", None, "neutral")', source)
+                self.assertIn("result = True if callback is None else callback()", source)
+                self.assertIn("ok = result is not False", source)
+                self.assertNotIn("messagebox.askyesnocancel", source)
+                self.assertNotIn('"动作已上传",\n                    f"「{label}」已经上传', source)
 
     def test_clipboard_copy_feedback_uses_panel_toast(self) -> None:
         for path in RUNTIME_FILES:

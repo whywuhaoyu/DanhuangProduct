@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.75-tk-uploaded-action-choice-polish - 2026-07-06
+
+- 继续按付费用户严苛审计动作资产链路：推荐扩展动作和新增宠物基础动作已经上传时，不再弹 Windows 系统三选一确认框。
+- 新增 `show_panel_choice()` 暖色选择弹窗，保留“清空动作 / 重新选择 / 稍后再说”三种结果，体验与面板确认、Toast 保持一致。
+- “重新选择”会直接打开动作条文件选择器；如果用户取消，原已上传动作保持不变。
+- 本批只改动作上传确认交互和版本号，不改动作 ID、动作精灵图契约、右键动作栏或宠物数据结构。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.75-uploaded-action-choice-20260706/uploaded-action-choice-evidence.json`、`qa/tk-ui-0.11.75-uploaded-action-choice-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-225828.zip`，ZIP SHA256 `7DC902567167FCB8EDF51B5385D8A1532F818EA93409C775B376A76F4A69DCC3`，EXE SHA256 `2630F7061E700876DFEA9201377F5FACCAADAD8F4623AC1130B7DEE5402B8059`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-225828/` 和对应 zip。
+
 ## 0.11.74-tk-extension-action-feedback-polish - 2026-07-06
 
 - 继续按付费用户严苛审计动作资产链路：扩展动作上传窗口的动作名称为空、动作条不合格和建议检查反馈统一改为当前窗口 Toast。

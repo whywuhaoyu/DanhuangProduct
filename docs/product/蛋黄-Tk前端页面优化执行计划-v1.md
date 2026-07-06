@@ -13,6 +13,7 @@
 
 | 版本 | 日期 | 更新内容 |
 | --- | --- | --- |
+| v1.24 | 2026-07-06 | 第三十一批执行：“动作已上传”三选一确认从系统弹窗改为面板选择弹窗，生成 0.11.75 发行包并只保留最新包 |
 | v1.23 | 2026-07-06 | 第三十批执行：扩展动作上传核心失败反馈从系统弹窗改为当前窗口 Toast，生成 0.11.74 发行包并只保留最新包 |
 | v1.22 | 2026-07-06 | 第二十九批执行：新增宠物导入核心失败反馈从系统弹窗改为当前窗口 Toast，生成 0.11.73 发行包并只保留最新包 |
 | v1.21 | 2026-07-06 | 第二十八批执行：更换主像素图失败反馈从系统弹窗改为面板 Toast，生成 0.11.72 发行包并只保留最新包 |
@@ -122,7 +123,7 @@ src-prototype/modular/ui/
 - 形象页 0.11.72 已把更换主像素图时的图片不存在、无法读取反馈改为面板 Toast，不再弹 Windows 系统错误框。
 - 新增宠物向导 0.11.73 已把创建失败、基础动作缺失、拖拽格式不支持和拖拽异常反馈改为当前窗口 Toast。
 - 形象/动作辅助链路 0.11.71 已把复制提示词、扩展动作提示词和使用教学的空内容、成功、失败反馈改为面板 Toast。
-- 动作页：基础动作、扩展动作、推荐待补动作、上传 QA 结果分区展示；0.11.62 已把清空扩展动作精灵图改为暖色面板确认，明确动作页、右键动作栏和可播放动作边界；0.11.74 已把扩展动作上传核心失败反馈改为当前窗口 Toast。
+- 动作页：基础动作、扩展动作、推荐待补动作、上传 QA 结果分区展示；0.11.62 已把清空扩展动作精灵图改为暖色面板确认，明确动作页、右键动作栏和可播放动作边界；0.11.74 已把扩展动作上传核心失败反馈改为当前窗口 Toast；0.11.75 已把“动作已上传”三选一确认改为面板选择弹窗。
 
 ### P2：低频页面和模块化
 
@@ -408,4 +409,14 @@ src-prototype/modular/ui/tk_panel.py
 - 验证状态：legacy、当前运行镜像和发行包 app `py_compile` 已通过；52 个 modular 单元测试通过；当前运行镜像和发行包 `validate_phase3.py` 均无 warnings；包内 JSON、UTF-8、真实隐私扫描、zip 缓存残留检查和 exe 8 秒桌面烟测已完成。
 - 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.74-extension-action-feedback-20260706/extension-action-feedback-evidence.json`、`qa/tk-ui-0.11.74-extension-action-feedback-20260706/exe-smoke-desktop.png`。
 - 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-224054/` 和 zip；ZIP SHA256 `CAD47DB60C0A6BC6D86C6E75D97DF044633615B069A70C4748F855412747FBE6`；EXE SHA256 `C3787BF32F612264806212DD9A0B253EC7B4FF4E2B356DBDE3D1FE2ADAD5C851`。
+
+### 2026-07-06 第三十一批
+
+- 目标线别：Tk/Python 线，版本号更新到 `0.11.75`。
+- 审计口径：继续按付费用户动作上传链路检查，要求已上传动作再次点击时不能再出现 Windows 系统三选一确认框。
+- 严格问题：0.11.74 已把扩展动作上传失败反馈改成 Toast，但“动作已上传”仍用 `messagebox.askyesnocancel`，而且新增宠物基础动作和推荐扩展动作各有一处，上传流程仍像开发工具。
+- 改动内容：新增 `show_panel_choice()` 暖色选择弹窗；推荐扩展动作和新增宠物基础动作复用“清空动作 / 重新选择 / 稍后再说”三选一；重新选择取消时保留原已上传动作。
+- 验证状态：legacy、当前运行镜像和发行包 app `py_compile` 已通过；53 个 modular 单元测试通过；当前运行镜像和发行包 `validate_phase3.py` 均无 warnings；包内 JSON、UTF-8、真实隐私扫描、zip 缓存残留检查和 exe 8 秒桌面烟测已完成。
+- 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.75-uploaded-action-choice-20260706/uploaded-action-choice-evidence.json`、`qa/tk-ui-0.11.75-uploaded-action-choice-20260706/exe-smoke-desktop.png`。
+- 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-225828/` 和 zip；ZIP SHA256 `7DC902567167FCB8EDF51B5385D8A1532F818EA93409C775B376A76F4A69DCC3`；EXE SHA256 `2630F7061E700876DFEA9201377F5FACCAADAD8F4623AC1130B7DEE5402B8059`。
 - 包清理状态：按用户最新要求，`packages/` 只保留最新一组 Tk Windows 包目录和 zip；旧 0.11.73 包已删除。
