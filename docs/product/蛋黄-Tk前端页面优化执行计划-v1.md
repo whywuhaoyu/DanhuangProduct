@@ -13,6 +13,7 @@
 
 | 版本 | 日期 | 更新内容 |
 | --- | --- | --- |
+| v1.14 | 2026-07-06 | 第二十一批执行：导出安装包弹窗成功/失败/GitHub 前置错误从系统弹窗改为状态卡 + 面板 Toast，生成 0.11.65 发行包并只保留最新包 |
 | v1.13 | 2026-07-06 | 第二十批执行：安全页个人备份/恢复/精灵图备份反馈从系统弹窗改为面板 Toast，生成 0.11.64 发行包并清理旧包 |
 | v1.12 | 2026-07-05 | 第十九批执行：故事页删除确认和关键反馈从系统弹窗改为暖色面板组件，生成 0.11.63 发行包 |
 | v1.11 | 2026-07-05 | 第十八批执行：动作页清空扩展动作精灵图确认从系统弹窗改为暖色面板确认，生成 0.11.62 发行包 |
@@ -327,3 +328,14 @@ src-prototype/modular/ui/tk_panel.py
 - 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.64-safety-backup-feedback-20260706/safety-backup-feedback-evidence.json`、`qa/tk-ui-0.11.64-safety-backup-feedback-20260706/exe-smoke-desktop.png`。
 - 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-204857/` 和 zip；ZIP SHA256 `9EE8176BF939C2D10C1F60C509843AEBA671E51DBDD5046BDCA2513BFB2A5FC1`；EXE SHA256 `9BA8968EA7BBAC8DEB5E7F0C0DEE913679DE7A61A3A1EB846A26BE0F120CFBFB`。
 - 包清理状态：按用户最新要求，`packages/` 只保留最新一组 Tk Windows 包目录和 zip；本批已删除 42 个旧 `danhuang-desktop-pet-windows-*` 目录/zip。
+
+### 2026-07-06 第二十一批
+
+- 目标线别：Tk/Python 线，版本号更新到 `0.11.65`。
+- 审计口径：继续按付费用户公开分发和安装信任检查安全页，要求导出安装包弹窗的成功、失败和 GitHub 前置错误不能再弹割裂的 Windows 系统窗口。
+- 严格问题：0.11.64 已收敛个人备份反馈，但导出安装包弹窗仍在导出完成、导出失败、缺少 GitHub 仓库/Token、macOS 远端构建结果和 workflow 写入路径使用 `messagebox`，付费用户会感觉这是开发工具而不是可交付产品。
+- 改动内容：导出安装包弹窗复用 `set_export_status()` 和 `show_panel_toast(parent=window)`；Token 保存、workflow 写入、Windows/macOS 导出结果和 GitHub 前置错误统一为状态卡 + Toast。
+- 验证状态：legacy、当前运行镜像和发行包 app `py_compile` 已通过；42 个 modular 单元测试通过；当前运行镜像和发行包 `validate_phase3.py` 均无 warnings；包内 JSON、UTF-8、真实隐私扫描、zip 缓存残留检查和 exe 8 秒桌面烟测已完成。
+- 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.65-installer-export-feedback-20260706/installer-export-feedback-evidence.json`、`qa/tk-ui-0.11.65-installer-export-feedback-20260706/exe-smoke-desktop.png`。
+- 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-210701/` 和 zip；ZIP SHA256 `24F268CC65760B2F8EDBD142FA0067D938169495F9CADE13A76D7FEFDF5B9FEA`；EXE SHA256 `91129C3F83A8C6E66953A73115BF2396FE841191807EB894CCF8CBD36C3226E8`。
+- 包清理状态：按用户最新要求，`packages/` 只保留最新一组 Tk Windows 包目录和 zip；旧 0.11.64 包已删除。

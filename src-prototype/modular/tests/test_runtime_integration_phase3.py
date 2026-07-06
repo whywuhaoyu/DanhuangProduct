@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.64")
+                    self.assertEqual(module.APP_VERSION, "0.11.65")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -156,6 +156,26 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertIn('self.show_panel_toast("精灵图已备份"', source)
                 self.assertNotIn('messagebox.showerror("恢复失败"', source)
                 self.assertNotIn('messagebox.showerror("备份失败"', source)
+
+    def test_installer_export_feedback_uses_panel_status_and_toast(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def open_installer_export_dialog(self, target_platform=\"windows\"):", source)
+                self.assertIn("def set_export_status(title, body, tone=\"neutral\"):", source)
+                self.assertIn('self.show_panel_toast("导出完成"', source)
+                self.assertIn('self.show_panel_toast("导出失败"', source)
+                self.assertIn('self.show_panel_toast("缺少 GitHub 仓库"', source)
+                self.assertIn('self.show_panel_toast("缺少 GitHub Token"', source)
+                self.assertIn('self.show_panel_toast("macOS 可运行包完成"', source)
+                self.assertIn('self.show_panel_toast("macOS 构建失败"', source)
+                self.assertNotIn('messagebox.showinfo("导出完成"', source)
+                self.assertNotIn('messagebox.showerror("导出失败"', source)
+                self.assertNotIn('messagebox.showwarning("缺少 GitHub 仓库"', source)
+                self.assertNotIn('messagebox.showwarning("缺少 GitHub Token"', source)
+                self.assertNotIn('messagebox.showinfo("macOS 可运行包完成"', source)
+                self.assertNotIn('messagebox.showerror("macOS 构建失败"', source)
 
 
 if __name__ == "__main__":

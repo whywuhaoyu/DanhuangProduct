@@ -121,7 +121,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.64"
+APP_VERSION = "0.11.65"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -5358,7 +5358,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         entry_path = package_dir / ("安装桌宠.bat" if target_platform == "windows" else "RunOnMac.command")
         if show_message:
             self.say(f"{platform_name}导出完成。")
-            messagebox.showinfo("导出完成", f"{platform_name}已生成：\n{zip_path}\n\n入口：{entry_path}")
+            self.show_panel_toast("导出完成", f"压缩包：{zip_path}\n入口：{entry_path}", "success", parent=self.panel if self.panel is not None else self.root)
         return package_dir, zip_path
 
     def open_installer_export_dialog(self, target_platform="windows"):
@@ -5540,8 +5540,25 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             token_source = self.github_build_token()[1]
             tk.Label(token_row, text=f"Token：{token_source}", bg="#eef6ea", fg="#46694b", anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left")
             tk.Entry(token_row, textvariable=token_var, show="*", bg="#fffdf8", fg="#30261d", relief="flat", highlightthickness=1, highlightbackground="#cfe0c7", highlightcolor="#6a8f61", font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True, padx=8, ipady=5)
-            export_button(token_row, "保存 Token", lambda: (self.save_github_build_token(token_var.get()), token_var.set(""), messagebox.showinfo("已保存", "GitHub Token 已用本机 DPAPI 加密保存。")), "sage").pack(side="left")
-            export_button(token_row, "写入 workflow 模板", lambda: messagebox.showinfo("已写入", f"已写入：\n{self.ensure_github_workflow_template()}"), "neutral").pack(side="left", padx=(8, 0))
+            def save_github_token_from_dialog():
+                try:
+                    self.save_github_build_token(token_var.get())
+                    token_var.set("")
+                    self.show_panel_toast("Token 已保存", "GitHub Token 已用本机 DPAPI 加密保存。", "success", parent=window)
+                except Exception as exc:
+                    report_callback_exception(*sys.exc_info())
+                    self.show_panel_toast("Token 保存失败", str(exc)[:160], "error", parent=window)
+
+            def write_github_workflow_from_dialog():
+                try:
+                    path = self.ensure_github_workflow_template()
+                    self.show_panel_toast("workflow 已写入", self.local_path_label(path), "success", parent=window)
+                except Exception as exc:
+                    report_callback_exception(*sys.exc_info())
+                    self.show_panel_toast("写入失败", str(exc)[:160], "error", parent=window)
+
+            export_button(token_row, "保存 Token", save_github_token_from_dialog, "sage").pack(side="left")
+            export_button(token_row, "写入 workflow 模板", write_github_workflow_from_dialog, "neutral").pack(side="left", padx=(8, 0))
 
         path_row = tk.Frame(shell, bg="#fff7ec")
         path_row.pack(fill="x", pady=(12, 0))
@@ -5626,7 +5643,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             except Exception as exc:
                 report_callback_exception(*sys.exc_info())
                 set_export_status("导出失败", f"表单保存失败：{str(exc)[:160]}\n日志：{export_error_log_path()}", "danger")
-                messagebox.showerror("导出失败", f"{platform_name}导出失败，已写入 desktop-pet-error.log。")
+                self.show_panel_toast("导出失败", f"{platform_name}导出失败，已写入 desktop-pet-error.log。", "error", parent=window)
                 return
             include_todos = include_todos_var.get()
             include_stories = include_stories_var.get()
@@ -5645,7 +5662,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     "success",
                 )
                 self.say(f"{platform_name}导出完成。")
-                messagebox.showinfo("导出完成", f"{platform_name}已生成：\n{zip_path}\n\n入口：{entry_path}")
+                self.show_panel_toast("导出完成", f"{platform_name}已生成：{Path(zip_path).name}", "success", parent=window)
 
             def failed(exc):
                 if not export_dialog_alive():
@@ -5656,7 +5673,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     f"{str(exc)[:180]}\n日志：{export_error_log_path()}\n恢复建议：确认导出目录可写，关闭正在占用的压缩包或安装目录后重试。",
                     "danger",
                 )
-                messagebox.showerror("导出失败", f"{platform_name}导出失败，已写入 desktop-pet-error.log。")
+                self.show_panel_toast("导出失败", f"{platform_name}导出失败，已写入 desktop-pet-error.log。", "error", parent=window)
 
             def worker():
                 try:
@@ -5684,10 +5701,12 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             repo, _branch, _workflow = self.github_build_config()
             token, _token_source = self.github_build_token()
             if not self.normalize_github_repo(repo):
-                messagebox.showwarning("缺少 GitHub 仓库", "请先填写 GitHub 仓库，例如 owner/repo。")
+                set_export_status("缺少 GitHub 仓库", "请先填写 GitHub 仓库，例如 owner/repo。", "danger")
+                self.show_panel_toast("缺少 GitHub 仓库", "请先填写 GitHub 仓库，例如 owner/repo。", "warning", parent=window)
                 return
             if not token:
-                messagebox.showwarning("缺少 GitHub Token", f"请设置环境变量 {self.github_token_env_key()}，或在这里保存 Token。")
+                set_export_status("缺少 GitHub Token", f"请设置环境变量 {self.github_token_env_key()}，或在这里保存 Token。", "danger")
+                self.show_panel_toast("缺少 GitHub Token", f"请设置环境变量 {self.github_token_env_key()}，或在这里保存 Token。", "warning", parent=window)
                 return
             local_selected = selected_pet_ids()
             set_footer_enabled(False)
@@ -5702,7 +5721,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 set_footer_enabled(True)
                 set_export_status("macOS 构建完成", f"GitHub run：{run_id}\n可运行包：{final_zip}\n导出目录：{Path(final_zip).parent}", "success")
                 self.say("主人，macOS 可运行包已经生成。")
-                messagebox.showinfo("macOS 可运行包完成", f"已下载：\n{final_zip}\n\nMac 用户解压后双击 DanhuangDesktopPet.app；如被拦截，双击“打开桌宠.command”。")
+                self.show_panel_toast("macOS 可运行包完成", f"已下载：{Path(final_zip).name}", "success", parent=window)
 
             def failed(exc):
                 if not export_dialog_alive():
@@ -5713,7 +5732,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     f"{str(exc)[:180]}\n日志：{export_error_log_path()}\n恢复建议：确认 workflow 已提交，Token 有 repo/workflow 权限，GitHub Actions 可正常运行。",
                     "danger",
                 )
-                messagebox.showerror("macOS 构建失败", f"{exc}\n\n已写入 desktop-pet-error.log。确认 workflow 已提交到 GitHub，并且 token 有 repo/workflow 权限。")
+                self.show_panel_toast("macOS 构建失败", "已写入 desktop-pet-error.log，请检查 workflow、Token 权限和 GitHub Actions 状态。", "error", parent=window)
 
             def worker():
                 try:

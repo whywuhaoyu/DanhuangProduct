@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.65-tk-installer-export-feedback-polish - 2026-07-06
+
+- 继续按付费用户严苛审计安全页公开分发体验：导出安装包弹窗的成功、失败、缺少 GitHub 仓库、缺少 GitHub Token 和 macOS 远端构建结果统一改为状态卡 + 面板 Toast。
+- GitHub Token 保存和 workflow 模板写入不再弹 Windows 系统信息框，改为锚定导出弹窗的 Toast；失败时记录日志并显示可恢复提示。
+- 普通导出接口保留完成提示，但改为当前面板 Toast，减少分发/打包链路中的工程味系统弹窗。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.65-installer-export-feedback-20260706/installer-export-feedback-evidence.json`、`qa/tk-ui-0.11.65-installer-export-feedback-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-210701.zip`，ZIP SHA256 `24F268CC65760B2F8EDBD142FA0067D938169495F9CADE13A76D7FEFDF5B9FEA`，EXE SHA256 `91129C3F83A8C6E66953A73115BF2396FE841191807EB894CCF8CBD36C3226E8`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-210701/` 和对应 zip。
+
 ## 0.11.64-tk-safety-backup-feedback-polish - 2026-07-06
 
 - 继续按付费用户严苛审计安全页个人数据体验：导出配置、恢复配置和备份精灵图统一改为面板 Toast 反馈。
