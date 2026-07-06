@@ -13,6 +13,7 @@
 
 | 版本 | 日期 | 更新内容 |
 | --- | --- | --- |
+| v1.16 | 2026-07-06 | 第二十三批执行：到点提醒弹窗网格化、快捷键和焦点处理，生成 0.11.67 发行包并只保留最新包 |
 | v1.15 | 2026-07-06 | 第二十二批执行：桌宠本体边缘巡游固定轴锁定和拖动方向清理，生成 0.11.66 发行包并只保留最新包 |
 | v1.14 | 2026-07-06 | 第二十一批执行：导出安装包弹窗成功/失败/GitHub 前置错误从系统弹窗改为状态卡 + 面板 Toast，生成 0.11.65 发行包并只保留最新包 |
 | v1.13 | 2026-07-06 | 第二十批执行：安全页个人备份/恢复/精灵图备份反馈从系统弹窗改为面板 Toast，生成 0.11.64 发行包并清理旧包 |
@@ -351,3 +352,14 @@ src-prototype/modular/ui/tk_panel.py
 - 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.66-pet-motion-edge-lock-20260706/pet-motion-edge-lock-evidence.json`、`qa/tk-ui-0.11.66-pet-motion-edge-lock-20260706/exe-smoke-desktop.png`。
 - 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-211839/` 和 zip；ZIP SHA256 `B99C42C1981B0F05225DBE1956400AB843106E6AF246B8AE946AACF845C320A3`；EXE SHA256 `EC10930053D9EF34F727F25BE7B5C74F502226C431406FBC2C8F46244D7B11F4`。
 - 包清理状态：按用户最新要求，`packages/` 只保留最新一组 Tk Windows 包目录和 zip；旧 0.11.65 包已删除。
+
+### 2026-07-06 第二十三批
+
+- 目标线别：Tk/Python 线，版本号更新到 `0.11.67`。
+- 审计口径：继续按付费用户提醒依赖场景检查到点弹窗，要求用户能快速完成、稍后或关闭，不被横向挤压按钮和弱焦点打断。
+- 严格问题：旧到点提醒弹窗虽然已是暖色卡片，但状态 chip 和操作按钮仍偏横向堆叠；窗口出现后没有明确焦点和键盘快捷处理，用户需要精细点击才能完成/稍后。
+- 改动内容：到点提醒弹窗状态 chip、主操作和稍后提醒改为固定网格；新增 `Ctrl+Enter` 完成、`1/2/3` 稍后提醒、`Esc` 关闭；弹窗打开后置顶、获取焦点并聚焦“完成”，关闭时清理 `self.reminder_popup`。
+- 验证状态：legacy、当前运行镜像和发行包 app `py_compile` 已通过；45 个 modular 单元测试通过；当前运行镜像和发行包 `validate_phase3.py` 均无 warnings；包内 JSON、UTF-8、真实隐私扫描、zip 缓存残留检查和 exe 8 秒桌面烟测已完成。
+- 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.67-reminder-popup-shortcuts-20260706/reminder-popup-shortcuts-evidence.json`、`qa/tk-ui-0.11.67-reminder-popup-shortcuts-20260706/exe-smoke-desktop.png`。
+- 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-212948/` 和 zip；ZIP SHA256 `04F0DB5EBCB602D5C880BE4DCF06613A56CAE195715D9E18EE183E820E53D2BD`；EXE SHA256 `82F2EA4F91512143DAD7CD705BA8A85794E2197CC877B299000B1B66F4326C10`。
+- 包清理状态：按用户最新要求，`packages/` 只保留最新一组 Tk Windows 包目录和 zip；旧 0.11.66 包已删除。

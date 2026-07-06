@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.66")
+                    self.assertEqual(module.APP_VERSION, "0.11.67")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -188,6 +188,22 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertIn("nx, ny = self.lock_edge_roam_position(nx, ny, edge, area)", source)
                 self.assertIn("def reset_drag_direction(self):", source)
                 self.assertIn("self.reset_drag_direction()", source)
+
+    def test_reminder_popup_grid_shortcuts_and_focus_are_wired(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def open_reminder_popup(self, todo):", source)
+                self.assertIn('chip_row.grid_columnconfigure(column, weight=1, uniform="reminder_popup_chip")', source)
+                self.assertIn('primary_row.grid_columnconfigure(column, weight=1, uniform="reminder_popup_primary")', source)
+                self.assertIn('snooze_grid.grid_columnconfigure(column, weight=1, uniform="reminder_popup_snooze")', source)
+                self.assertIn('popup.bind("<Control-Return>", complete_from_popup)', source)
+                self.assertIn('popup.bind("<Key-1>", snooze_from_popup(15))', source)
+                self.assertIn("def close_from_popup(_event=None):", source)
+                self.assertIn('popup.bind("<Escape>", close_from_popup)', source)
+                self.assertIn("popup.after(80, lambda: (popup.lift(), popup.focus_force(), complete_button.focus_set()))", source)
+                self.assertIn("if self.reminder_popup is popup:", source)
 
 
 if __name__ == "__main__":

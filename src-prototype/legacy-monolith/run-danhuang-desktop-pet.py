@@ -124,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.66"
+APP_VERSION = "0.11.67"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -13262,7 +13262,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         popup.configure(bg="#fff8ec")
         popup.attributes("-topmost", True)
         popup.resizable(False, False)
-        popup.geometry("440x360")
+        popup.geometry("480x390")
 
         popup_bg = "#fff8ec"
         card_bg = "#fffdf7"
@@ -13320,7 +13320,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             (due_text, subtle_bg, text_muted),
             (f"提醒 {todo.get('remind_count', 0)} 次", subtle_bg, text_muted),
         ]
-        for label, bg, fg in chips:
+        for column in range(3):
+            chip_row.grid_columnconfigure(column, weight=1, uniform="reminder_popup_chip")
+        for index, (label, bg, fg) in enumerate(chips):
             tk.Label(
                 chip_row,
                 text=label,
@@ -13329,7 +13331,8 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 padx=8,
                 pady=2,
                 font=("Microsoft YaHei UI", 8, "bold" if label == "已到点" else "normal"),
-            ).pack(side="left", padx=(0, 5), pady=1)
+                anchor="center",
+            ).grid(row=index // 3, column=index % 3, sticky="ew", padx=(0, 5), pady=2)
         note_text = str(todo.get("note", "")).strip()
         if note_text:
             if len(note_text) > 72:
@@ -13371,33 +13374,74 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 pady=7,
                 cursor="hand2",
                 font=("Microsoft YaHei UI", 9, "bold" if variant == "primary" else "normal"),
+                takefocus=True,
             )
+
+        def close_popup():
+            if self.reminder_popup is popup:
+                self.reminder_popup = None
+            if popup.winfo_exists():
+                popup.destroy()
 
         def finish(command):
             command()
-            if popup.winfo_exists():
-                popup.destroy()
+            close_popup()
 
         def open_reminders_page():
             self.todo_selected_id = str(todo.get("id") or "")
             self.open_control_panel("提醒")
-            if popup.winfo_exists():
-                popup.destroy()
+            close_popup()
+
+        def complete_from_popup(_event=None):
+            finish(lambda: self.complete_todo(todo.get("id")))
+            return "break"
+
+        def snooze_from_popup(minutes):
+            def handle(_event=None):
+                finish(lambda: self.snooze_todo(todo.get("id"), minutes))
+                return "break"
+
+            return handle
+
+        def close_from_popup(_event=None):
+            close_popup()
+            return "break"
 
         primary_row = tk.Frame(actions, bg=popup_bg)
         primary_row.pack(fill="x", pady=(0, 7))
-        reminder_button(primary_row, "完成", lambda: finish(lambda: self.complete_todo(todo.get("id"))), "primary", width=9).pack(side="left")
-        reminder_button(primary_row, "打开提醒页", open_reminders_page, "neutral", width=12).pack(side="left", padx=8)
-        reminder_button(primary_row, "关闭", popup.destroy, "ghost", width=8).pack(side="right")
+        for column in range(3):
+            primary_row.grid_columnconfigure(column, weight=1, uniform="reminder_popup_primary")
+        complete_button = reminder_button(primary_row, "完成", complete_from_popup, "primary", width=9)
+        complete_button.grid(row=0, column=0, sticky="ew", padx=(0, 7))
+        reminder_button(primary_row, "打开提醒页", open_reminders_page, "neutral", width=12).grid(row=0, column=1, sticky="ew", padx=(0, 7))
+        reminder_button(primary_row, "关闭", close_popup, "ghost", width=8).grid(row=0, column=2, sticky="ew")
 
         snooze_row = tk.Frame(actions, bg=popup_bg)
         snooze_row.pack(fill="x")
-        tk.Label(snooze_row, text="稍后提醒", bg=popup_bg, fg=text_muted, font=("Microsoft YaHei UI", 8, "bold")).pack(side="left", padx=(0, 8))
-        reminder_button(snooze_row, "15分钟", lambda: finish(lambda: self.snooze_todo(todo.get("id"), 15)), width=8).pack(side="left", padx=(0, 6))
-        reminder_button(snooze_row, "1小时", lambda: finish(lambda: self.snooze_todo(todo.get("id"), 60)), width=8).pack(side="left")
-        reminder_button(snooze_row, "明天", lambda: finish(lambda: self.snooze_todo(todo.get("id"), 24 * 60)), width=7).pack(side="left", padx=6)
-        popup.bind("<Escape>", lambda _event: popup.destroy())
+        tk.Label(snooze_row, text="稍后提醒", bg=popup_bg, fg=text_muted, font=("Microsoft YaHei UI", 8, "bold")).pack(anchor="w", pady=(0, 5))
+        snooze_grid = tk.Frame(snooze_row, bg=popup_bg)
+        snooze_grid.pack(fill="x")
+        for column in range(3):
+            snooze_grid.grid_columnconfigure(column, weight=1, uniform="reminder_popup_snooze")
+        reminder_button(snooze_grid, "1  15分钟", snooze_from_popup(15), width=9).grid(row=0, column=0, sticky="ew", padx=(0, 7))
+        reminder_button(snooze_grid, "2  1小时", snooze_from_popup(60), width=9).grid(row=0, column=1, sticky="ew", padx=(0, 7))
+        reminder_button(snooze_grid, "3  明天", snooze_from_popup(24 * 60), width=9).grid(row=0, column=2, sticky="ew")
+        tk.Label(
+            actions,
+            text="快捷键：Ctrl+Enter 完成，1/2/3 稍后，Esc 关闭。",
+            bg=popup_bg,
+            fg=text_muted,
+            font=("Microsoft YaHei UI", 8),
+            anchor="w",
+        ).pack(fill="x", pady=(8, 0))
+        popup.protocol("WM_DELETE_WINDOW", close_popup)
+        popup.bind("<Control-Return>", complete_from_popup)
+        popup.bind("<Key-1>", snooze_from_popup(15))
+        popup.bind("<Key-2>", snooze_from_popup(60))
+        popup.bind("<Key-3>", snooze_from_popup(24 * 60))
+        popup.bind("<Escape>", close_from_popup)
         self.center_window(popup)
+        popup.after(80, lambda: (popup.lift(), popup.focus_force(), complete_button.focus_set()))
 
     def reminder_loop(self):
         if self.closing:

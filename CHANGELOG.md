@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.67-tk-reminder-popup-shortcuts - 2026-07-06
+
+- 继续按付费用户严苛审计提醒到点体验：提醒弹窗的状态 chip、主操作和稍后提醒操作改为固定网格，降低横向挤压和按钮错位风险。
+- 到点弹窗新增快速处理键：`Ctrl+Enter` 完成，`1/2/3` 分别稍后 15 分钟、1 小时和明天，`Esc` 关闭且不改变待办状态。
+- 弹窗打开后会置顶、获取焦点并聚焦“完成”按钮；关闭时清理 `self.reminder_popup` 引用，减少下一次提醒窗口状态残留。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.67-reminder-popup-shortcuts-20260706/reminder-popup-shortcuts-evidence.json`、`qa/tk-ui-0.11.67-reminder-popup-shortcuts-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-212948.zip`，ZIP SHA256 `04F0DB5EBCB602D5C880BE4DCF06613A56CAE195715D9E18EE183E820E53D2BD`，EXE SHA256 `82F2EA4F91512143DAD7CD705BA8A85794E2197CC877B299000B1B66F4326C10`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-212948/` 和对应 zip。
+
 ## 0.11.66-tk-pet-motion-edge-lock - 2026-07-06
 
 - 继续按付费用户严苛审计桌宠本体运动体验：主屏边缘巡游目标记录当前边，并在每帧移动前锁住固定轴，避免沿边走时逐渐向屏幕中间偏移。
