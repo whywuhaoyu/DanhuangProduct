@@ -15,6 +15,7 @@ from ui.tk_right_menu import (  # noqa: E402
     build_pet_switcher_model,
     build_right_menu_model,
     compute_menu_position,
+    compute_menu_viewport_size,
     compute_popup_position,
     right_menu_action_buttons,
     right_menu_popup_layout,
@@ -64,9 +65,9 @@ class Phase3UiTests(unittest.TestCase):
         model = build_right_menu_model(self._pet_manifest(), current_pet_id="danhuang")
 
         self.assertTrue(model["header"]["current"])
-        self.assertEqual([section["id"] for section in model["sections"]], ["common", "base_actions", "extension_actions", "window"])
-        self.assertEqual(model["visible_extension_actions"], ["standing", "tongue", "lying", "sleeping"])
-        self.assertEqual(model["hidden_extension_actions"], ["custom:petting"])
+        self.assertEqual([section["id"] for section in model["sections"]], ["common", "window", "activity_modes", "base_actions", "extension_actions"])
+        self.assertEqual(model["visible_extension_actions"], ["standing", "tongue", "lying"])
+        self.assertEqual(model["hidden_extension_actions"], ["sleeping", "custom:petting"])
         self.assertTrue(model["can_show_more"])
         buttons = right_menu_action_buttons(model)
         self.assertEqual([button["action_id"] for button in buttons[:4]], ["waving", "running", "jumping", "waiting"])
@@ -81,19 +82,57 @@ class Phase3UiTests(unittest.TestCase):
             "open_control_panel",
             "open_control_panel",
             "open_control_panel",
+            "quiet_mode",
             "open_pet_switcher",
             "say_random",
         ])
         self.assertEqual(sections["common"]["items"][2]["page"], "提醒")
         self.assertEqual(sections["common"]["items"][3]["page"], "AI")
+        self.assertEqual(sections["common"]["items"][3]["label"], "陪聊设置")
+        self.assertEqual(sections["common"]["items"][4]["label"], "安静一下")
+        self.assertEqual([item["command"] for item in sections["activity_modes"]["items"]], ["set_activity_mode", "set_activity_mode", "set_activity_mode"])
+        self.assertEqual([item["mode"] for item in sections["activity_modes"]["items"]], ["quiet", "daily", "active"])
+        self.assertEqual(sections["activity_modes"]["items"][1]["variant"], "selected")
         self.assertEqual(sections["extension_actions"]["footer"][0]["command"], "open_more_actions")
-        self.assertEqual(sections["extension_actions"]["footer"][0]["hidden_count"], 1)
+        self.assertEqual(sections["extension_actions"]["footer"][0]["hidden_count"], 2)
         self.assertEqual(sections["extension_actions"]["footer"][1]["page"], "动作")
-        self.assertEqual([item["command"] for item in sections["window"]["items"]], ["hide_bubble", "close"])
+        self.assertEqual([item["command"] for item in sections["window"]["items"]], ["toggle_activity_pause", "hide_bubble", "close"])
+        self.assertEqual(sections["window"]["items"][0]["label"], "暂停活动")
         self.assertEqual(model["layout"]["auto_close_ms"], 12000)
-        self.assertEqual(model["layout"]["min_width"], 280)
+        self.assertEqual(model["layout"]["columns"], 3)
+        self.assertEqual(model["layout"]["min_width"], 540)
+        self.assertEqual(model["layout"]["min_scroll_body_height"], 180)
         self.assertIn("primary", model["style"]["button_variants"])
         self.assertEqual(model["style"]["button_variants"]["primary"]["fg"], "#ffffff")
+
+    def test_right_menu_model_hides_switcher_for_single_pet_package(self) -> None:
+        model = build_right_menu_model(
+            self._pet_manifest(),
+            current_pet_id="danhuang",
+            can_switch_pet=False,
+        )
+        sections = {section["id"]: section for section in model["sections"]}
+
+        self.assertFalse(model["header"]["can_switch_pet"])
+        self.assertNotIn("open_pet_switcher", [item["command"] for item in sections["common"]["items"]])
+        self.assertIn("say_random", [item["command"] for item in sections["common"]["items"]])
+
+    def test_right_menu_model_marks_activity_mode(self) -> None:
+        model = build_right_menu_model(self._pet_manifest(), current_pet_id="danhuang", activity_mode="quiet")
+        sections = {section["id"]: section for section in model["sections"]}
+
+        self.assertEqual(model["header"]["activity_mode"], "quiet")
+        self.assertEqual(model["header"]["activity_mode_label"], "安静")
+        self.assertEqual(sections["activity_modes"]["items"][0]["variant"], "selected")
+        self.assertEqual(sections["activity_modes"]["items"][1]["variant"], "soft")
+
+    def test_right_menu_model_marks_paused_activity(self) -> None:
+        model = build_right_menu_model(self._pet_manifest(), current_pet_id="danhuang", paused=True)
+        sections = {section["id"]: section for section in model["sections"]}
+
+        self.assertTrue(model["header"]["paused"])
+        self.assertEqual(sections["window"]["items"][0]["command"], "toggle_activity_pause")
+        self.assertEqual(sections["window"]["items"][0]["label"], "恢复日常")
 
     def test_right_menu_style_tokens_are_isolated_copies(self) -> None:
         first = right_menu_style_tokens()
@@ -173,6 +212,26 @@ class Phase3UiTests(unittest.TestCase):
         self.assertEqual(left["placement"], "left")
         self.assertLess(left["x"] + 280, 520)
         self.assertGreaterEqual(left["x"], 8)
+
+    def test_menu_viewport_size_clamps_tall_body_for_small_screens(self) -> None:
+        compact = compute_menu_viewport_size(
+            {"height": 620},
+            {"height": 116},
+            {"left": 0, "top": 0, "right": 1280, "bottom": 720},
+        )
+
+        self.assertTrue(compact["scrollable"])
+        self.assertLessEqual(compact["panel_height"], compact["max_panel_height"])
+        self.assertLess(compact["viewport_height"], 620)
+
+        roomy = compute_menu_viewport_size(
+            {"height": 420},
+            {"height": 116},
+            {"left": 0, "top": 0, "right": 1920, "bottom": 1080},
+        )
+
+        self.assertFalse(roomy["scrollable"])
+        self.assertEqual(roomy["viewport_height"], 420)
 
     def test_bubble_model_normalizes_style_colors_and_position(self) -> None:
         model = bubble_preview_model(

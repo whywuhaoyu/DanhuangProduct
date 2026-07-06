@@ -31,13 +31,14 @@ BUBBLE_STYLES = {
 }
 
 DEFAULT_SETTINGS: dict[str, Any] = {
-    "scale": 0.50,
+    "activity_mode": "daily",
+    "scale": 0.46,
     "animation_speed": 0.70,
     "drag_sensitivity": 0.70,
     "inertia": 0.55,
     "idle_action_interval": 9.0,
     "talk_enabled": True,
-    "talk_interval": 45.0,
+    "talk_interval": 150.0,
     "bubble_duration": 5.0,
     "bubble_style": "soft",
     "bubble_fill": BUBBLE_FILL,
@@ -46,18 +47,18 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "position_x": -1,
     "position_y": -1,
     "keep_on_screen": True,
-    "always_on_top": True,
+    "always_on_top": False,
     "opacity": 1.0,
-    "talk_after_interaction_delay": 18.0,
+    "talk_after_interaction_delay": 30.0,
     "roam_enabled": True,
-    "roam_interval": 28.0,
-    "roam_speed": 115.0,
-    "roam_distance": 0.55,
-    "roam_allow_center": True,
-    "multi_monitor_roam": True,
+    "roam_interval": 120.0,
+    "roam_speed": 75.0,
+    "roam_distance": 0.35,
+    "roam_allow_center": False,
+    "multi_monitor_roam": False,
     "roam_current_monitor_only": False,
     "primary_monitor_edge_only": True,
-    "secondary_monitor_full_roam": True,
+    "secondary_monitor_full_roam": False,
     "lock_size_across_monitors": True,
     "panel_advanced": False,
     "panel_pinned": False,
@@ -76,6 +77,26 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "github_workflow": "build-macos-app.yml",
     "github_token_env_key": "DANHUANG_GITHUB_TOKEN",
     "encrypted_github_token": "",
+}
+ACTIVITY_MODES = {"quiet", "daily", "active"}
+DAILY_ACTIVITY_MODE_SETTINGS: dict[str, Any] = {
+    "activity_mode": "daily",
+    "animation_speed": 0.70,
+    "drag_sensitivity": 0.70,
+    "inertia": 0.55,
+    "talk_enabled": True,
+    "talk_interval": 150.0,
+    "talk_after_interaction_delay": 30.0,
+    "roam_enabled": True,
+    "roam_interval": 120.0,
+    "roam_speed": 75.0,
+    "roam_distance": 0.35,
+    "roam_allow_center": False,
+    "multi_monitor_roam": False,
+    "roam_current_monitor_only": False,
+    "primary_monitor_edge_only": True,
+    "secondary_monitor_full_roam": False,
+    "always_on_top": False,
 }
 
 
@@ -114,7 +135,9 @@ def _coerce_setting(default: Any, value: Any) -> Any:
 
 def normalize_settings(raw: Mapping[str, Any] | None) -> dict[str, Any]:
     settings = default_settings()
+    apply_default_activity_mode = True
     if isinstance(raw, Mapping):
+        apply_default_activity_mode = raw.get("activity_mode") not in ACTIVITY_MODES
         for key, default in DEFAULT_SETTINGS.items():
             if key not in raw:
                 continue
@@ -122,6 +145,8 @@ def normalize_settings(raw: Mapping[str, Any] | None) -> dict[str, Any]:
                 settings[key] = _coerce_setting(default, raw[key])
             except (TypeError, ValueError):
                 settings[key] = copy.deepcopy(default)
+    if apply_default_activity_mode:
+        settings.update(copy.deepcopy(DAILY_ACTIVITY_MODE_SETTINGS))
 
     settings["scale"] = clamp(settings["scale"], 0.25, 1.00)
     settings["animation_speed"] = clamp(settings["animation_speed"], 0.35, 1.50)
@@ -141,6 +166,8 @@ def normalize_settings(raw: Mapping[str, Any] | None) -> dict[str, Any]:
 
     if settings["bubble_style"] not in BUBBLE_STYLES:
         settings["bubble_style"] = DEFAULT_SETTINGS["bubble_style"]
+    if settings.get("activity_mode") not in ACTIVITY_MODES:
+        settings["activity_mode"] = DEFAULT_SETTINGS["activity_mode"]
     for key in ("bubble_fill", "bubble_outline", "bubble_text"):
         if not is_hex_color(settings[key]):
             settings[key] = DEFAULT_SETTINGS[key]
@@ -207,18 +234,10 @@ def distribution_settings_snapshot(current_settings: Mapping[str, Any]) -> dict[
         "animation_speed",
         "drag_sensitivity",
         "inertia",
-        "talk_enabled",
-        "talk_interval",
         "bubble_style",
         "bubble_fill",
         "bubble_outline",
         "bubble_text",
-        "roam_enabled",
-        "roam_speed",
-        "roam_distance",
-        "multi_monitor_roam",
-        "roam_current_monitor_only",
-        "quick_menu_actions",
     ):
         if key in current:
             settings[key] = copy.deepcopy(current[key])
@@ -226,8 +245,30 @@ def distribution_settings_snapshot(current_settings: Mapping[str, Any]) -> dict[
     settings["current_pet_id"] = "danhuang"
     settings["position_x"] = -1
     settings["position_y"] = -1
+    settings["activity_mode"] = "daily"
+    settings["always_on_top"] = False
     settings["panel_pinned"] = False
     settings["panel_advanced"] = False
+    settings["talk_enabled"] = True
+    settings["talk_interval"] = 150.0
+    settings["talk_after_interaction_delay"] = 30.0
+    settings["roam_enabled"] = True
+    settings["roam_interval"] = 120.0
+    settings["roam_speed"] = 75.0
+    settings["roam_distance"] = 0.35
+    settings["roam_allow_center"] = False
+    settings["multi_monitor_roam"] = False
+    settings["roam_current_monitor_only"] = False
+    settings["primary_monitor_edge_only"] = True
+    settings["secondary_monitor_full_roam"] = False
+    settings["quick_menu_actions"] = []
+    settings["default_export_dir"] = ""
+    settings["default_upload_dir"] = ""
+    settings["default_image_dir"] = ""
+    settings["github_repo"] = ""
+    settings["github_branch"] = "main"
+    settings["github_workflow"] = "build-macos-app.yml"
+    settings["github_token_env_key"] = "DANHUANG_GITHUB_TOKEN"
     settings["encrypted_github_token"] = ""
     return normalize_settings(settings)
 

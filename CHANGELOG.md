@@ -1,5 +1,157 @@
 # Changelog
 
+## 0.11.64-tk-safety-backup-feedback-polish - 2026-07-06
+
+- 继续按付费用户严苛审计安全页个人数据体验：导出配置、恢复配置和备份精灵图统一改为面板 Toast 反馈。
+- 恢复配置遇到不可读文件、非法 JSON 或非蛋黄配置结构时，不再弹出 Windows 系统错误框，改为控制面板内错误提示。
+- 导出配置和备份精灵图成功后显示友好路径标签，便于用户确认个人备份已经落盘。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.64-safety-backup-feedback-20260706/safety-backup-feedback-evidence.json`、`qa/tk-ui-0.11.64-safety-backup-feedback-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-204857.zip`，ZIP SHA256 `9EE8176BF939C2D10C1F60C509843AEBA671E51DBDD5046BDCA2513BFB2A5FC1`，EXE SHA256 `9BA8968EA7BBAC8DEB5E7F0C0DEE913679DE7A61A3A1EB846A26BE0F120CFBFB`。
+- 按最新打包规则清理 `packages/` 历史 Tk Windows 包，只保留 `danhuang-desktop-pet-windows-20260706-204857/` 和对应 zip。
+
+## 0.11.63-tk-story-feedback-confirm-polish - 2026-07-05
+
+- 继续按付费用户严苛审计故事/档案体验：“删除故事”不再弹出 Windows 系统确认框，改为统一暖色面板确认。
+- 确认文案明确只移除当前宠物的一条故事、日记或思念记录，不删除图片文件、聊天记忆、提醒、陪伴等级或其他宠物故事。
+- 故事编辑器的空内容、图片/背景失败、无可用图片、无 AI/无故事/生成失败等提示改为面板 Toast；二级编辑窗口可通过 `show_panel_toast(parent=...)` 把反馈锚定到当前窗口。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.63-story-feedback-20260705/story-feedback-evidence.json`、`qa/tk-ui-0.11.63-story-feedback-20260705/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-191215.zip`，ZIP SHA256 `30AD25B5B1C32826F864550BAC06FECD2D2C5544967E64872413999D5B9F7DED`，EXE SHA256 `A56AFE11A4D077ADBFA0ECF4FE4727C1DADA91F5A26E26E518EB90E45C1C3C20`。
+
+## 0.11.62-tk-action-clear-confirm-polish - 2026-07-05
+
+- 继续按付费用户严苛审计动作资产体验：“清空动作精灵图”不再弹出 Windows 系统确认框，改为统一暖色面板确认。
+- 确认文案明确扩展动作会从动作页、右键动作栏和当前形象的可播放动作里移除，不删除基础动作、主像素图、现实照片、参考图或聊天记忆。
+- 未上传动作精灵图时改为面板 Toast 提示；清空完成后显示面板 Toast，并保留重新上传同名动作的路径。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.62-action-clear-confirm-20260705/action-clear-confirm-evidence.json`、`qa/tk-ui-0.11.62-action-clear-confirm-20260705/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-185625.zip`，ZIP SHA256 `B0A8B21A2500CB815B93897E13B88621C4AAC95A0EC8568005F517AFB1EB703C`，EXE SHA256 `E55B05562723023E9B6C70AF49235E769DA83C3FEFBDE1E117C150D7E8FB9334`。
+
+## 0.11.61-tk-pet-asset-confirm-polish - 2026-07-05
+
+- 继续按付费用户严苛审计纪念资产体验：“删除主像素图”和“删除参考图”不再弹出 Windows 系统确认框，改为统一暖色面板确认。
+- 主像素图确认文案明确只处理桌宠目录里的主像素图副本，不删除现实照片、参考图、动作精灵图或聊天记忆。
+- 参考图确认文案明确不会删除本机外部源文件；只有桌宠目录中的上传副本会被清理，原始照片、主像素图、动作精灵图和故事记录不受影响。
+- 未设置主像素图时改为面板 Toast 提示，减少形象页系统弹窗割裂感。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.61-pet-asset-confirm-20260705/pet-asset-confirm-evidence.json`、`qa/tk-ui-0.11.61-pet-asset-confirm-20260705/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-184801.zip`，ZIP SHA256 `7DF0A9CC7B6A917F62E8F26F63F74444CEEF5527BAED74252F916454A9E56DA7`，EXE SHA256 `E9D4F7AF7924C25F24A7C1FBE4E198E824EEC47A9178EA64BC4C33BB38659118`。
+
+## 0.11.60-tk-ai-memory-confirm-polish - 2026-07-05
+
+- 继续按付费用户严苛审计陪聊隐私体验：“清空记忆”不再弹出 Windows 系统确认框，改为统一暖色面板确认。
+- 确认文案明确只清空当前形象的最近聊天、长期记忆摘要和学习表达，不删除 API Key、提醒、待办或陪伴等级。
+- 清空完成后显示面板 Toast，并保留蛋黄气泡反馈；Provider 配置、API Key/DPAPI 保存、提醒和陪伴 JSON 契约不变。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.60-ai-memory-confirm-20260705/ai-memory-confirm-evidence.json`、`qa/tk-ui-0.11.60-ai-memory-confirm-20260705/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-183625.zip`，ZIP SHA256 `7A17B72AB8F081EDA9E80CC7FF3AA2B27114C7AA4350EF22B677EF9BFD4E1513`，EXE SHA256 `750762F8AF2ED89DBB25CCE0F6A8B640FEA284EBEC0694033AB1370755C94520`。
+
+## 0.11.59-tk-companion-reset-confirm-polish - 2026-07-05
+
+- 继续按付费用户严苛审计陪伴资产体验：“重置陪伴数据”不再弹出 Windows 系统确认框，改为暖色面板确认。
+- 确认文案明确只重置等级、经验、连续陪伴天数和互动次数，不删除聊天、待办或提醒，避免纪念型桌宠用户误判风险。
+- 重置完成后显示面板 Toast，并保留蛋黄气泡反馈；陪伴 JSON 数据结构和初始字段不变。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.59-companion-reset-confirm-20260705/companion-reset-confirm-evidence.json`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-182622.zip`，ZIP SHA256 `6F3AA198F61F3B3851E39CEFF6C45644A98F977E1C84ADA13BAD204EDB5C4804`，EXE SHA256 `E6B0DCD3F1949C4EF2C43B0785F28B1BADF26F83B5C33535D2CFC530EEBD6694`。
+
+## 0.11.58-tk-reminder-delete-confirm-polish - 2026-07-05
+
+- 继续按付费用户严苛审计提醒体验：删除待办不再弹出 Windows 系统确认框，提醒页和待办编辑弹层统一使用暖色面板确认。
+- 新增 `show_panel_confirm()` 通用确认 helper；本批先接入提醒删除，后续可逐步替换其他高频危险操作。
+- `delete_todo()` 收敛为已确认后的软删除执行逻辑，继续保留提醒时间轴删除记录，不改变待办 JSON 契约。
+- 面板 Toast 增加 `warning` 色板，未选中提醒、提醒不存在等轻警告从普通信息状态中区分出来。
+- 已补提醒删除确认 QA 证据：`qa/tk-ui-0.11.58-reminder-delete-confirm-20260705/reminder-delete-confirm-evidence.json`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-181739.zip`，ZIP SHA256 `186AB2BF1CB3B67952EEF9563CC5CF28CEF561CA136BD8C8F0EADF95EDF7A23B`，EXE SHA256 `288475A83940ED67899FE29ED679E1CB13F52510CEC3127E02BC4F0C9BF84FC2`。
+
+## 0.11.57-tk-reminder-feedback-trust-fix - 2026-07-05
+
+- 继续按付费用户严苛审计提醒体验：提醒页待办操作不再静默失败，未选中待办时会用面板 Toast 提示先选择一条提醒。
+- “稍后提醒”反馈文案改为普通用户可理解的时间表达，明天不再显示成“1440 分钟后”。
+- 新增 `snooze_delay_label()` 回归测试，确认 legacy、当前运行镜像的人类可读延后文案一致。
+- 已补提醒反馈 QA 证据和 exe 桌面烟测截图：`qa/tk-ui-0.11.57-reminder-feedback-20260705/reminder-feedback-evidence.json`、`qa/tk-ui-0.11.57-reminder-feedback-20260705/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-180455.zip`，ZIP SHA256 `547BC2327D3A92E00134BC045A24696E9C5FF841F029A48DB31880F2DE2127C0`，EXE SHA256 `DD5854AD54A56B149FED96DE6B45315EBC0C776FB780653C3FC5334146CE42C6`。
+
+## 0.11.56-tk-initial-roam-trust-fix - 2026-07-05
+
+- 继续按付费用户严苛审计桌宠本体体验：修复默认日常模式虽然写着 120 秒低频巡游，但首次启动后 2-4 秒就可能自动移动的打扰问题。
+- 新增 `next_roam_timestamp()` 作为首次和后续自动巡游的统一调度入口；右键“巡逻一下”仍保持用户主动触发时立即执行。
+- 新增回归测试，确认 legacy、当前运行镜像的日常模式首次自动巡游延迟为 84-162 秒，并确认旧的 `random.uniform(2.0, 4.0)` 启动逻辑已移除。
+- 已补运动调度 QA 证据和 exe 桌面烟测截图：`qa/tk-ui-0.11.56-motion-20260705/initial-roam-schedule.json`、`qa/tk-ui-0.11.56-motion-20260705/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-174959.zip`，ZIP SHA256 `3D44E5CD842EF16F51FC7B8B39D0CD048579370A9E52F472BCAAC3430B9E5EFB`，EXE SHA256 `BA1E6AFC7D1657276EBEC8FE9B2624150BF6CF4D311C05BC0D496C973A065DD7`。
+
+## 0.11.55-tk-paid-chat-copy-and-input-visibility - 2026-07-05
+
+- 继续按付费用户严苛审计收口：包内使用说明、聊天发送提示、连接测试 Toast、资料查询状态和陪聊失败状态统一使用“云端陪聊 / 陪聊服务”口径。
+- 修复聊天窗口 560x680 场景下角色 Skill 区过高、底部输入区容易被挤出可见范围的问题；角色详细说明默认移出首屏，聊天历史区设置更小初始高度。
+- 已补最终发行包截图：`qa/tk-ui-0.11.55-paid-copy-20260705/chat-composer-copy-final-scaled.png`，确认输入框、发送按钮和“当前云端陪聊/本地陪伴”提示可见。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-173901.zip`，ZIP SHA256 `8DFA38BC2A5A6E38D3908058C4648E63C8345D2A1AB13DAAC85FE3A845D74816`，EXE SHA256 `385ADD30621F437DD901155006BFAB32D3C68154BDF4015EDA1A5E8F22D03BD6`。
+
+## 0.11.54-tk-paid-language-unification - 2026-07-05
+
+- 继续按付费用户严苛审计收口：控制面板内部仍保留 `AI` 页面 key，但侧栏、页面标题和失败提示展示为“陪聊设置”，避免入口叫陪聊、落地页又变成工程化 `AI`。
+- 新增“陪聊设置 / 云端陪聊”页面别名，刷新当前页或从展示名恢复页面时仍能回到原 AI Provider 配置页。
+- README 当前功能说明同步为高级模式显示“陪聊设置”，用户手册不再回退到工程命名。
+- 已补最终发行包截图：`qa/tk-ui-0.11.54-paid-language-20260705/ai-page-label.png`，确认发行包页面标题显示“陪聊设置”。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-172236.zip`，ZIP SHA256 `667C7513B33113AF31660AA42E1BB50B95C911BF339A34AA2B213956FC4C8632`，EXE SHA256 `DAB8003C2B01ED838D530722A525BEF22ABCFBBB0DFB925E162C68429B090B13`。
+
+## 0.11.53-tk-paid-trust-ai-safety-copy - 2026-07-05
+
+- 继续按付费用户严苛审计收口：对话页、首页、操作页、导出弹窗和包内说明把普通入口统一为“陪聊设置/云端陪聊”，降低 API 调试台感。
+- AI 页连接状态改为 Key 感知：无 Key 时显示“云端陪聊 / 待配置”，有 Key 时显示“已配置”，不再出现 Key 未配置但“AI 对话已开启”的自相矛盾状态。
+- 安全页本地数据位置改为“当前安装目录 / exports”等友好标签，完整路径通过按钮打开，不再把开发机绝对路径直接铺在首屏。
+- 包内使用说明同步为普通用户口径，导出数据文案改为“陪聊服务配置”，真实 API Key 仍不导出。
+- 已补最终发行包截图：`qa/tk-ui-0.11.53-paid-trust-20260705/` 覆盖对话、AI、安全三页，确认“待配置”和“当前安装目录”文案生效。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-170551.zip`，ZIP SHA256 `63FCF47D18D6672148E560F2658666EE2E3CE73D1D1596B47661629CC5A0C163`，EXE SHA256 `CFE0E33D88C1EAFFC058EC0742622481E9BA3B8CD3DBED71468657A758A20237`。
+
+## 0.11.52-tk-right-menu-small-screen-scroll - 2026-07-05
+
+- 右键菜单新增屏幕高度自适应：布局 token 增加 `max_height_ratio=0.78/min_scroll_body_height=180`，低矮屏幕或远程桌面下会把按钮区压到安全高度并启用鼠标滚轮滚动。
+- “窗口”分组前移到常用入口后面，确保小屏初始视图里能直接看到“暂停活动 / 隐藏气泡 / 退出”，不再需要先滚到底部。
+- 右键入口“AI 配置”改为“陪聊设置”，页面仍指向 AI 设置，但首屏文案更接近普通用户语义。
+- 主程序 fallback 同步扩展动作可见上限为 3，并保留无 modular 目录时的右键高度计算，避免 PyInstaller 发行包与开发镜像行为不一致。
+- modular UI 测试新增右键 viewport clamp 覆盖；当前运行镜像和发行包 `validate_phase3.py` 均输出 `sections=common/window/activity_modes/base_actions/extension_actions`，`warnings` 为空。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-164939.zip`，ZIP SHA256 `AB7F239C26CE8870B51F4105EF6272B552D570D6590E969F208E28CAD52EF771`，EXE SHA256 `F682083513F0DCE788C7FEB2D8B848575635C6F73C40983A4209832A04915C44`。
+
+## 0.11.51-tk-right-menu-compact-single-pet - 2026-07-05
+
+- 右键快捷菜单改为 3 列紧凑布局，布局 token 调整为 `columns=3/min_width=540/max_width=620/button_min_height=32`，降低 720p/768p 或远程桌面窗口下底部操作不可见的风险。
+- 扩展动作主菜单只展示前 3 个，其余进入“更多动作”，避免多宠/多扩展动作时右键菜单越堆越高。
+- 公开单宠包不再显示“切换形象”空入口；只有存在多个 ready 宠物时才在右键菜单展示切换入口。
+- 包内使用说明按导出宠物数量生成：单宠版说明为“形象页查看/管理资料”，多宠包才提示右键切换形象。
+- modular UI 测试覆盖单宠隐藏切换入口和新右键布局契约；当前运行镜像 `validate_phase3.py` 已输出 `columns=3/min_width=540/max_width=620`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-162937.zip`，ZIP SHA256 `B4096078FACECCBD74A8E5AFE72F85A48E1BBC571ACF613AFA1E86FAF4932E01`。
+
+## 0.11.50-tk-settings-trust-hardening - 2026-07-05
+
+- 修复旧设置缺失或无效 `activity_mode` 时的迁移问题：升级后会真正应用“日常”低打扰参数，避免 UI 显示日常但仍保留旧的频繁说话、多屏巡游和进屏幕中心倾向。
+- 设置页从开发者表单改为普通用户优先的本地文件夹卡片；当前桌宠目录内路径用“当前桌宠目录”别名展示，减少工程路径暴露。
+- GitHub macOS 构建配置改为“开发者构建工具”并默认折叠；保存配置和写入 workflow 改为面板 Toast 反馈。
+- modular settings store 增加旧设置迁移测试，当前运行镜像 `validate_phase3.py` 已能证明巡游间隔、多屏和中心策略回到日常边界。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-160513.zip`，ZIP SHA256 `FD20E7C4B34965B2FCA36B8AC302590108C795AB5329649CAF82BDA5CC71C4B2`。
+
+## 0.11.49-tk-activity-mode-hardening - 2026-07-05
+
+- 新增共享“陪伴模式”模型，安静、日常、活跃三档统一控制自动说话、巡游开关、巡游间隔、速度、范围、置顶和屏幕中心策略。
+- 首页新增“陪伴模式”卡片；行为页旧开发者参数预设改为同一套模式入口，避免“安静”仍频繁说话、“日常”过于活跃。
+- 右键快捷菜单新增“陪伴模式”分组，可直接切换安静/日常/活跃；“暂停活动/恢复日常”改为复用同一套模式逻辑。
+- 右键菜单布局 token 加宽到 `min_width=460/max_width=540`，修复新增模式分组后两列按钮被裁切的问题。
+- 安静模式关闭自动说话和自动巡游；日常模式保持低频沿边陪伴；活跃模式提高互动频率但仍默认不置顶、不跑进屏幕中心。
+- 干净发行默认体型缩放从 0.50 收敛到 0.46，降低首次启动占屏和遮挡感。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260705-131843.zip`，ZIP SHA256 `8936698700EAF4F93ED5698BFBA7E2A2CEF0BC69F7448396649FEA836D3FED5F`。
+
+## 0.11.48-tk-paid-beta-trust-hardening - 2026-07-05
+
+- 发行默认值改为低打扰：默认不置顶、边缘活动、低频说话和低速巡逻；公开包清洗层不再继承本机跨屏、快捷动作、路径和 GitHub 配置。
+- 右键快捷菜单新增“安静一下”和“暂停活动/恢复日常”，用于临时或持久降低打扰。
+- 控制面板默认导航收口为首页、对话、提醒、形象、动作、安全；AI、档案、故事、行为、操作、设置、巡逻、外观保留在高级模式或指定入口。
+- 提醒页快速记录默认按生活事项处理，时间格式和添加失败改为页内状态 + 暖色 Toast，不再弹系统错误框。
+- 安全页新增本地数据位置卡片，可打开数据目录和导出目录；README 和包内安装说明改为普通用户可理解的免 Python 安装路径，并明确不写开机自启。
+- 公开包宠物配置改为蛋黄单宠版，清空 `identity_image` 和 `reference_images`，避免用户上传源图、现实照片或身份参考图进入发行包。
+- 已生成 Windows 免 Python exe 包：`packages/danhuang-desktop-pet-windows-20260705-122408/` 和 `packages/danhuang-desktop-pet-windows-20260705-122408.zip`，zip SHA256：`791D9F5409CF79CC45A0E2C594C473043FFB16EADC6F9E7886AAF0DE9B859EF8`。
+
+## 0.11.47-tk-panel-grid-hardening - 2026-07-05
+
+- 在当前 `DanhuangProduct-tk` 根目录重建 `data-dev/current-runtime/danhuang/` 运行镜像，主程序以 `tk/main` 的 legacy monolith 为准，资源来自本机既有 Tk 运行资产。
+- 控制面板继续复用 `panel_button_grid()`，将首页/陪伴操作、行为页预设与屏幕策略、提示词操作、提醒页常用时间与待办操作、安全页备份/导出操作和底部操作条改为固定列网格，降低窄窗口按钮挤压和横向溢出风险。
+- AI 页 Provider 操作和测试结果操作改为网格布局，Key 为空、Key 保存失败和测试前保存失败改为面板 Toast + 状态行反馈，不再弹出割裂的系统消息框。
+- 本次不改 Vue/Tauri，不改宠物资源、动作 ID、AI Provider 数据契约或 DPAPI/Key 存储逻辑。
+
 ## 0.11.45-tk-pet-category-action-prompts - 2026-07-03
 
 - Tk 分类预设新增动作画像：`identity_focus`、`motion_rules`、`avoid_rules`、`quality_rules`，用于统一 UI 摘要和 AI 生图提示词。
@@ -373,7 +525,7 @@
 
 ## 0.11.0-product-foundation - 2026-06-14
 
-- 建立产品化工程根目录：`E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct`。
+- 建立早期产品化工程根目录：`E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct`；当前 Tk 主线根已收敛为 `E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct-tk`。
 - 将当前原型完整归档到 `archives/DanhuangPrototype-20260614-121543`，并设为只读。
 - 复制当前 Tk 单文件原型到 `src-prototype/legacy-monolith/`。
 - 生成原型审计：文件清单、隐私清单、宠物家庭清单、代码结构清单。

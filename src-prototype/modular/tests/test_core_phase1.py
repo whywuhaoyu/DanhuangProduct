@@ -31,6 +31,10 @@ class Phase1CoreTests(unittest.TestCase):
                         "opacity": "0.1",
                         "bubble_style": "unknown",
                         "bubble_fill": "red",
+                        "activity_mode": "loud",
+                        "talk_interval": 30,
+                        "multi_monitor_roam": True,
+                        "primary_monitor_edge_only": False,
                         "quick_menu_actions": ["standing", "waving", "standing", "custom:spin", "bad"],
                         "position_x": -999,
                     },
@@ -45,8 +49,50 @@ class Phase1CoreTests(unittest.TestCase):
         self.assertEqual(settings["opacity"], 0.35)
         self.assertEqual(settings["bubble_style"], "soft")
         self.assertEqual(settings["bubble_fill"], "#fffaf0")
+        self.assertEqual(settings["activity_mode"], "daily")
+        self.assertEqual(settings["talk_interval"], 150.0)
+        self.assertFalse(settings["multi_monitor_roam"])
+        self.assertTrue(settings["primary_monitor_edge_only"])
         self.assertEqual(settings["quick_menu_actions"], ["standing", "custom:spin"])
         self.assertEqual(settings["position_x"], -200)
+
+    def test_legacy_settings_without_activity_mode_migrate_to_daily_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "desktop-pet-settings.json").write_text(
+                json.dumps(
+                    {
+                        "scale": 0.38,
+                        "bubble_style": "thought",
+                        "talk_enabled": True,
+                        "talk_interval": 45,
+                        "talk_after_interaction_delay": 5,
+                        "roam_enabled": True,
+                        "roam_interval": 20,
+                        "roam_speed": 180,
+                        "roam_allow_center": True,
+                        "multi_monitor_roam": True,
+                        "primary_monitor_edge_only": False,
+                        "secondary_monitor_full_roam": True,
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            settings = load_settings(root)
+
+        self.assertEqual(settings["activity_mode"], "daily")
+        self.assertEqual(settings["scale"], 0.38)
+        self.assertEqual(settings["bubble_style"], "thought")
+        self.assertEqual(settings["talk_interval"], 150.0)
+        self.assertEqual(settings["talk_after_interaction_delay"], 30.0)
+        self.assertEqual(settings["roam_interval"], 120.0)
+        self.assertEqual(settings["roam_speed"], 75.0)
+        self.assertFalse(settings["roam_allow_center"])
+        self.assertFalse(settings["multi_monitor_roam"])
+        self.assertTrue(settings["primary_monitor_edge_only"])
+        self.assertFalse(settings["secondary_monitor_full_roam"])
 
     def test_distribution_snapshot_drops_local_runtime_state(self) -> None:
         snapshot = distribution_settings_snapshot(
@@ -54,6 +100,13 @@ class Phase1CoreTests(unittest.TestCase):
                 "current_pet_id": "black_white_dog",
                 "position_x": 500,
                 "panel_pinned": True,
+                "always_on_top": True,
+                "talk_interval": 30,
+                "activity_mode": "active",
+                "roam_interval": 20,
+                "roam_allow_center": True,
+                "multi_monitor_roam": True,
+                "quick_menu_actions": ["custom:petting"],
                 "encrypted_github_token": "local-placeholder",
                 "scale": 0.4,
             }
@@ -62,6 +115,13 @@ class Phase1CoreTests(unittest.TestCase):
         self.assertEqual(snapshot["current_pet_id"], "danhuang")
         self.assertEqual(snapshot["position_x"], -1)
         self.assertFalse(snapshot["panel_pinned"])
+        self.assertFalse(snapshot["always_on_top"])
+        self.assertEqual(snapshot["activity_mode"], "daily")
+        self.assertEqual(snapshot["talk_interval"], 150.0)
+        self.assertEqual(snapshot["roam_interval"], 120.0)
+        self.assertFalse(snapshot["roam_allow_center"])
+        self.assertFalse(snapshot["multi_monitor_roam"])
+        self.assertEqual(snapshot["quick_menu_actions"], [])
         self.assertEqual(snapshot["encrypted_github_token"], "")
         self.assertEqual(snapshot["scale"], 0.4)
 

@@ -188,5 +188,5 @@ python -m py_compile run-danhuang-desktop-pet.py
 如果改动影响运行版，验证后重启：
 
 ```powershell
-PowerShell -ExecutionPolicy Bypass -File "C:\Users\27176\.codex\pets\danhuang\start-danhuang-desktop-pet.ps1"
+PowerShell -ExecutionPolicy Bypass -File "E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct-tk\data-dev\current-runtime\danhuang\start-danhuang-desktop-pet.ps1"
 ```

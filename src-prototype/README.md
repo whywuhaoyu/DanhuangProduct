@@ -8,7 +8,7 @@
 当前 C 盘历史运行版已同步到 E 盘本地开发镜像：
 
 ```text
-E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct\data-dev\current-runtime\danhuang
+E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct-tk\data-dev\current-runtime\danhuang
 ```
 
 后续新增功能、UI 优化和试运行优先在 E 盘镜像完成。C 盘目录只作为历史来源，不再作为开发源；删除或清理 C 盘文件仍需单独确认。

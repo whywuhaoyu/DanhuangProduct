@@ -48,6 +48,7 @@ MODULAR_BUBBLE_PREVIEW_MODEL = None
 MODULAR_COMPUTE_BUBBLE_POSITION = None
 MODULAR_COMPUTE_RIGHT_MENU_POSITION = None
 MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION = None
+MODULAR_COMPUTE_RIGHT_MENU_VIEWPORT_SIZE = None
 MODULAR_PET_WINDOW_SIZE = None
 MODULAR_RIGHT_MENU_POPUP_LAYOUT = None
 MODULAR_RIGHT_MENU_STYLE_TOKENS = None
@@ -78,6 +79,7 @@ if _install_product_modular_path():
         from ui.tk_right_menu import build_right_menu_model as MODULAR_BUILD_RIGHT_MENU_MODEL
         from ui.tk_right_menu import compute_menu_position as MODULAR_COMPUTE_RIGHT_MENU_POSITION
         from ui.tk_right_menu import compute_popup_position as MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION
+        from ui.tk_right_menu import compute_menu_viewport_size as MODULAR_COMPUTE_RIGHT_MENU_VIEWPORT_SIZE
         from ui.tk_right_menu import right_menu_popup_layout as MODULAR_RIGHT_MENU_POPUP_LAYOUT
         from ui.tk_right_menu import right_menu_style_tokens as MODULAR_RIGHT_MENU_STYLE_TOKENS
         try:
@@ -92,6 +94,7 @@ if _install_product_modular_path():
         MODULAR_COMPUTE_BUBBLE_POSITION = None
         MODULAR_COMPUTE_RIGHT_MENU_POSITION = None
         MODULAR_COMPUTE_RIGHT_MENU_POPUP_POSITION = None
+        MODULAR_COMPUTE_RIGHT_MENU_VIEWPORT_SIZE = None
         MODULAR_PET_WINDOW_SIZE = None
         MODULAR_RIGHT_MENU_POPUP_LAYOUT = None
         MODULAR_RIGHT_MENU_STYLE_TOKENS = None
@@ -118,7 +121,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.46"
+APP_VERSION = "0.11.64"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -129,13 +132,14 @@ SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
 
 DEFAULT_SETTINGS = {
-    "scale": 0.50,
+    "activity_mode": "daily",
+    "scale": 0.46,
     "animation_speed": 0.70,
     "drag_sensitivity": 0.70,
     "inertia": 0.55,
     "idle_action_interval": 9.0,
     "talk_enabled": True,
-    "talk_interval": 45.0,
+    "talk_interval": 150.0,
     "bubble_duration": 5.0,
     "bubble_style": "soft",
     "bubble_fill": BUBBLE_FILL,
@@ -144,18 +148,18 @@ DEFAULT_SETTINGS = {
     "position_x": -1,
     "position_y": -1,
     "keep_on_screen": True,
-    "always_on_top": True,
+    "always_on_top": False,
     "opacity": 1.0,
-    "talk_after_interaction_delay": 18.0,
+    "talk_after_interaction_delay": 30.0,
     "roam_enabled": True,
-    "roam_interval": 28.0,
-    "roam_speed": 115.0,
-    "roam_distance": 0.55,
-    "roam_allow_center": True,
-    "multi_monitor_roam": True,
+    "roam_interval": 120.0,
+    "roam_speed": 75.0,
+    "roam_distance": 0.35,
+    "roam_allow_center": False,
+    "multi_monitor_roam": False,
     "roam_current_monitor_only": False,
     "primary_monitor_edge_only": True,
-    "secondary_monitor_full_roam": True,
+    "secondary_monitor_full_roam": False,
     "lock_size_across_monitors": True,
     "panel_advanced": False,
     "panel_pinned": False,
@@ -175,6 +179,82 @@ DEFAULT_SETTINGS = {
     "github_workflow": "build-macos-app.yml",
     "github_token_env_key": "DANHUANG_GITHUB_TOKEN",
     "encrypted_github_token": "",
+}
+
+ACTIVITY_MODE_ORDER = ("quiet", "daily", "active")
+ACTIVITY_MODE_PRESETS = {
+    "quiet": {
+        "label": "安静",
+        "summary": "不主动说话，不自动跑动，只保留手动互动、聊天和提醒。",
+        "say": "我进入安静模式了，会乖乖待着。",
+        "settings": {
+            "activity_mode": "quiet",
+            "animation_speed": 0.55,
+            "drag_sensitivity": 0.60,
+            "inertia": 0.25,
+            "talk_enabled": False,
+            "talk_interval": 180.0,
+            "talk_after_interaction_delay": 90.0,
+            "roam_enabled": False,
+            "roam_interval": 180.0,
+            "roam_speed": 60.0,
+            "roam_distance": 0.25,
+            "roam_allow_center": False,
+            "multi_monitor_roam": False,
+            "roam_current_monitor_only": False,
+            "primary_monitor_edge_only": True,
+            "secondary_monitor_full_roam": False,
+            "always_on_top": False,
+        },
+    },
+    "daily": {
+        "label": "日常",
+        "summary": "默认低打扰陪伴，偶尔说话，沿屏幕边缘慢慢活动。",
+        "say": "我恢复日常陪伴了。",
+        "settings": {
+            "activity_mode": "daily",
+            "animation_speed": 0.70,
+            "drag_sensitivity": 0.70,
+            "inertia": 0.55,
+            "talk_enabled": True,
+            "talk_interval": 150.0,
+            "talk_after_interaction_delay": 30.0,
+            "roam_enabled": True,
+            "roam_interval": 120.0,
+            "roam_speed": 75.0,
+            "roam_distance": 0.35,
+            "roam_allow_center": False,
+            "multi_monitor_roam": False,
+            "roam_current_monitor_only": False,
+            "primary_monitor_edge_only": True,
+            "secondary_monitor_full_roam": False,
+            "always_on_top": False,
+        },
+    },
+    "active": {
+        "label": "活跃",
+        "summary": "更常互动和活动，但仍默认不置顶、不跑进屏幕中心。",
+        "say": "我会活跃一点，但还是沿边活动。",
+        "settings": {
+            "activity_mode": "active",
+            "animation_speed": 0.92,
+            "drag_sensitivity": 0.90,
+            "inertia": 0.65,
+            "talk_enabled": True,
+            "talk_interval": 75.0,
+            "talk_after_interaction_delay": 15.0,
+            "roam_enabled": True,
+            "roam_interval": 48.0,
+            "roam_speed": 105.0,
+            "roam_distance": 0.50,
+            "roam_allow_center": False,
+            "multi_monitor_roam": False,
+            "roam_current_monitor_only": False,
+            "primary_monitor_edge_only": True,
+            "secondary_monitor_full_roam": False,
+            "always_on_top": False,
+        },
+    },
 }
 
 CHAT_ROLE_SKILLS = {
@@ -1292,7 +1372,7 @@ ACTION_PROMPT_DETAILS = {
     "angry": "生气一下：8 帧。宠物轻微皱眉、鼓脸、耳朵压低或小幅跺脚，表达小脾气但不要凶狠。不要火焰、怒气符号、文字或夸张背景。",
 }
 QUICK_MENU_BASE_ACTIONS = ["waving", "running", "jumping", "waiting"]
-QUICK_MENU_MAX_VISIBLE_EXTRA_ACTIONS = 4
+QUICK_MENU_MAX_VISIBLE_EXTRA_ACTIONS = 3
 CUSTOM_ACTION_PREFIX = "custom:"
 CUSTOM_ACTION_MAX_FRAMES = 8
 PANGJIU_PET_ID = "pet-20260520-112213"
@@ -1517,6 +1597,35 @@ STARTUP_PHRASES = [
 
 def clamp(value, low, high):
     return max(low, min(high, value))
+
+
+def next_roam_timestamp(settings, now=None):
+    try:
+        base = float(settings.get("roam_interval", DEFAULT_SETTINGS["roam_interval"]))
+    except (AttributeError, TypeError, ValueError):
+        base = DEFAULT_SETTINGS["roam_interval"]
+    base = clamp(base, 8.0, 180.0)
+    current = time.monotonic() if now is None else float(now)
+    return current + random.uniform(base * 0.70, base * 1.35)
+
+
+def snooze_delay_label(minutes):
+    try:
+        value = int(minutes)
+    except (TypeError, ValueError):
+        value = 1
+    value = max(1, value)
+    if value >= 24 * 60 and value % (24 * 60) == 0:
+        days = value // (24 * 60)
+        if days == 1:
+            return "明天"
+        return f"{days} 天后"
+    if value >= 60 and value % 60 == 0:
+        hours = value // 60
+        if hours == 1:
+            return "1 小时后"
+        return f"{hours} 小时后"
+    return f"{value} 分钟后"
 
 
 def is_hex_color(value):
@@ -1759,7 +1868,7 @@ class DanhuangPet:
         self.last_interaction_at = time.monotonic()
         self.next_idle_action_at = self.next_idle_time()
         self.next_talk_at = self.next_talk_time()
-        self.next_roam_at = time.monotonic() + random.uniform(2.0, 4.0)
+        self.next_roam_at = self.next_roam_time()
 
         root.overrideredirect(True)
         root.attributes("-topmost", bool(self.settings["always_on_top"]))
@@ -1830,9 +1939,13 @@ class DanhuangPet:
 
     def load_settings(self):
         settings = copy.deepcopy(DEFAULT_SETTINGS)
+        apply_default_activity_mode = False
         if self.settings_path.exists():
             try:
                 saved = json.loads(self.settings_path.read_text(encoding="utf-8"))
+                if not isinstance(saved, dict):
+                    saved = {}
+                apply_default_activity_mode = saved.get("activity_mode") not in ACTIVITY_MODE_PRESETS
                 for key in settings:
                     if key in saved:
                         if isinstance(settings[key], bool):
@@ -1845,6 +1958,8 @@ class DanhuangPet:
                             settings[key] = float(saved[key])
             except (OSError, ValueError, TypeError):
                 pass
+        if apply_default_activity_mode:
+            settings.update(copy.deepcopy(ACTIVITY_MODE_PRESETS[DEFAULT_SETTINGS["activity_mode"]]["settings"]))
         settings["scale"] = clamp(settings["scale"], 0.25, 1.00)
         settings["animation_speed"] = clamp(settings["animation_speed"], 0.35, 1.50)
         settings["drag_sensitivity"] = clamp(settings["drag_sensitivity"], 0.30, 1.40)
@@ -1867,6 +1982,8 @@ class DanhuangPet:
                 settings[key] = DEFAULT_SETTINGS[key]
         if settings.get("ai_chat_role_skill") not in CHAT_ROLE_SKILLS:
             settings["ai_chat_role_skill"] = DEFAULT_SETTINGS["ai_chat_role_skill"]
+        if settings.get("activity_mode") not in ACTIVITY_MODE_PRESETS:
+            settings["activity_mode"] = DEFAULT_SETTINGS["activity_mode"]
         settings["quick_menu_actions"] = self.normalize_quick_menu_setting(settings.get("quick_menu_actions"))
         return settings
 
@@ -2513,10 +2630,16 @@ class DanhuangPet:
             return None
         try:
             manifest = MODULAR_BUILD_PET_ACTION_MANIFEST(self.pet_dir, self.active_pet, settings=self.settings)
+            paused = not bool(self.settings.get("talk_enabled", True)) and not bool(self.settings.get("roam_enabled", True))
+            pets = self.pet_family.get("pets", []) if isinstance(self.pet_family.get("pets"), list) else []
+            ready_pet_count = len([pet for pet in pets if self.pet_ready(pet)])
             return MODULAR_BUILD_RIGHT_MENU_MODEL(
                 manifest,
                 current_pet_id=self.active_pet.get("id", self.settings.get("current_pet_id", "danhuang")),
                 pinned=bool(self.settings.get("always_on_top")),
+                paused=paused,
+                activity_mode=self.current_activity_mode_id(),
+                can_switch_pet=ready_pet_count > 1,
             )
         except Exception:
             return None
@@ -3120,7 +3243,7 @@ class DanhuangPet:
             "id": str(item.get("id") or f"todo-{int(time.time() * 1000)}-{random.randint(1000, 9999)}"),
             "title": str(item.get("title", "")).strip(),
             "note": str(item.get("note", "")).strip(),
-            "category": str(item.get("category", "工作") or "工作"),
+            "category": str(item.get("category", "生活") or "生活"),
             "priority": str(item.get("priority", "普通") or "普通"),
             "due_at": str(item.get("due_at", "") or ""),
             "repeat": str(item.get("repeat", "none") or "none"),
@@ -3744,6 +3867,18 @@ class DanhuangPet:
             encoding="utf-8",
         )
 
+    def open_path_in_system(self, path):
+        target = Path(path)
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            if sys.platform == "win32":
+                os.startfile(str(target))
+            else:
+                webbrowser.open(target.resolve().as_uri())
+            return True
+        except (OSError, ValueError):
+            return False
+
     def settings_dir_value(self, key, fallback):
         value = str(self.settings.get(key, "") or "").strip()
         path = Path(value) if value else Path(fallback)
@@ -3757,6 +3892,35 @@ class DanhuangPet:
 
     def default_export_dir(self):
         return self.settings_dir_value("default_export_dir", self.pet_dir / "exports")
+
+    def local_path_label(self, path):
+        target = Path(path)
+
+        def resolved(value):
+            try:
+                return Path(value).resolve()
+            except OSError:
+                return Path(value)
+
+        target_resolved = resolved(target)
+        app_dir = resolved(self.pet_dir)
+        try:
+            relative = target_resolved.relative_to(app_dir)
+            if not str(relative) or str(relative) == ".":
+                return "当前安装目录"
+            return f"当前安装目录 / {relative.as_posix()}"
+        except ValueError:
+            pass
+
+        try:
+            home_relative = target_resolved.relative_to(resolved(Path.home()))
+            return f"用户目录 / {home_relative.as_posix()}"
+        except (OSError, ValueError):
+            pass
+
+        drive = target_resolved.anchor.replace("\\", "").replace("/", "")
+        name = target_resolved.name or str(target_resolved)
+        return f"{drive or '本机磁盘'} / ... / {name}"
 
     def default_upload_dir(self):
         return self.settings_dir_value("default_upload_dir", self.pet_dir)
@@ -3848,8 +4012,10 @@ class DanhuangPet:
         if not path:
             return False
         self.remember_directory_setting("default_export_dir", path)
-        Path(path).write_text(json.dumps(self.configuration_snapshot(), ensure_ascii=False, indent=2), encoding="utf-8")
+        target = Path(path)
+        target.write_text(json.dumps(self.configuration_snapshot(), ensure_ascii=False, indent=2), encoding="utf-8")
         self.say("配置已经导出。")
+        self.show_panel_toast("配置已导出", self.local_path_label(target), "success")
         return True
 
     def restore_configuration(self, path=None):
@@ -3862,9 +4028,13 @@ class DanhuangPet:
         if not path:
             return False
         self.remember_directory_setting("default_upload_dir", path)
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            self.show_panel_toast("恢复失败", f"无法读取这个配置备份：{exc}", "error")
+            return False
         if not isinstance(data, dict) or "settings" not in data:
-            messagebox.showerror("恢复失败", "这个文件不是有效的蛋黄配置。")
+            self.show_panel_toast("恢复失败", "这个文件不是有效的蛋黄配置。", "error")
             return False
         self.settings.update({key: data["settings"][key] for key in DEFAULT_SETTINGS if key in data["settings"]})
         if isinstance(data.get("companion"), dict):
@@ -3877,16 +4047,18 @@ class DanhuangPet:
         self.root.attributes("-alpha", self.settings["opacity"])
         self.root.attributes("-topmost", self.settings["always_on_top"])
         self.say("配置已经恢复。")
+        self.show_panel_toast("配置已恢复", "设置和陪伴状态已写回当前桌宠。", "success")
         return True
 
     def backup_spritesheet(self):
         source = self.pet_dir / "spritesheet.webp"
         if not source.exists():
-            messagebox.showerror("备份失败", "没有找到 spritesheet.webp。")
+            self.show_panel_toast("备份失败", "没有找到 spritesheet.webp。", "error")
             return False
         target = self.pet_dir / f"spritesheet-manual-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.webp"
         target.write_bytes(source.read_bytes())
         self.say("精灵图已经备份。")
+        self.show_panel_toast("精灵图已备份", self.local_path_label(target), "success")
         return True
 
     def fresh_distribution_companion_state(self):
@@ -3904,26 +4076,41 @@ class DanhuangPet:
             "animation_speed",
             "drag_sensitivity",
             "inertia",
-            "talk_enabled",
-            "talk_interval",
             "bubble_style",
             "bubble_fill",
             "bubble_outline",
             "bubble_text",
-            "roam_enabled",
-            "roam_speed",
-            "roam_distance",
-            "multi_monitor_roam",
-            "roam_current_monitor_only",
-            "quick_menu_actions",
         ):
             if key in self.settings:
                 settings[key] = copy.deepcopy(self.settings[key])
         settings["current_pet_id"] = "danhuang"
         settings["position_x"] = -1
         settings["position_y"] = -1
+        settings["activity_mode"] = "daily"
+        settings["always_on_top"] = False
         settings["panel_pinned"] = False
         settings["panel_advanced"] = False
+        settings["talk_enabled"] = True
+        settings["talk_interval"] = 150.0
+        settings["talk_after_interaction_delay"] = 30.0
+        settings["roam_enabled"] = True
+        settings["roam_interval"] = 120.0
+        settings["roam_speed"] = 75.0
+        settings["roam_distance"] = 0.35
+        settings["roam_allow_center"] = False
+        settings["multi_monitor_roam"] = False
+        settings["roam_current_monitor_only"] = False
+        settings["primary_monitor_edge_only"] = True
+        settings["secondary_monitor_full_roam"] = False
+        settings["quick_menu_actions"] = []
+        settings["default_export_dir"] = ""
+        settings["default_upload_dir"] = ""
+        settings["default_image_dir"] = ""
+        settings["github_repo"] = ""
+        settings["github_branch"] = "main"
+        settings["github_workflow"] = "build-macos-app.yml"
+        settings["github_token_env_key"] = "DANHUANG_GITHUB_TOKEN"
+        settings["encrypted_github_token"] = ""
         settings["scale"] = clamp(settings["scale"], 0.25, 1.00)
         settings["animation_speed"] = clamp(settings["animation_speed"], 0.35, 1.50)
         settings["drag_sensitivity"] = clamp(settings["drag_sensitivity"], 0.30, 1.40)
@@ -3973,14 +4160,8 @@ class DanhuangPet:
         clean = copy.deepcopy(pet)
         sprite = self.copy_distribution_asset(pet.get("spritesheet"), app_dir, manifest)
         clean["spritesheet"] = sprite or str(pet.get("spritesheet") or "")
-        identity = self.copy_distribution_asset(pet.get("identity_image"), app_dir, manifest) if pet.get("identity_image") else ""
-        clean["identity_image"] = identity
-        clean_refs = []
-        for ref in pet.get("reference_images", []) if isinstance(pet.get("reference_images"), list) else []:
-            copied = self.copy_distribution_asset(ref, app_dir, manifest)
-            if copied:
-                clean_refs.append(copied)
-        clean["reference_images"] = clean_refs
+        clean["identity_image"] = ""
+        clean["reference_images"] = []
         clean_assets = []
         for asset in pet.get("extension_assets", []) if isinstance(pet.get("extension_assets"), list) else []:
             copied = self.copy_distribution_asset(asset.get("strip"), app_dir, manifest)
@@ -4127,7 +4308,7 @@ jobs:
           3. 如果 macOS Gatekeeper 拦截，双击 `打开桌宠.command`。这个脚本只会移除当前 app 的 quarantine 标记并启动它。
           4. 这是免公证 best-effort 包。如果要商业级双击无拦截，后续需要 Apple Developer ID 签名、公证和 staple。
 
-          真实 API Key 不会随导出包分发；需要在目标 Mac 的 AI 页面重新配置。
+          真实 API Key 不会随导出包分发；需要在目标 Mac 的陪聊设置页面重新配置。
           MD
           python3 - <<'PY'
           import json, os, pathlib
@@ -4387,20 +4568,28 @@ jobs:
             pet_lines.append(f"- {name}" + (f"（{species}）" if species else "") + f"：{status}")
         if not pet_lines:
             pet_lines.append("- 蛋黄：默认内置形象")
+        ready_pet_count = len([pet for pet in pets if str(pet.get("spritesheet", "") or "").strip()])
+        can_switch_pet = ready_pet_count > 1
+        right_menu_pet_entry = "、切换形象" if can_switch_pet else ""
+        pet_management_entry = (
+            "- 切换形象：右键菜单点击“切换形象”可快速选择，也可在控制面板“形象”页管理。"
+            if can_switch_pet
+            else "- 形象页：当前单宠版只包含蛋黄，可在控制面板“形象”页查看主像素形象和管理资料。"
+        )
         included_data = []
         if export_options.get("include_todos"):
             included_data.append("待办和提醒历史")
         if export_options.get("include_stories"):
             included_data.append("故事、日记、思念和故事图片")
         if export_options.get("include_ai_config"):
-            included_data.append("AI 厂商与模型配置（不含 Key）")
-        included_data_text = "、".join(included_data) if included_data else "不包含个人待办、故事或 AI 配置"
+            included_data.append("陪聊服务与模型配置（不含 Key）")
+        included_data_text = "、".join(included_data) if included_data else "不包含个人待办、故事或陪聊服务配置"
         if target_platform == "windows":
             install_steps = (
                 "1. 解压整个文件夹，不要只单独拿出某一个 `.bat` 文件。\n"
-                "2. 有 Python 的电脑：双击 `安装桌宠.bat`。\n"
-                "3. 没有 Python 的电脑：先在打包机运行 `安装免Python版.bat` 生成免 Python 版，再把整个导出包发给对方。\n"
-                "4. 安装完成后，桌面会出现 `Danhuang Desktop Pet` 快捷方式。"
+                "2. 普通 Windows 用户优先双击 `安装免Python版.bat`；如果包内已经有 `app/dist/DanhuangDesktopPet/DanhuangDesktopPet.exe`，会直接安装。\n"
+                "3. `安装桌宠.bat` 是源码版入口，只给已安装 Python 的开发/自测电脑使用。\n"
+                "4. 安装脚本只复制到 `%LOCALAPPDATA%\\\\DanhuangDesktopPet` 并创建桌面快捷方式，不写开机自启。"
             )
         else:
             install_steps = (
@@ -4429,9 +4618,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
 ## 1. 这是什么
 
-这是一个 Windows / macOS 桌面陪伴宠物。它会以透明小宠物的形式出现在桌面上，可以陪你说话、切换家庭宠物形象、记录故事和日记、做本地提醒，也可以在配置 API Key 后接入云端 AI 聊天。
+这是一个 Windows 桌面陪伴宠物。它会以透明小宠物的形式出现在桌面上，可以陪你说话、记录故事和日记、做本地提醒，也可以在配置 API Key 后接入云端陪聊。
 
-这个导出包默认是干净分发包。当前导出选择：{included_data_text}。无论是否导出 AI 配置，真实 API Key 都不会写进包里。
+这个导出包默认是干净分发包。当前导出选择：{included_data_text}。无论是否导出陪聊服务配置，真实 API Key 都不会写进包里。
 
 ## 2. 快速安装和启动
 
@@ -4442,10 +4631,10 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
 ## 3. 最常用入口
 
-- 右键宠物：打开快捷菜单，可聊天、打开控制面板、AI 配置、提醒、切换形象、播放动作。
-- 控制面板：集中管理陪伴、形象、档案、故事、行为、对话、AI、提醒、动作和安全导出。
+- 右键宠物：打开快捷菜单，可聊天、打开控制面板、安静一下、切换陪伴模式、暂停活动、提醒{right_menu_pet_entry}和播放动作。
+- 控制面板：默认展示首页、对话、提醒、形象、动作和安全；高级模式里再显示陪聊高级设置、故事、行为、设置和导出配置。
 - 聊天窗口：点击右键菜单里的“和它聊”，或在控制面板“对话”页打开。
-- 切换形象：右键菜单点击“切换形象”可快速选择，也可在控制面板“形象”页管理。
+{pet_management_entry}
 
 ## 4. 已包含的宠物
 
@@ -4458,6 +4647,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 ### 陪伴和等级
 
 - “陪伴”页展示等级、经验、陪伴时长、互动次数和快捷入口。
+- 首页和右键菜单都有“安静 / 日常 / 活跃”三档陪伴模式：安静关闭自动说话和巡游，日常低频沿边陪伴，活跃更常互动但仍默认不跑进屏幕中心。
 - 你摸摸它、聊天、打开陪伴窗口、触发动作都会增加陪伴进度。
 - “档案”页可以查看不同宠物独立的等级和最近聊天记录。
 
@@ -4470,21 +4660,21 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 - 动作条必须每帧 192x208，高度 208，宽度等于帧数 x 192；不要有文字、网格、阴影、速度线或多余物体。
 - “追蝴蝶”动作只画宠物本体，不要画蝴蝶；桌宠程序会单独显示 `butterfly.png`。
 
-### AI 聊天
+### 云端陪聊
 
-- “AI”页用于配置厂商、模型、Base URL、API Key 和连接测试。
+- “陪聊设置”用于配置服务、API Key 和连接测试；Base URL、接口格式和环境变量名默认收在高级连接参数里。
 - API Key 不会明文显示；保存后只显示掩码，并优先使用本机加密保存。
-- 测试连接成功后会自动开启云端 AI。失败时，如果开启了“本地兜底”，宠物会用本地话术回复。
-- 导出包不会包含打包机上的真实 API Key，目标电脑需要用户自己配置。
+- 测试连接成功后会自动开启云端陪聊。失败时，如果开启了“本地陪伴”，宠物会用本地话术回复。
+- 导出包不会包含导出电脑上的真实 API Key，目标电脑需要用户自己配置。
 
-### AI 怎么配置（国产厂商示例）
+### 陪聊服务怎么配置（国产厂商示例）
 
-1. 打开控制面板 → “AI”。
-2. 在“厂商”里选择一个平台。推荐先试 DeepSeek、通义千问 Qwen、Kimi、智谱 GLM 或小米 MiMo。
+1. 打开控制面板 → “陪聊设置”。
+2. 在“服务”里选择一个平台。推荐先试 DeepSeek、通义千问 Qwen、Kimi、智谱 GLM 或小米 MiMo。
 3. 到对应平台官网创建 API Key：DeepSeek 控制台、阿里云百炼、Kimi 开放平台、智谱开放平台、小米 MiMo Token Plan。
-4. 回到桌宠 AI 页，把 Key 粘贴到“API Key（本机加密）”，点击“保存 Key”。保存后只会显示 `********`。
+4. 回到“陪聊设置”，把 Key 粘贴到“API Key（本机加密）”，点击“保存 Key”。保存后只会显示 `********`。
 5. 选择模型后点“测试并启用”。测试只要求模型能返回自然中文，不要求 JSON。
-6. 聊天时直接问即可；如果你说“帮我查一下、最新、资料、新闻、往年今日”，桌宠会先本地检索资料，再交给当前 AI 回复。
+6. 聊天时直接问即可；如果你说“帮我查一下、最新、资料、新闻、往年今日”，桌宠会先本地检索资料，再交给当前陪聊服务整理回复。
 
 常用模型建议：
 
@@ -4499,7 +4689,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 ### 故事、日记和思念记录
 
 - “故事”页可以按宠物记录故事、日记、思念文字和图片。
-- 宠物 AI 聊天时会读取当前宠物的故事摘要和最近故事，让回复更像对应宠物。
+- 云端陪聊会读取当前宠物的故事摘要和最近故事，让回复更像对应宠物。
 - 新增或编辑故事时，图片会复制到当前宠物的数据目录，不会移动或删除原图。
 
 ### 聊天背景
@@ -4510,22 +4700,24 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
 ### 待办和提醒
 
-- “提醒”页可以新增本地待办、设置分类、优先级、重复和持续提醒。
+- “提醒”页可以新增本地待办、设置分类、优先级、重复和持续提醒；快速记录默认按生活事项处理。
 - 到点提醒默认使用宠物气泡和动作，不依赖云同步。
 - 待办和提醒历史保存在本机导出包安装目录里。
 
 ### 行为、巡逻和外观
 
-- “行为”页可调整动作速度、拖动手感、惯性、自动说话频率。
-- 高级模式下可以设置巡逻范围、跨屏策略、体型、透明度和气泡样式。
-- 如果宠物挡住工作内容，可以关闭自动活动或调低自动说话频率。
+- “行为”页可切换陪伴模式，并调整动作速度、拖动手感、惯性、自动说话频率。
+- 高级模式下可以设置巡逻范围、跨屏策略、体型、透明度和气泡样式；发行包默认不置顶、0.46 体型缩放、边缘活动、低频说话。
+- 如果宠物挡住工作内容，右键切到“安静”或点“暂停活动”；需要恢复时切回“日常”。
 
 ## 6. 数据保存和隐私
 
 - 等级、聊天、故事、待办、提醒历史和设置都保存在本机。
 - API Key 不会写入聊天记录、导出配置或日志。
 - 这个分发包默认清空个人数据模板，适合发给别人安装。
+- 公开分发包不包含用户上传源图、现实照片、身份图或参考图；目标电脑如需补充形象资料，需要用户自己添加。
 - 免 Python 版更新已安装版本时，会尽量保留目标电脑已有的本地数据。
+- 安装脚本不会写入开机自启；桌面快捷方式只是启动当前本地程序。
 
 ## 7. 常见问题
 
@@ -4535,16 +4727,16 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 - macOS 运行包需要 Python 3、Tkinter 和 Pillow。
 - 如果安全软件拦截脚本，请确认文件来自你信任的导出包，再手动允许运行。
 
-### AI 没回复或超时
+### 云端陪聊没回复或超时
 
-- 到“AI”页检查厂商、Base URL、模型和 API Key。
+- 到“陪聊设置”检查服务、模型和 API Key；高级连接参数里再看 Base URL。
 - 点击“测试当前连接”确认能连通。
 - 小米 MiMo 的网页控制台和 API Base URL 不是同一个地址，控制台请从“打开控制台”进入。
 
 ### 想删除
 
-- Windows 源码版安装目录通常在 `%LOCALAPPDATA%\\DanhuangDesktopPet`。
-- 免 Python 版也安装到同一目录，可删除快捷方式并删除该目录。
+- Windows 安装目录通常在 `%LOCALAPPDATA%\\DanhuangDesktopPet`。
+- 删除桌面快捷方式并删除该目录即可卸载；程序不会额外写开机启动项。
 - 删除前如需保留故事、聊天或待办，请先备份安装目录。
 
 ## 8. 文件说明
@@ -4658,7 +4850,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 "2. 远端构建会用 GitHub Actions `macos-latest` 生成 `DanhuangDesktopPet.app`，并下载 `DanhuangDesktopPet-macOS-<version>.zip`。\n"
                 "3. Mac 用户解压远端构建 zip 后优先双击 `.app`；如被 Gatekeeper 拦截，双击 `打开桌宠.command`。\n"
                 "4. 如果只拿到当前源码构建包：在 Mac 上执行 `chmod +x RunOnMac.command run-macos.sh BuildMacApp.command`，再运行 `./RunOnMac.command` 源码启动，或 `./BuildMacApp.command` 本机打包。\n"
-                "5. 当前包只清空安装包内的新用户数据模板：等级、聊天、记忆、待办、提醒历史和 API Key。打包机本机数据不会被修改。\n"
+                "5. 当前包只清空安装包内的新用户数据模板：等级、聊天、记忆、待办、提醒历史和 API Key。导出电脑本机数据不会被修改。\n"
                 "6. `github-actions/build-macos-app.yml` 是需要提交到 GitHub 仓库的 workflow 模板。\n",
                 encoding="utf-8",
             )
@@ -4781,15 +4973,20 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 "  'pause'",
                 ")",
                 "Set-Content -LiteralPath $uninstallBat -Value $uninstallBatLines -Encoding ASCII",
-                "$desktop = $env:DANHUANG_INSTALL_DESKTOP",
-                "if (-not $desktop) { $desktop = [Environment]::GetFolderPath(\"DesktopDirectory\") }",
-                "New-Item -ItemType Directory -Force -Path $desktop | Out-Null",
-                "$shortcutPath = Join-Path $desktop \"Danhuang Desktop Pet.lnk\"",
-                "$shell = New-Object -ComObject WScript.Shell",
-                "$shortcut = $shell.CreateShortcut($shortcutPath)",
-                "$shortcut.TargetPath = $startBat",
-                "$shortcut.WorkingDirectory = $target",
-                "$shortcut.Save()",
+                "$createShortcut = $env:DANHUANG_CREATE_DESKTOP_SHORTCUT",
+                "if ($createShortcut -ne \"0\") {",
+                "  $desktop = $env:DANHUANG_INSTALL_DESKTOP",
+                "  if (-not $desktop) { $desktop = [Environment]::GetFolderPath(\"DesktopDirectory\") }",
+                "  New-Item -ItemType Directory -Force -Path $desktop | Out-Null",
+                "  $shortcutPath = Join-Path $desktop \"Danhuang Desktop Pet.lnk\"",
+                "  $shell = New-Object -ComObject WScript.Shell",
+                "  $shortcut = $shell.CreateShortcut($shortcutPath)",
+                "  $shortcut.TargetPath = $startBat",
+                "  $shortcut.WorkingDirectory = $target",
+                "  $shortcut.Save()",
+                "} else {",
+                "  $shortcutPath = \"Skipped by DANHUANG_CREATE_DESKTOP_SHORTCUT=0\"",
+                "}",
                 "$python = Get-Command python -ErrorAction SilentlyContinue",
                 "if ($python) {",
                 "  & $python.Source -c \"import PIL\" > $null 2>&1",
@@ -4800,6 +4997,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 "}",
                 "Write-Host \"Installed source package to: $target\"",
                 "Write-Host \"Shortcut: $shortcutPath\"",
+                "Write-Host \"No startup item was created.\"",
             ]) + "\n",
             encoding="utf-8",
         )
@@ -4953,18 +5151,24 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 "  }",
                 "  Remove-Item -LiteralPath $backup -Recurse -Force",
                 "}",
-                "$desktop = $env:DANHUANG_INSTALL_DESKTOP",
-                "if (-not $desktop) { $desktop = [Environment]::GetFolderPath(\"DesktopDirectory\") }",
-                "New-Item -ItemType Directory -Force -Path $desktop | Out-Null",
-                "$shortcutPath = Join-Path $desktop \"Danhuang Desktop Pet.lnk\"",
-                "$shell = New-Object -ComObject WScript.Shell",
-                "$shortcut = $shell.CreateShortcut($shortcutPath)",
-                "$shortcut.TargetPath = Join-Path $target \"DanhuangDesktopPet.exe\"",
-                "$shortcut.WorkingDirectory = $target",
-                "$shortcut.IconLocation = $shortcut.TargetPath",
-                "$shortcut.Save()",
+                "$createShortcut = $env:DANHUANG_CREATE_DESKTOP_SHORTCUT",
+                "if ($createShortcut -ne \"0\") {",
+                "  $desktop = $env:DANHUANG_INSTALL_DESKTOP",
+                "  if (-not $desktop) { $desktop = [Environment]::GetFolderPath(\"DesktopDirectory\") }",
+                "  New-Item -ItemType Directory -Force -Path $desktop | Out-Null",
+                "  $shortcutPath = Join-Path $desktop \"Danhuang Desktop Pet.lnk\"",
+                "  $shell = New-Object -ComObject WScript.Shell",
+                "  $shortcut = $shell.CreateShortcut($shortcutPath)",
+                "  $shortcut.TargetPath = Join-Path $target \"DanhuangDesktopPet.exe\"",
+                "  $shortcut.WorkingDirectory = $target",
+                "  $shortcut.IconLocation = $shortcut.TargetPath",
+                "  $shortcut.Save()",
+                "} else {",
+                "  $shortcutPath = \"Skipped by DANHUANG_CREATE_DESKTOP_SHORTCUT=0\"",
+                "}",
                 "Write-Host \"Installed one-click package to: $target\"",
                 "Write-Host \"Shortcut: $shortcutPath\"",
+                "Write-Host \"No startup item was created.\"",
             ]) + "\n",
             encoding="utf-8",
         )
@@ -4972,13 +5176,14 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         readme.write_text(
             "# Windows 安装包说明\n\n"
             "0. 功能和日常使用请先看 `README-使用说明.md`。\n"
-            "1. `安装桌宠.bat` / `InstallSource.bat`：源码版安装，目标电脑需要已有 Python。\n"
-            "2. `安装免Python版.bat` / `InstallNoPython.bat`：免 Python 版入口。如果包内还没有 exe，会先自动运行 `build-oneclick-installer.ps1` 构建，再安装。\n"
-            "3. 给没有 Python 的 Windows 电脑使用时，请先在有 Python 的打包机上运行一次免 Python 版入口，确认生成 `app/dist/DanhuangDesktopPet/DanhuangDesktopPet.exe` 后，再发送整个文件夹或 zip。\n"
-            "4. 当前包只清空安装包内的新用户数据模板：等级、聊天、记忆、待办、提醒历史和 API Key。打包机本机数据不会被修改。\n"
+            "1. 普通用户优先运行 `安装免Python版.bat` / `InstallNoPython.bat`。如果包内已有 `app/dist/DanhuangDesktopPet/DanhuangDesktopPet.exe`，会直接复制安装，不需要本机 Python。\n"
+            "2. 如果包内还没有 exe，免 Python 入口会自动运行 `build-oneclick-installer.ps1` 构建；这一步只适合打包者或开发机。\n"
+            "3. `安装桌宠.bat` / `InstallSource.bat` 是源码版安装，目标电脑需要已有 Python，不建议普通用户使用。\n"
+            "4. 当前包只清空安装包内的新用户数据模板：等级、聊天、记忆、待办、提醒历史和 API Key。导出电脑本机数据不会被修改。\n"
             "5. 免 Python 版更新已安装版本时，会优先保留目标电脑自己的等级、聊天、记忆、待办、提醒历史和本机 API Key。\n"
-            "6. Windows 双击脚本内容保持 ASCII，避免 Windows cmd / PowerShell 因编码判断错误出现乱码或无响应。\n"
-            "7. 不默认写入开机自启，避免安全软件误报；需要自启时让用户在安装向导中明确勾选。\n",
+            "6. 默认会创建普通桌面快捷方式；如需跳过，运行前设置环境变量 `DANHUANG_CREATE_DESKTOP_SHORTCUT=0`。\n"
+            "7. 不写开机自启、不写注册表 Run 项、不上传本地隐私数据。\n"
+            "8. Windows 双击脚本内容保持 ASCII，避免 Windows cmd / PowerShell 因编码判断错误出现乱码或无响应。\n",
             encoding="utf-8",
         )
         for mac_path in (run_macos_command, run_macos_sh, build_macos_command):
@@ -5051,6 +5256,8 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 "memory-summary",
                 "api-keys",
                 "logs",
+                "identity-images",
+                "pet-reference-images",
             ],
             "included_user_data": {
                 "todos": include_todos,
@@ -5229,7 +5436,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         tk.Label(shell, text=f"导出{platform_name}", bg="#fff7ec", fg="#30261d", anchor="w", font=("Microsoft YaHei UI", 15, "bold")).pack(fill="x")
         tk.Label(
             shell,
-            text=f"蛋黄会默认内置；其他宠物可勾选。{platform_note} 导出包会附带安装说明和完整使用说明；默认不带个人数据，下面可选择是否带待办、故事和 AI 配置；真实 Key 永远不会导出。",
+            text=f"蛋黄会默认内置；其他宠物可勾选。{platform_note} 导出包会附带安装说明和完整使用说明；默认不带个人数据，下面可选择是否带待办、故事和陪聊服务配置；真实 Key 永远不会导出。",
             bg="#fff7ec",
             fg="#7c6650",
             anchor="w",
@@ -5287,7 +5494,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
         data_check("包含待办", include_todos_var, "导出当前待办和提醒历史。")
         data_check("包含故事/日记", include_stories_var, "导出所选宠物的故事、日记、思念和图片。")
-        data_check("包含 AI 配置", include_ai_config_var, "只导出厂商、模型和接口参数，不导出 Key。")
+        data_check("包含陪聊服务配置", include_ai_config_var, "只导出厂商、模型和接口参数，不导出 Key。")
 
         github_vars = {}
         if target_platform == "macos":
@@ -6060,37 +6267,54 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         pet = self.pet_by_id(pet_id)
         identity = pet.get("identity_image")
         if not identity:
-            messagebox.showinfo("无需删除", "当前没有单独设置主像素图，会使用动作精灵图里的待机帧。")
+            self.show_panel_toast("无需删除", "当前没有单独设置主像素图，会使用动作精灵图里的待机帧。", "warning")
             return False
-        if not messagebox.askyesno("删除主像素图", "确定删除当前主像素图吗？\n删除后会回退使用动作精灵图里的待机帧，不会删除现实照片。"):
-            return False
-        identity_path = self.pet_asset_path(identity)
-        updated = None
-        for index, item in enumerate(self.pet_family.get("pets", [])):
-            if item.get("id") == pet_id:
-                item = dict(item)
-                item["identity_image"] = ""
-                self.pet_family["pets"][index] = item
-                updated = item
-                break
-        if updated is None:
-            return False
-        if pet_id == self.active_pet.get("id"):
-            self.active_pet = updated
-        self.save_pet_family()
-        try:
-            if identity_path and identity_path.exists() and identity_path.resolve().is_relative_to(self.pet_dir.resolve()):
-                text = identity_path.as_posix().lower()
-                if "/family/" in text and "identity" in identity_path.name.lower():
-                    identity_path.unlink(missing_ok=True)
-        except (OSError, ValueError):
-            pass
-        self.say("主像素图已经删除，已回退到精灵图待机帧。")
-        if callable(self.control_panel_refresh_sidebar):
-            self.control_panel_refresh_sidebar()
-        if callable(on_done):
-            on_done()
-        return True
+
+        pet_name = pet.get("display_name", "当前形象")
+
+        def apply_clear():
+            self.pet_family = self.load_pet_family()
+            current_pet = self.pet_by_id(pet_id)
+            identity_path = self.pet_asset_path(current_pet.get("identity_image"))
+            updated = None
+            for index, item in enumerate(self.pet_family.get("pets", [])):
+                if item.get("id") == pet_id:
+                    item = dict(item)
+                    item["identity_image"] = ""
+                    self.pet_family["pets"][index] = item
+                    updated = item
+                    break
+            if updated is None:
+                return False
+            if pet_id == self.active_pet.get("id"):
+                self.active_pet = updated
+            self.save_pet_family()
+            try:
+                if identity_path and identity_path.exists() and identity_path.resolve().is_relative_to(self.pet_dir.resolve()):
+                    text = identity_path.as_posix().lower()
+                    if "/family/" in text and "identity" in identity_path.name.lower():
+                        identity_path.unlink(missing_ok=True)
+            except (OSError, ValueError):
+                pass
+            self.say("主像素图已经删除，已回退到精灵图待机帧。")
+            self.show_panel_toast("主像素图已删除", f"{pet_name} 已回退到动作精灵图待机帧。", "success")
+            if callable(self.control_panel_refresh_sidebar):
+                self.control_panel_refresh_sidebar()
+            if callable(on_done):
+                on_done()
+            return True
+
+        self.show_panel_confirm(
+            "删除主像素图",
+            f"删除{pet_name}的主像素图？",
+            "删除后会回退使用动作精灵图里的待机帧。",
+            detail_title="只处理桌宠目录里的主像素图副本",
+            detail_body="不会删除现实照片、参考图、动作精灵图或聊天记忆；如果只是想更换形象，建议先选择“更换主像素图”。",
+            confirm_text="删除",
+            on_confirm=apply_clear,
+            variant="danger",
+        )
+        return False
 
     def choose_pet_identity_image(self, pet_id=None, on_done=None):
         pet_id = pet_id or self.active_pet.get("id", "danhuang")
@@ -6172,28 +6396,48 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             return False
         ref_path = self.pet_asset_path(ref)
         file_name = Path(str(ref)).name
-        if not messagebox.askyesno("删除参考图", f"确定删除参考图「{file_name}」吗？\n本机源文件不在桌宠目录内时，只会从列表移除引用。"):
-            return False
-        refs = [item for item in refs if item != ref]
-        pet["reference_images"] = refs
-        for idx, item in enumerate(self.pet_family.get("pets", [])):
-            if item.get("id") == pet_id:
-                self.pet_family["pets"][idx] = pet
-                break
-        if pet_id == self.active_pet.get("id"):
-            self.active_pet = pet
-        self.save_pet_family()
-        try:
-            if ref_path and ref_path.exists() and ref_path.resolve().is_relative_to(self.pet_dir.resolve()):
-                text = ref_path.as_posix().lower()
-                if "/uploads/" in text or "/source-" in text or "/user-" in text:
-                    ref_path.unlink(missing_ok=True)
-        except (OSError, ValueError):
-            pass
-        self.say("参考图已经删除。")
-        if callable(on_done):
-            on_done()
-        return True
+        pet_name = pet.get("display_name", "当前形象")
+
+        def apply_remove():
+            self.pet_family = self.load_pet_family()
+            current_pet = self.pet_by_id(pet_id)
+            current_refs = list(current_pet.get("reference_images") if isinstance(current_pet.get("reference_images"), list) else [])
+            if ref not in current_refs:
+                self.show_panel_toast("参考图不存在", "这张参考图已经不在当前形象里。", "warning")
+                return True
+            target_path = self.pet_asset_path(ref)
+            current_pet["reference_images"] = [item for item in current_refs if item != ref]
+            for idx, item in enumerate(self.pet_family.get("pets", [])):
+                if item.get("id") == pet_id:
+                    self.pet_family["pets"][idx] = current_pet
+                    break
+            if pet_id == self.active_pet.get("id"):
+                self.active_pet = current_pet
+            self.save_pet_family()
+            try:
+                if target_path and target_path.exists() and target_path.resolve().is_relative_to(self.pet_dir.resolve()):
+                    text = target_path.as_posix().lower()
+                    if "/uploads/" in text or "/source-" in text or "/user-" in text:
+                        target_path.unlink(missing_ok=True)
+            except (OSError, ValueError):
+                pass
+            self.say("参考图已经删除。")
+            self.show_panel_toast("参考图已删除", f"{pet_name} 的参考图「{file_name}」已从列表移除。", "success")
+            if callable(on_done):
+                on_done()
+            return True
+
+        self.show_panel_confirm(
+            "删除参考图",
+            f"删除参考图「{file_name}」？",
+            f"这张图片会从{pet_name}的参考照片列表移除。",
+            detail_title="不会删除本机外部源文件",
+            detail_body="如果图片是桌宠复制到当前目录的上传副本，会清理该副本；原始照片、主像素图、动作精灵图和故事记录不会被删除。",
+            confirm_text="删除",
+            on_confirm=apply_remove,
+            variant="danger",
+        )
+        return False
 
     def add_reference_images_to_pet(self, pet_id=None, on_done=None):
         self.pet_family = self.load_pet_family()
@@ -6661,37 +6905,57 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         assets = list(self.pet_extension_assets(pet))
         asset = next((item for item in assets if item.get("id") == action_id), None)
         if not asset:
-            messagebox.showinfo("无需清空", "这个动作还没有上传精灵图。")
+            self.show_panel_toast("无需清空", "这个动作还没有上传精灵图。", "warning")
             return False
         label = asset.get("label") or self.action_label(action_id)
-        if not messagebox.askyesno("清空动作精灵图", f"确定清空「{label}」动作吗？\n清空后可以重新上传，不会影响其他动作。"):
-            return False
+        pet_name = pet.get("display_name", "当前形象")
 
-        target_path = self.pet_asset_path(asset.get("strip"))
-        pet["extension_assets"] = self.normalize_extension_assets([item for item in assets if item.get("id") != action_id])
-        pet["supported_actions"] = [state for state in pet.get("supported_actions", []) if state != action_id]
-        pet = self.normalize_pet_action_metadata(pet)
-        for index, item in enumerate(self.pet_family.get("pets", [])):
-            if item.get("id") == pet_id:
-                self.pet_family["pets"][index] = pet
-                break
-        self.active_pet = pet
-        self.save_pet_family()
-        current = [state for state in self.normalize_quick_menu_setting(self.settings.get("quick_menu_actions")) if state != action_id]
-        self.settings["quick_menu_actions"] = self.normalize_quick_menu_setting(current)
-        self.save_settings()
-        try:
-            if target_path and target_path.exists() and target_path.resolve().is_relative_to(self.pet_dir.resolve()):
-                text = target_path.as_posix().lower()
-                if "/family/" in text and "/extension-" in text:
-                    target_path.unlink(missing_ok=True)
-        except (OSError, ValueError):
-            pass
-        self.reload_frames()
-        self.say(f"「{label}」已经清空，可以重新上传。")
-        if callable(on_done):
-            on_done()
-        return True
+        def apply_remove():
+            self.pet_family = self.load_pet_family()
+            current_pet = self.pet_by_id(pet_id)
+            current_assets = list(self.pet_extension_assets(current_pet))
+            current_asset = next((item for item in current_assets if item.get("id") == action_id), None)
+            if not current_asset:
+                self.show_panel_toast("无需清空", "这个动作已经没有上传精灵图。", "warning")
+                return True
+            target_path = self.pet_asset_path(current_asset.get("strip"))
+            current_pet["extension_assets"] = self.normalize_extension_assets([item for item in current_assets if item.get("id") != action_id])
+            current_pet["supported_actions"] = [state for state in current_pet.get("supported_actions", []) if state != action_id]
+            current_pet = self.normalize_pet_action_metadata(current_pet)
+            for index, item in enumerate(self.pet_family.get("pets", [])):
+                if item.get("id") == pet_id:
+                    self.pet_family["pets"][index] = current_pet
+                    break
+            self.active_pet = current_pet
+            self.save_pet_family()
+            current = [state for state in self.normalize_quick_menu_setting(self.settings.get("quick_menu_actions")) if state != action_id]
+            self.settings["quick_menu_actions"] = self.normalize_quick_menu_setting(current)
+            self.save_settings()
+            try:
+                if target_path and target_path.exists() and target_path.resolve().is_relative_to(self.pet_dir.resolve()):
+                    text = target_path.as_posix().lower()
+                    if "/family/" in text and "/extension-" in text:
+                        target_path.unlink(missing_ok=True)
+            except (OSError, ValueError):
+                pass
+            self.reload_frames()
+            self.say(f"「{label}」已经清空，可以重新上传。")
+            self.show_panel_toast("动作已清空", f"{pet_name} 的「{label}」动作已从右键动作栏移除。", "success")
+            if callable(on_done):
+                on_done()
+            return True
+
+        self.show_panel_confirm(
+            "清空动作精灵图",
+            f"清空「{label}」动作？",
+            "这个扩展动作会从动作页、右键动作栏和当前形象的可播放动作里移除。",
+            detail_title="只清理当前形象的扩展动作副本",
+            detail_body="不会删除基础动作、主像素图、现实照片、参考图或聊天记忆；清空后可以重新上传同名动作精灵图。",
+            confirm_text="清空",
+            on_confirm=apply_remove,
+            variant="danger",
+        )
+        return False
 
     def copy_text_to_clipboard(self, text, label="内容"):
         text = str(text or "")
@@ -8071,8 +8335,94 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         return time.monotonic() + random.uniform(base * 0.65, base * 1.45)
 
     def next_roam_time(self):
-        base = self.settings["roam_interval"]
-        return time.monotonic() + random.uniform(base * 0.70, base * 1.35)
+        return next_roam_timestamp(self.settings)
+
+    def activity_mode_matches(self, mode_id):
+        preset = ACTIVITY_MODE_PRESETS.get(str(mode_id or ""))
+        if not preset:
+            return False
+        for key, expected in preset["settings"].items():
+            if key == "activity_mode":
+                continue
+            current = self.settings.get(key)
+            if isinstance(expected, bool):
+                if bool(current) != expected:
+                    return False
+            elif isinstance(expected, (int, float)):
+                try:
+                    if abs(float(current) - float(expected)) > 0.011:
+                        return False
+                except (TypeError, ValueError):
+                    return False
+            elif str(current) != str(expected):
+                return False
+        return True
+
+    def current_activity_mode_id(self):
+        stored = str(self.settings.get("activity_mode", DEFAULT_SETTINGS["activity_mode"]) or "").strip()
+        if stored in ACTIVITY_MODE_PRESETS and self.activity_mode_matches(stored):
+            return stored
+        for mode_id in ACTIVITY_MODE_ORDER:
+            if self.activity_mode_matches(mode_id):
+                return mode_id
+        return "custom"
+
+    def activity_mode_label(self):
+        mode_id = self.current_activity_mode_id()
+        if mode_id == "custom":
+            return "自定义"
+        return ACTIVITY_MODE_PRESETS[mode_id]["label"]
+
+    def activity_mode_summary(self):
+        mode_id = self.current_activity_mode_id()
+        if mode_id == "custom":
+            return "当前参数已被手动调整；仍会按下方开关和巡游设置执行。"
+        return ACTIVITY_MODE_PRESETS[mode_id]["summary"]
+
+    def apply_activity_mode(self, mode_id, persist=True, announce=True):
+        mode_id = str(mode_id or "daily").strip()
+        if mode_id not in ACTIVITY_MODE_PRESETS:
+            mode_id = "daily"
+        preset = ACTIVITY_MODE_PRESETS[mode_id]
+        self.settings.update(copy.deepcopy(preset["settings"]))
+        self.roam_target = None
+        self.next_idle_action_at = self.next_idle_time()
+        self.next_talk_at = self.next_talk_time()
+        self.next_roam_at = self.next_roam_time()
+        try:
+            self.root.attributes("-topmost", bool(self.settings.get("always_on_top", False)))
+        except tk.TclError:
+            pass
+        self.reload_frames()
+        if persist:
+            self.save_settings()
+        if announce:
+            if mode_id == "quiet":
+                self.hide_bubble()
+            self.say(str(preset.get("say") or preset["summary"]))
+        if callable(self.control_panel_refresh_current_page):
+            try:
+                self.control_panel_refresh_current_page()
+            except Exception:
+                report_callback_exception(*sys.exc_info())
+
+    def quiet_mode_once(self, minutes=10):
+        delay_seconds = max(60, int(minutes * 60))
+        now = time.monotonic()
+        self.roam_target = None
+        self.next_talk_at = now + delay_seconds
+        self.next_roam_at = now + delay_seconds
+        self.hide_bubble()
+        self.say(f"好，我先安静陪你 {int(delay_seconds / 60)} 分钟。")
+
+    def toggle_activity_pause(self):
+        paused = not bool(self.settings.get("talk_enabled", True)) and not bool(self.settings.get("roam_enabled", True))
+        if paused:
+            self.apply_activity_mode("daily", persist=True, announce=False)
+            self.say(ACTIVITY_MODE_PRESETS["daily"]["say"])
+        else:
+            self.apply_activity_mode("quiet", persist=True, announce=False)
+            self.say("我先暂停自动说话和活动。")
 
     def load_frames(self):
         frames = {}
@@ -8620,6 +8970,12 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             except (TypeError, ValueError):
                 return int(default)
 
+        def menu_float(value, default):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return float(default)
+
         def style_section(name):
             value = quick_menu_style.get(name) if isinstance(quick_menu_style, dict) else None
             return value if isinstance(value, dict) else {}
@@ -8637,11 +8993,13 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         pet_subtitle = str(quick_menu_header.get("subtitle") or "陪你说句话，或者做个基础动作")
         auto_close_ms = int(quick_menu_layout.get("auto_close_ms") or 12000)
         outside_click_delay_ms = int(quick_menu_layout.get("outside_click_delay_ms") or 180)
-        menu_columns = max(2, min(4, menu_int(quick_menu_layout.get("columns"), 2)))
-        panel_min_width = max(1, menu_int(quick_menu_layout.get("min_width"), 280))
-        panel_max_width = max(panel_min_width, menu_int(quick_menu_layout.get("max_width"), 340))
-        button_min_height = max(28, menu_int(quick_menu_layout.get("button_min_height"), 34))
+        menu_columns = max(2, min(4, menu_int(quick_menu_layout.get("columns"), 3)))
+        panel_min_width = max(1, menu_int(quick_menu_layout.get("min_width"), 540))
+        panel_max_width = max(panel_min_width, menu_int(quick_menu_layout.get("max_width"), 620))
+        button_min_height = max(28, menu_int(quick_menu_layout.get("button_min_height"), 32))
         button_inner_pady = max(5, int((button_min_height - 24) / 2))
+        menu_max_height_ratio = max(0.35, min(1.0, menu_float(quick_menu_layout.get("max_height_ratio"), 0.78)))
+        menu_min_scroll_body_height = max(120, menu_int(quick_menu_layout.get("min_scroll_body_height"), 180))
         menu_gap = menu_int(quick_menu_layout.get("panel_gap"), 12)
         menu_screen_margin = menu_int(quick_menu_layout.get("screen_margin"), 8)
         menu_overlap_margin = menu_int(quick_menu_layout.get("pet_overlap_margin"), 4)
@@ -8709,8 +9067,60 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             widget.bind("<B1-Motion>", drag_quick_menu)
             widget.bind("<ButtonRelease-1>", stop_quick_menu_drag)
 
-        body = tk.Frame(shell, bg=body_bg)
-        body.pack(fill="both", expand=True, padx=10, pady=7)
+        body_shell = tk.Frame(shell, bg=body_bg)
+        body_shell.pack(fill="both", expand=True, padx=10, pady=7)
+        body_canvas = tk.Canvas(
+            body_shell,
+            bg=body_bg,
+            bd=0,
+            highlightthickness=0,
+            relief="flat",
+            height=1,
+            yscrollincrement=16,
+        )
+        body_canvas.pack(side="left", fill="both", expand=True)
+        body = tk.Frame(body_canvas, bg=body_bg)
+        body_window = body_canvas.create_window((0, 0), window=body, anchor="nw")
+
+        def sync_body_scroll_region(_event=None):
+            try:
+                body_canvas.configure(scrollregion=body_canvas.bbox("all"))
+                body_canvas.itemconfigure(body_window, width=max(1, body_canvas.winfo_width()))
+            except tk.TclError:
+                pass
+
+        def scroll_quick_menu_body(event):
+            try:
+                bbox = body_canvas.bbox("all")
+                if not bbox:
+                    return "break"
+                content_height = int(bbox[3] - bbox[1])
+                if content_height <= body_canvas.winfo_height() + 2:
+                    return "break"
+                if getattr(event, "num", None) == 4:
+                    steps = -3
+                elif getattr(event, "num", None) == 5:
+                    steps = 3
+                else:
+                    delta = int(getattr(event, "delta", 0))
+                    steps = -3 if delta > 0 else 3
+                body_canvas.yview_scroll(steps, "units")
+            except tk.TclError:
+                pass
+            return "break"
+
+        def bind_body_mousewheel(widget):
+            try:
+                widget.bind("<MouseWheel>", scroll_quick_menu_body, add="+")
+                widget.bind("<Button-4>", scroll_quick_menu_body, add="+")
+                widget.bind("<Button-5>", scroll_quick_menu_body, add="+")
+            except tk.TclError:
+                return
+            for child in widget.winfo_children():
+                bind_body_mousewheel(child)
+
+        body.bind("<Configure>", sync_body_scroll_region)
+        body_canvas.bind("<Configure>", sync_body_scroll_region)
 
         def section_label(text, row):
             label = tk.Label(
@@ -9210,6 +9620,13 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 return action_command_for_item(item)
             if command_name == "open_chat":
                 return self.open_chat_panel
+            if command_name == "quiet_mode":
+                return self.quiet_mode_once
+            if command_name == "set_activity_mode":
+                mode_id = str(item.get("mode") or "daily") if isinstance(item, dict) else "daily"
+                return lambda target_mode=mode_id: self.apply_activity_mode(target_mode)
+            if command_name == "toggle_activity_pause":
+                return self.toggle_activity_pause
             if command_name == "open_control_panel":
                 page = str(item.get("page") or "")
                 return (lambda target_page=page: self.open_control_panel(target_page)) if page else self.open_control_panel
@@ -9274,19 +9691,43 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             button("桌宠面板", self.open_control_panel, row, 1, "soft")
             row += 1
             button("待办提醒", lambda: self.open_control_panel("提醒"), row, 0, "soft")
-            button("AI 配置", lambda: self.open_control_panel("AI"), row, 1, "soft")
+            button("陪聊设置", lambda: self.open_control_panel("AI"), row, 1, "soft")
             row += 1
-            switch_pet_button = button("切换形象", lambda: None, row, 0, "soft")
-            switch_pet_button.configure(command=lambda anchor=switch_pet_button: show_pet_switch_popup(anchor))
-            switch_pet_button.bind("<Enter>", cancel_pet_switch_popup_close)
-            switch_pet_button.bind("<Leave>", lambda _event: schedule_pet_switch_popup_close())
-            button("摸摸它", self.say_random, row, 1)
+            button("安静一下", self.quiet_mode_once, row, 0, "ghost")
+            pets = self.pet_family.get("pets", []) if isinstance(self.pet_family.get("pets"), list) else []
+            fallback_can_switch_pet = len([pet for pet in pets if self.pet_ready(pet)]) > 1
+            if fallback_can_switch_pet:
+                switch_pet_button = button("切换形象", lambda: None, row, 1, "soft")
+                switch_pet_button.configure(command=lambda anchor=switch_pet_button: show_pet_switch_popup(anchor))
+                switch_pet_button.bind("<Enter>", cancel_pet_switch_popup_close)
+                switch_pet_button.bind("<Leave>", lambda _event: schedule_pet_switch_popup_close())
+                button("摸摸它", self.say_random, row, 2)
+            else:
+                button("摸摸它", self.say_random, row, 1, colspan=menu_columns - 1)
             row += 1
+            row = section_label("窗口", row)
+            paused = not bool(self.settings.get("talk_enabled", True)) and not bool(self.settings.get("roam_enabled", True))
+            button("恢复日常" if paused else "暂停活动", self.toggle_activity_pause, row, 0, "ghost")
+            button("隐藏气泡", self.hide_bubble, row, 1, "ghost")
+            button("退出", self.close, row, 2, "danger")
+            row += 1
+            row = section_label("陪伴模式", row)
+            current_mode = self.current_activity_mode_id()
+            for index, mode_id in enumerate(ACTIVITY_MODE_ORDER):
+                variant = "selected" if current_mode == mode_id else "soft"
+                button(
+                    ACTIVITY_MODE_PRESETS[mode_id]["label"],
+                    lambda target_mode=mode_id: self.apply_activity_mode(target_mode),
+                    row + index // menu_columns,
+                    index % menu_columns,
+                    variant,
+                )
+            row += max(1, (len(ACTIVITY_MODE_ORDER) + menu_columns - 1) // menu_columns)
             row = section_label("基础动作", row)
             basic_actions = self.quick_menu_base_actions()
             for index, state in enumerate(basic_actions):
-                button(self.action_label(state), action_command_for_state(state), row + index // 2, index % 2)
-            row += max(1, (len(basic_actions) + 1) // 2)
+                button(self.action_label(state), action_command_for_state(state), row + index // menu_columns, index % menu_columns)
+            row += max(1, (len(basic_actions) + menu_columns - 1) // menu_columns)
 
             row = section_label("扩展动作", row)
             extension_actions = self.selected_quick_menu_extension_actions()
@@ -9294,8 +9735,8 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             hidden_extension_actions = extension_actions[QUICK_MENU_MAX_VISIBLE_EXTRA_ACTIONS:]
             if visible_extension_actions:
                 for index, state in enumerate(visible_extension_actions):
-                    button(self.action_label(state), action_command_for_state(state), row + index // 2, index % 2)
-                row += max(1, (len(visible_extension_actions) + 1) // 2)
+                    button(self.action_label(state), action_command_for_state(state), row + index // menu_columns, index % menu_columns)
+                row += max(1, (len(visible_extension_actions) + menu_columns - 1) // menu_columns)
             else:
                 button("添加扩展动作", lambda: self.open_control_panel("动作"), row, 0, "soft", colspan=menu_columns)
                 row += 1
@@ -9309,12 +9750,39 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             else:
                 button("管理动作", lambda: self.open_control_panel("动作"), row, 0, "soft", colspan=menu_columns)
                 row += 1
-            row = section_label("窗口", row)
-            button("隐藏气泡", self.hide_bubble, row, 0, "ghost")
-            button("退出", self.close, row, 1, "danger")
-            row += 1
-
+        bind_body_mousewheel(body)
+        monitor = self.monitor_for_position(x, y)
         panel.update_idletasks()
+        body_content_height = max(1, body.winfo_reqheight())
+        fixed_menu_height = max(0, header.winfo_reqheight() + 14 + 2)
+        viewport_model = None
+        if MODULAR_COMPUTE_RIGHT_MENU_VIEWPORT_SIZE is not None:
+            try:
+                viewport_model = MODULAR_COMPUTE_RIGHT_MENU_VIEWPORT_SIZE(
+                    {"height": body_content_height},
+                    {"height": fixed_menu_height},
+                    monitor,
+                    screen_margin=menu_screen_margin,
+                    max_height_ratio=menu_max_height_ratio,
+                    min_body_height=menu_min_scroll_body_height,
+                )
+            except Exception:
+                viewport_model = None
+        if not viewport_model:
+            screen_height = max(1, int(monitor.get("bottom", 720)) - int(monitor.get("top", 0)))
+            max_panel_height = max(1, min(screen_height - menu_screen_margin * 2, int(screen_height * menu_max_height_ratio)))
+            viewport_model = {
+                "viewport_height": min(body_content_height, max(1, max_panel_height - fixed_menu_height)),
+                "scrollable": body_content_height > max(1, max_panel_height - fixed_menu_height) + 1,
+            }
+        body_viewport_height = max(1, int(viewport_model.get("viewport_height") or body_content_height))
+        try:
+            body_canvas.configure(height=body_viewport_height)
+            panel._quick_menu_scrollable = bool(viewport_model.get("scrollable"))
+            sync_body_scroll_region()
+            panel.update_idletasks()
+        except tk.TclError:
+            pass
         width = panel.winfo_width()
         height = panel.winfo_height()
         target_width = int(clamp(width, panel_min_width, panel_max_width))
@@ -9326,7 +9794,6 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 height = panel.winfo_height()
             except tk.TclError:
                 pass
-        monitor = self.monitor_for_position(x, y)
         pet_left = self.root.winfo_x()
         pet_top = self.root.winfo_y()
         pet_right = pet_left + self.root.winfo_width()
@@ -9501,7 +9968,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         self.auto_talk_ai_inflight = False
         provider_id, provider = self.active_ai_provider()
         display_error = self.describe_ai_error(error, provider_id, provider)
-        self.set_ai_status(f"自动说话 AI 失败，已本地兜底：{display_error[:140]}")
+        self.set_ai_status(f"自动说话的云端陪聊失败，已本地兜底：{display_error[:140]}")
         self.companion["talks"] += 1
         self.add_xp(XP_RULES["talk"], "talk")
         self.say(self.choose_phrase())
@@ -9685,11 +10152,53 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         if self.ai_last_status:
             return self.ai_last_status
         if not self.settings.get("ai_enabled", True):
-            return "AI 已关闭，使用本地陪伴回复"
+            return "云端陪聊已关闭，使用本地陪伴回复"
         if not self.provider_api_key(provider):
             env_key = provider.get("env_key", "")
-            return f"AI 未配置 Key：{display}（环境变量 {env_key} 或本地加密 Key）"
-        return f"AI 已启用：{display} / {model}"
+            return f"云端陪聊未配置 Key：{display}（环境变量 {env_key} 或本地加密 Key）"
+        return f"云端陪聊已启用：{display} / {model}"
+
+    def ai_connection_summary(self, provider_id=None, provider=None):
+        if provider is None:
+            provider_id, provider = self.active_ai_provider()
+        elif provider_id is None:
+            provider_id = self.active_provider_id()
+
+        enabled = bool(self.settings.get("ai_enabled", True))
+        env_key = str(provider.get("env_key", "") or "").strip()
+        has_saved_key = self.provider_saved_key(provider)
+        has_env_key = bool(env_key and os.getenv(env_key))
+        has_key = bool(self.provider_api_key(provider))
+        key_state = "本机加密" if has_saved_key else ("环境变量" if has_env_key else "未配置")
+        provider_text = self.provider_display_text(provider_id, provider)
+        model_text = self.provider_model_name(provider)
+
+        if not enabled:
+            return {
+                "value": "已关闭",
+                "hint": "只使用本地陪伴",
+                "key_state": key_state,
+                "tone": "muted",
+                "provider_text": provider_text,
+                "model_text": model_text,
+            }
+        if not has_key:
+            return {
+                "value": "待配置",
+                "hint": f"{provider_text} Key 未配置，当前用本地陪伴",
+                "key_state": key_state,
+                "tone": "warning",
+                "provider_text": provider_text,
+                "model_text": model_text,
+            }
+        return {
+            "value": "已配置",
+            "hint": f"{provider_text} / {model_text}，建议先测试连接",
+            "key_state": key_state,
+            "tone": "success",
+            "provider_text": provider_text,
+            "model_text": model_text,
+        }
 
     def set_ai_status(self, text):
         self.ai_last_status = text
@@ -9809,7 +10318,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                         "error": "#8a4a2f",
                         "muted": "#75614a",
                     }
-                    fallback = "正在等待回复..." if is_busy else "输入后会按当前 AI/本地陪伴状态回复。"
+                    fallback = "正在等待回复..." if is_busy else "输入后会按当前云端陪聊/本地陪伴状态回复。"
                     status_label.configure(text=text or fallback, fg=colors.get(tone, colors["muted"]))
             except tk.TclError:
                 pass
@@ -10758,7 +11267,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     if self.ai_testing_provider_id == provider_id:
                         self.ai_testing_provider_id = None
                     self.set_ai_status(status)
-                    self.show_panel_toast("AI 测试成功", f"{display} 已连接：{reply[:60]}", "success")
+                    self.show_panel_toast("陪聊测试成功", f"{display} 已连接：{reply[:60]}", "success")
                     self.refresh_ai_page_if_visible()
                 self.root.after(0, complete_status)
         except Exception as exc:
@@ -10767,7 +11276,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 if self.ai_testing_provider_id == provider_id:
                     self.ai_testing_provider_id = None
                 self.set_ai_status(f"测试失败：{error}")
-                self.show_panel_toast("AI 测试失败", error, "error")
+                self.show_panel_toast("陪聊测试失败", error, "error")
                 self.refresh_ai_page_if_visible()
             self.root.after(0, complete_failure)
 
@@ -10776,7 +11285,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         self.settings["ai_enabled"] = True
         self.save_settings()
         self.set_ai_status(status + "；已设为当前")
-        self.show_panel_toast("AI 测试成功", status + "；已设为当前", "success")
+        self.show_panel_toast("陪聊测试成功", status + "；已设为当前", "success")
         if callable(self.control_panel_refresh_current_page):
             self.control_panel_refresh_current_page()
 
@@ -11065,14 +11574,14 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             return
 
         if self.is_research_query(text):
-            self.set_ai_status("AI 未连接，正在本地上网查资料")
+            self.set_ai_status("云端陪聊未连接，正在本地上网查资料")
             self.show_chat_typing_indicator()
             worker = threading.Thread(target=self.local_research_chat_worker, args=(text, mood), daemon=True)
             worker.start()
             return
 
         if self.settings.get("ai_enabled", True):
-            self.set_ai_status("AI 未配置 Key，已使用本地陪伴回复")
+            self.set_ai_status("陪聊服务未配置 Key，已使用本地陪伴回复")
         reply, mood = self.build_chat_reply(text)
         self.finish_chat_reply(reply, mood, self.action_for_user_mood(mood))
 
@@ -11104,7 +11613,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             try:
                 research_context = self.build_research_context_for_ai(text)
                 summary = self.ai_last_research_summary or "资料已查询"
-                self.root.after(0, lambda s=summary: self.set_ai_status(f"{s}；正在让 AI 组织回复"))
+                self.root.after(0, lambda s=summary: self.set_ai_status(f"{s}；正在让陪聊服务整理回复"))
             except Exception as exc:
                 research_context = f"【联网查询资料】\n查询失败：{str(exc)[:160]}。请明确告诉主人没有查到，不要编造。"
                 self.ai_last_research_summary = f"资料查询失败：{str(exc)[:80]}"
@@ -11123,7 +11632,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 return
         if research_context and self.ai_reply_refuses_research(result.get("reply", "")):
             try:
-                self.root.after(0, lambda: self.set_ai_status("AI 没有使用已查资料，正在重试一次"))
+                self.root.after(0, lambda: self.set_ai_status("陪聊服务没有使用已查资料，正在重试一次"))
                 result = self.retry_ai_when_model_refuses_research(text, mood, provider_id, provider, research_context)
             except Exception as retry_exc:
                 error = f"资料回答重试失败：{retry_exc}"
@@ -11150,7 +11659,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         display_error = self.describe_ai_error(error, provider_id, provider)
         self.clear_chat_typing_indicator()
         if not self.settings.get("ai_fallback_enabled", True):
-            self.set_ai_status(f"AI 失败：{display_error}")
+            self.set_ai_status(f"云端陪聊失败：{display_error}")
             reply = "主人，我刚刚没听清。你再和我说一遍，好不好？"
             mood = self.detect_user_mood(text)
             self.record_chat_exchange(text, mood, reply, source="ai_error", memory_update=display_error[:240])
@@ -11158,17 +11667,17 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 reply,
                 mood,
                 self.action_for_user_mood(mood),
-                "AI 没接上，可以再说一遍。",
+                "云端陪聊没接上，可以再说一遍。",
                 "error",
             )
             return
-        self.set_ai_status(f"AI 失败，已本地兜底：{display_error[:160]}")
+        self.set_ai_status(f"云端陪聊失败，已本地兜底：{display_error[:160]}")
         reply, mood = self.build_chat_reply(text)
         self.finish_chat_reply(
             reply,
             mood,
             self.action_for_user_mood(mood),
-            "AI 没接上，已给你本地回复。",
+            "云端陪聊没接上，已给你本地回复。",
             "error",
         )
 
@@ -11190,7 +11699,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             model_hint = "、".join(models[:5]) if models else "该厂商控制台里可用的聊天模型"
             return f"{display} / {model} 不被当前接口支持。请换用：{model_hint}。"
         if "未配置 api key" in lowered:
-            return f"{display} 未配置 API Key。请在 AI 页保存本机加密 Key。"
+            return f"{display} 未配置 API Key。请在陪聊设置页保存本机加密 Key。"
         if text:
             return f"{display} / {model}：{text[:180]}；{hint}"
         return f"{display} / {model} 请求失败。{hint}"
@@ -11260,16 +11769,30 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         self.say(f"主人，{self.active_pet_name()}的记忆已经导出了。")
 
     def clear_ai_memory(self):
-        if not messagebox.askyesno(f"清空{self.active_pet_name()}记忆", f"确定要清空{self.active_pet_name()}的 AI 对话记忆吗？"):
-            return
-        self.chat_memory = copy.deepcopy(CHAT_MEMORY_DEFAULT)
-        self.chat_memory["messages"] = []
-        self.chat_memory["mood_counts"] = {}
-        self.chat_memory["learned_phrases"] = []
-        self.memory_summary = copy.deepcopy(MEMORY_SUMMARY_DEFAULT)
-        self.save_chat_memory()
-        self.save_memory_summary()
-        self.say("主人，我重新从这里陪你。")
+        pet_name = self.active_pet_name()
+
+        def apply_clear():
+            self.chat_memory = copy.deepcopy(CHAT_MEMORY_DEFAULT)
+            self.chat_memory["messages"] = []
+            self.chat_memory["mood_counts"] = {}
+            self.chat_memory["learned_phrases"] = []
+            self.memory_summary = copy.deepcopy(MEMORY_SUMMARY_DEFAULT)
+            self.save_chat_memory()
+            self.save_memory_summary()
+            self.say("主人，我重新从这里陪你。")
+            self.show_panel_toast("陪聊记忆已清空", f"{pet_name} 的陪聊记忆已重置。", "success")
+            return True
+
+        self.show_panel_confirm(
+            "清空陪聊记忆",
+            f"清空{pet_name}的陪聊记忆？",
+            "最近聊天、长期记忆摘要和学习到的表达会回到初始状态。",
+            detail_title="只清空当前形象的陪聊记忆",
+            detail_body="不会删除 API Key、提醒、待办或陪伴等级；如果只是想暂时不用云端陪聊，可以先关闭陪聊服务。",
+            confirm_text="清空",
+            on_confirm=apply_clear,
+            variant="danger",
+        )
 
     def parse_local_datetime(self, value):
         text = self.normalize_due_text(value)
@@ -11953,7 +12476,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 self.log_todo_event(todo, "snooze", {"minutes": minutes})
                 self.save_todos()
                 self.refresh_todo_listbox()
-                self.say(f"主人，我 {minutes} 分钟后再提醒你。")
+                self.say(f"主人，我{snooze_delay_label(minutes)}再提醒你。")
                 return True
         return False
 
@@ -12081,8 +12604,6 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         for todo in self.todos.get("items", []):
             if todo.get("id") != todo_id:
                 continue
-            if not messagebox.askyesno("删除待办", f"确定删除「{todo.get('title')}」吗？\n历史记录会保留，待办本身会从列表隐藏。"):
-                return False
             todo["status"] = "deleted"
             todo["deleted_at"] = datetime.now().isoformat(timespec="seconds")
             todo["updated_at"] = todo["deleted_at"]
@@ -12092,6 +12613,35 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             self.say("主人，我已经把这条待办收起来了。")
             return True
         return False
+
+    def confirm_delete_todo(self, todo_id, on_deleted=None, parent=None):
+        todo = next((item for item in self.todos.get("items", []) if item.get("id") == todo_id), None)
+        if todo is None:
+            self.show_panel_toast("提醒不存在", "这条提醒可能已经被删除或筛选隐藏。", "warning")
+            return False
+
+        title = str(todo.get("title") or "这条提醒")
+
+        def apply_delete():
+            deleted = self.delete_todo(todo_id)
+            if deleted:
+                self.show_panel_toast("提醒已删除", f"已收起：{title}", "success")
+                if callable(on_deleted):
+                    on_deleted()
+            return deleted
+
+        self.show_panel_confirm(
+            "删除提醒",
+            "删除这条提醒？",
+            "待办会从列表隐藏，提醒时间轴会保留删除记录，方便之后追溯。",
+            detail_title=title,
+            detail_body="如果只是暂时不想处理，建议使用“稍后提醒”或“完成”。",
+            confirm_text="删除",
+            on_confirm=apply_delete,
+            variant="danger",
+            parent=parent,
+        )
+        return True
 
     def open_todo_editor(self, todo=None):
         is_new = todo is None
@@ -12416,7 +12966,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         editor_button(buttons, "保存", save_editor, "primary", width=10).pack(side="left")
         editor_button(buttons, "取消", close_editor, width=9).pack(side="left", padx=8)
         if not is_new:
-            editor_button(buttons, "删除", lambda: (self.delete_todo(todo.get("id")) and close_editor()), "danger", width=9).pack(side="right")
+            editor_button(buttons, "删除", lambda: self.confirm_delete_todo(todo.get("id"), on_deleted=close_editor, parent=window), "danger", width=9).pack(side="right")
 
         window.bind("<Escape>", lambda _event: close_editor())
         title_entry.focus_set()
@@ -13241,7 +13791,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
         tk.Checkbutton(
             status_bar,
-            text="开启 AI 聊天",
+            text="开启云端陪聊",
             variable=ai_var,
             command=toggle_ai,
             bg="#fff0d7",
@@ -13299,18 +13849,19 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             fg="#5a4532",
             font=("Microsoft YaHei UI", 8, "bold"),
         ).pack(side="left")
-        tk.Label(
+        role_summary_label = tk.Label(
             role_head,
-            text="泛化达人风格，不模仿具体真人",
+            text="",
             bg="#fff9f0",
             fg="#8a7057",
             font=("Microsoft YaHei UI", 8),
-        ).pack(side="right")
+        )
+        role_summary_label.pack(side="right")
         role_grid = tk.Frame(role_bar, bg="#fff9f0")
         role_grid.pack(fill="x")
         role_buttons = {}
         role_detail = tk.Frame(role_bar, bg="#fff3df", highlightthickness=1, highlightbackground="#ead7bd", height=72)
-        role_detail.pack(fill="x", pady=(2, 0))
+        # Keep the full role description out of the default chat viewport so the input stays visible.
         role_detail.pack_propagate(False)
         role_detail_title = tk.Label(
             role_detail,
@@ -13362,6 +13913,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     highlightbackground="#c9772d" if selected else "#ead7bd",
                 )
             current = CHAT_ROLE_SKILLS.get(current_role, CHAT_ROLE_SKILLS[DEFAULT_SETTINGS["ai_chat_role_skill"]])
+            role_summary_label.configure(text=f"当前：{current.get('label', '蛋黄本色')}")
             role_detail_title.configure(text=current.get("label", "角色 Skill"))
             role_detail_text.configure(text=role_detail_summary(current))
 
@@ -13372,7 +13924,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             self.save_settings()
             refresh_role_buttons()
             role = CHAT_ROLE_SKILLS[role_id]
-            self.set_ai_status(f"角色 Skill 已切换：{role['label']}，后续 AI 回复会按这个表达方式。")
+            self.set_ai_status(f"角色 Skill 已切换：{role['label']}，后续云端陪聊会按这个表达方式。")
             self.set_chat_composer_feedback(f"已切换为：{role['label']}。下一句开始生效。", "success", False)
 
         role_columns = 4
@@ -13409,7 +13961,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         history_frame.grid(row=4, column=0, sticky="nsew")
         history_frame.grid_columnconfigure(0, weight=1)
         history_frame.grid_rowconfigure(0, weight=1)
-        chat_canvas = tk.Canvas(history_frame, bg="#f5f0e8", bd=0, highlightthickness=1, highlightbackground="#ead7bd")
+        chat_canvas = tk.Canvas(history_frame, bg="#f5f0e8", bd=0, highlightthickness=1, highlightbackground="#ead7bd", height=160)
         chat_scrollbar = tk.Scrollbar(history_frame, orient="vertical", command=chat_canvas.yview, bd=0, width=15)
         chat_canvas.configure(yscrollcommand=chat_scrollbar.set)
         chat_canvas.grid(row=0, column=0, sticky="nsew")
@@ -13590,7 +14142,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         ).pack(side="left")
         composer_status = tk.Label(
             composer_top,
-            text="输入后会按当前 AI/本地陪伴状态回复。",
+            text="输入后会按当前云端陪聊/本地陪伴状态回复。",
             bg="#fffdf7",
             fg="#75614a",
             anchor="e",
@@ -14635,16 +15187,16 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         y = monitor["top"] + max(0, (monitor["bottom"] - monitor["top"] - height) // 2)
         self.place_window(window, x, y)
 
-    def show_panel_toast(self, title, message, tone="success", duration=4200):
+    def show_panel_toast(self, title, message, tone="success", duration=4200, parent=None):
         try:
             if self.panel_toast is not None and self.panel_toast.winfo_exists():
                 self.panel_toast.destroy()
         except tk.TclError:
             pass
 
-        host = self.root
+        host = parent or self.root
         try:
-            if self.panel is not None and self.panel.winfo_exists():
+            if parent is None and self.panel is not None and self.panel.winfo_exists():
                 host = self.panel
         except tk.TclError:
             host = self.root
@@ -14653,6 +15205,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             "success": ("#f1f7ed", "#6d775c", "#d7e5d0"),
             "error": ("#f8ddd3", "#5d3328", "#efc2b2"),
             "info": ("#fff1df", "#a86431", "#ead7bd"),
+            "warning": ("#fff3d6", "#8a5a1f", "#efd39e"),
         }
         bg, fg, border = palettes.get(tone, palettes["info"])
         toast = tk.Toplevel(self.root)
@@ -14728,6 +15281,155 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
         toast.after(duration, close_toast)
 
+    def show_panel_confirm(
+        self,
+        title,
+        heading,
+        message,
+        detail_title="",
+        detail_body="",
+        confirm_text="确定",
+        on_confirm=None,
+        variant="danger",
+        cancel_text="取消",
+        on_cancel=None,
+        parent=None,
+    ):
+        host = parent or self.root
+        try:
+            if parent is None and self.panel is not None and self.panel.winfo_exists():
+                host = self.panel
+        except tk.TclError:
+            host = self.root
+
+        try:
+            existing = getattr(self, "panel_confirm", None)
+            if existing is not None and existing.winfo_exists():
+                existing.destroy()
+        except tk.TclError:
+            pass
+
+        confirm = tk.Toplevel(self.root)
+        self.panel_confirm = confirm
+        confirm.title(title)
+        confirm.configure(bg="#fff8ec")
+        confirm.attributes("-topmost", True)
+        confirm.resizable(False, False)
+        confirm.geometry("460x310")
+        try:
+            confirm.transient(host)
+        except tk.TclError:
+            pass
+
+        bg = "#fff8ec"
+        card_bg = "#fffdf7"
+        border = "#ead7bd"
+        text_main = "#2f261f"
+        text_muted = "#806a52"
+        accent = "#c8732b"
+        accent_dark = "#8f4d22"
+        danger_bg = "#f8ddd3"
+        danger_fg = "#5d3328"
+
+        tk.Label(
+            confirm,
+            text=heading,
+            bg=bg,
+            fg=text_main,
+            font=("Microsoft YaHei UI", 14, "bold"),
+            anchor="w",
+        ).pack(fill="x", padx=18, pady=(16, 4))
+        tk.Label(
+            confirm,
+            text=message,
+            bg=bg,
+            fg=text_muted,
+            font=("Microsoft YaHei UI", 9),
+            anchor="w",
+            justify="left",
+            wraplength=410,
+        ).pack(fill="x", padx=18, pady=(0, 12))
+
+        if detail_title or detail_body:
+            card = tk.Frame(confirm, bg=card_bg, highlightthickness=1, highlightbackground=border)
+            card.pack(fill="x", padx=18, pady=(0, 14))
+            if detail_title:
+                tk.Label(
+                    card,
+                    text=detail_title,
+                    bg=card_bg,
+                    fg=text_main,
+                    font=("Microsoft YaHei UI", 11, "bold"),
+                    anchor="w",
+                    justify="left",
+                    wraplength=392,
+                ).pack(fill="x", padx=12, pady=(10, 2))
+            if detail_body:
+                tk.Label(
+                    card,
+                    text=detail_body,
+                    bg=card_bg,
+                    fg=text_muted,
+                    font=("Microsoft YaHei UI", 9),
+                    anchor="w",
+                    justify="left",
+                    wraplength=392,
+                ).pack(fill="x", padx=12, pady=(0, 10))
+
+        def confirm_button(parent_widget, text, command, button_variant="neutral"):
+            if button_variant == "danger":
+                btn_bg, btn_fg, active_bg = danger_bg, danger_fg, "#efc2b2"
+            elif button_variant == "primary":
+                btn_bg, btn_fg, active_bg = accent, "#ffffff", accent_dark
+            else:
+                btn_bg, btn_fg, active_bg = "#fff0d2", text_main, "#fbe4bf"
+            return tk.Button(
+                parent_widget,
+                text=text,
+                command=command,
+                bg=btn_bg,
+                fg=btn_fg,
+                activebackground=active_bg,
+                activeforeground=btn_fg,
+                relief="flat",
+                bd=0,
+                width=11,
+                padx=10,
+                pady=8,
+                cursor="hand2",
+                font=("Microsoft YaHei UI", 9, "bold" if button_variant in {"danger", "primary"} else "normal"),
+            )
+
+        def close_confirm():
+            try:
+                if confirm.winfo_exists():
+                    confirm.destroy()
+            except tk.TclError:
+                pass
+
+        def cancel_confirm():
+            if callable(on_cancel):
+                on_cancel()
+            close_confirm()
+
+        def confirm_action():
+            try:
+                ok = True if on_confirm is None else bool(on_confirm())
+            except Exception as exc:
+                self.show_panel_toast("操作失败", str(exc)[:160], "error")
+                ok = False
+            if ok:
+                close_confirm()
+
+        actions_row = tk.Frame(confirm, bg=bg)
+        actions_row.pack(fill="x", padx=18, pady=(0, 16), side="bottom")
+        confirm_button(actions_row, cancel_text, cancel_confirm).pack(side="right")
+        confirm_button(actions_row, confirm_text, confirm_action, variant).pack(side="right", padx=(0, 8))
+        confirm.bind("<Escape>", lambda _event: cancel_confirm())
+        confirm.focus_force()
+        self.center_window(confirm)
+        return confirm
+
     def companion_title(self):
         level, title, _xp = self.level_for_xp(self.companion["xp"])
         return f"Lv{level} {title}"
@@ -14760,16 +15462,29 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
     def reset_companion_state(self):
         pet_name = self.active_pet_name()
-        if not messagebox.askyesno("重置陪伴数据", f"确定要重置{pet_name}的陪伴等级和经验吗？"):
-            return
-        today = date.today().isoformat()
-        self.companion = dict(COMPANION_DEFAULT)
-        self.companion["daily_bonus_dates"] = []
-        self.companion["created_date"] = today
-        self.companion["last_active_date"] = today
-        self.companion["streak_days"] = 1
-        self.save_companion()
-        self.say("我重新从这里陪你。")
+
+        def apply_reset():
+            today = date.today().isoformat()
+            self.companion = dict(COMPANION_DEFAULT)
+            self.companion["daily_bonus_dates"] = []
+            self.companion["created_date"] = today
+            self.companion["last_active_date"] = today
+            self.companion["streak_days"] = 1
+            self.save_companion()
+            self.say("我重新从这里陪你。")
+            self.show_panel_toast("陪伴数据已重置", f"{pet_name} 的等级和经验已回到初始状态。", "success")
+            return True
+
+        self.show_panel_confirm(
+            "重置陪伴数据",
+            f"重置{pet_name}的陪伴数据？",
+            "等级、经验、连续陪伴天数和互动次数会回到初始状态。",
+            detail_title="不会删除聊天、待办或提醒",
+            detail_body="如果只是想降低打扰，建议改用“安静”或“暂停活动”。",
+            confirm_text="重置",
+            on_confirm=apply_reset,
+            variant="danger",
+        )
 
     def speed_adjusted_delay(self, base_delay):
         speed = clamp(self.settings["animation_speed"], 0.35, 1.50)
@@ -15339,7 +16054,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             font=("Microsoft YaHei UI", 9),
         )
         maximize_button.pack(side="right", padx=(0, 8))
-        mode_text = "高级" if self.settings["panel_advanced"] else "基础"
+        mode_text = "高级" if self.settings["panel_advanced"] else "日常"
         mode_label = tk.Label(header_actions, text=f"{mode_text}模式", bg=sage_soft, fg=sage, font=("Microsoft YaHei UI", 9), padx=12, pady=5)
         mode_label.pack(side="right", padx=(0, 8))
 
@@ -15439,6 +16154,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
         nav_buttons = {}
         pages = {}
+        page_labels = {
+            "AI": "陪聊设置",
+        }
         page_hints = {
             "首页": "今日状态、常用入口和陪伴进度",
             "形象": "主形象、现实照片和宠物切换",
@@ -15446,12 +16164,12 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             "故事": "主人与宠物的故事、照片和思念日记",
             "行为": "动作速度、拖动手感和日常模式",
             "对话": "聊天、气泡和自动说话",
-            "AI": "多模型厂商、Key 和连接测试",
+            "AI": "服务、Key 和连接测试，高级参数默认收起",
             "提醒": "本地待办、到点提醒和稍后处理",
             "动作": "逐个播放当前宠物动作",
             "操作": "临时动作和窗口快捷操作",
-            "设置": "路径、构建和高级配置",
-            "安全": "备份、导出和当前文件",
+            "设置": "本地文件夹和开发者构建工具",
+            "安全": "本地数据、备份和公开分发边界",
             "巡逻": "屏幕活动范围和跨屏策略",
             "外观": "体型、透明度和气泡颜色",
         }
@@ -15459,7 +16177,12 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             "陪伴": "首页",
             "宠物": "形象",
             "生成": "形象",
+            "陪聊设置": "AI",
+            "云端陪聊": "AI",
         }
+
+        def page_label(name):
+            return page_labels.get(name, name)
 
         def clear_body():
             cached_frames = {frame for frame in page_frames.values() if frame is not None}
@@ -15496,7 +16219,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             clear_body()
             body_canvas.coords(body_window, 0, 0)
             body_canvas.yview_moveto(0)
-            page_title.configure(text=name)
+            page_title.configure(text=page_label(name))
             page_hint.configure(text=page_hints.get(name, "陪伴、聊天和动作设置"))
             try:
                 cached = page_frames.get(name)
@@ -15520,7 +16243,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 fallback.pack(fill="both", expand=True)
                 tk.Label(
                     fallback,
-                    text=f"{name} 页面加载失败",
+                    text=f"{page_label(name)} 页面加载失败",
                     bg=card_bg,
                     fg=text_main,
                     font=("Microsoft YaHei UI", 13, "bold"),
@@ -15824,7 +16547,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             parent_widget = nav_parent_holder.get("frame") or sidebar
             button = tk.Button(
                 parent_widget,
-                text=name,
+                text=page_label(name),
                 anchor="w",
                 relief="flat",
                 bd=0,
@@ -16130,14 +16853,30 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 refresh()
 
             pet_name = self.active_pet_name()
-            panel_button(buttons, f"摸摸{pet_name}", encourage, width=106, variant="primary").pack(side="left")
-            panel_button(buttons, "查看状态", show_status, width=94).pack(side="left", padx=8)
+            panel_button_grid(
+                buttons,
+                [
+                    (f"摸摸{pet_name}", encourage, "primary"),
+                    ("查看状态", show_status, "neutral"),
+                ],
+                columns=2,
+                width=128,
+                height=30,
+            )
             moods = tk.Frame(card, bg="#fffdf7")
             moods.pack(fill="x", padx=12, pady=(0, 12))
-            panel_button(moods, "累了", lambda: mood("moods", "tired", "lying"), width=78).pack(side="left")
-            panel_button(moods, "难过", lambda: mood("moods", "sad", "review"), width=78).pack(side="left", padx=8)
-            panel_button(moods, "想你", lambda: mood("moods", "miss", "standing"), width=78).pack(side="left")
-            panel_button(moods, "休息", lambda: mood("care", "rest", "sleeping"), width=78).pack(side="left", padx=8)
+            panel_button_grid(
+                moods,
+                [
+                    ("累了", lambda: mood("moods", "tired", "lying")),
+                    ("难过", lambda: mood("moods", "sad", "review")),
+                    ("想你", lambda: mood("moods", "miss", "standing")),
+                    ("休息", lambda: mood("care", "rest", "sleeping")),
+                ],
+                columns=4,
+                width=104,
+                height=28,
+            )
             danger_row = tk.Frame(card, bg="#fff8f2", highlightthickness=1, highlightbackground="#efcdbf")
             danger_row.pack(fill="x", padx=12, pady=(0, 12))
             tk.Label(
@@ -16154,6 +16893,41 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             progress.bind("<Configure>", lambda _event: refresh())
             progress.after(50, refresh)
 
+            mode_card = make_card(parent, "陪伴模式")
+            current_mode = self.current_activity_mode_id()
+            mode_head = tk.Frame(mode_card, bg=card_bg)
+            mode_head.pack(fill="x", padx=12, pady=(2, 8))
+            tk.Label(
+                mode_head,
+                text=f"当前：{self.activity_mode_label()}",
+                bg=card_bg,
+                fg=text_main,
+                anchor="w",
+                font=("Microsoft YaHei UI", 11, "bold"),
+            ).pack(side="left")
+            tk.Label(
+                mode_head,
+                text=self.activity_mode_summary(),
+                bg=card_bg,
+                fg=text_muted,
+                anchor="e",
+                justify="right",
+                wraplength=420,
+                font=("Microsoft YaHei UI", 8),
+            ).pack(side="right", fill="x", expand=True, padx=(12, 0))
+            mode_row = tk.Frame(mode_card, bg=card_bg)
+            mode_row.pack(fill="x", padx=12, pady=(0, 12))
+            panel_button_grid(
+                mode_row,
+                [
+                    (ACTIVITY_MODE_PRESETS[mode_id]["label"], lambda target=mode_id: self.apply_activity_mode(target), "neutral", current_mode == mode_id)
+                    for mode_id in ACTIVITY_MODE_ORDER
+                ],
+                columns=3,
+                width=108,
+                height=30,
+            )
+
             dashboard = make_card(parent, "今日看板")
             grid = tk.Frame(dashboard, bg=card_bg)
             grid.pack(fill="x", padx=14, pady=(2, 10))
@@ -16165,39 +16939,52 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
             for col in range(3):
                 grid.grid_columnconfigure(col, weight=1, uniform="dashboard")
-            metric_cell(grid, 0, "AI", ai_text[:16], "当前对话厂商", sage_soft)
+            metric_cell(grid, 0, "陪聊", ai_text[:16], "当前服务", sage_soft)
             metric_cell(grid, 1, "待办", f"{todo_count} 项", "本地提醒")
             metric_cell(grid, 2, "自动说话", talk_text, f"间隔 {int(self.settings.get('talk_interval', 0))} 秒")
 
             shortcuts = tk.Frame(dashboard, bg=card_bg)
             shortcuts.pack(fill="x", padx=14, pady=(0, 14))
             pet_name = self.active_pet_name()
-            panel_button(shortcuts, f"和{pet_name}聊", self.open_chat_panel, width=98, variant="primary").pack(side="left")
-            panel_button(shortcuts, "新增提醒", lambda: switch_page("提醒"), width=98).pack(side="left", padx=8)
-            panel_button(shortcuts, "AI 配置", lambda: switch_page("AI"), width=98).pack(side="left")
-            panel_button(shortcuts, "动作", lambda: switch_page("动作"), width=98).pack(side="left", padx=8)
+            panel_button_grid(
+                shortcuts,
+                [
+                    (f"和{pet_name}聊", self.open_chat_panel, "primary"),
+                    ("新增提醒", lambda: switch_page("提醒")),
+                    ("陪聊设置", lambda: switch_page("AI")),
+                    ("动作", lambda: switch_page("动作")),
+                ],
+                columns=4,
+                width=112,
+                height=30,
+            )
 
         def page_behavior(parent):
             preset = make_card(parent, "模式预设")
+            current_mode = self.current_activity_mode_id()
+            tk.Label(
+                preset,
+                text=f"当前：{self.activity_mode_label()}。{self.activity_mode_summary()}",
+                bg=card_bg,
+                fg=text_muted,
+                anchor="w",
+                justify="left",
+                wraplength=660,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 8))
             row = tk.Frame(preset, bg="#fffdf7")
-            row.pack(fill="x", padx=12, pady=(4, 12))
+            row.pack(fill="x", padx=12, pady=(0, 12))
 
-            def apply_preset(values):
-                self.settings.update(values)
-                self.save_settings()
-                self.reload_frames()
-                refresh_current_page()
-
-            presets = [
-                ("安静", {"animation_speed": 0.50, "drag_sensitivity": 0.55, "inertia": 0.20, "talk_interval": 90.0}),
-                ("日常", {"animation_speed": 0.70, "drag_sensitivity": 0.70, "inertia": 0.40, "talk_interval": 45.0}),
-                ("活跃", {"animation_speed": 0.95, "drag_sensitivity": 0.95, "inertia": 0.65, "talk_interval": 25.0}),
-            ]
-            def preset_selected(values):
-                return all(abs(float(self.settings.get(key, 0)) - float(value)) < 0.011 for key, value in values.items())
-
-            for text, values in presets:
-                panel_button(row, text, lambda v=values: apply_preset(v), width=76, selected=preset_selected(values)).pack(side="left", padx=(0, 8))
+            panel_button_grid(
+                row,
+                [
+                    (ACTIVITY_MODE_PRESETS[mode_id]["label"], lambda target=mode_id: self.apply_activity_mode(target), "neutral", current_mode == mode_id)
+                    for mode_id in ACTIVITY_MODE_ORDER
+                ],
+                columns=3,
+                width=104,
+                height=30,
+            )
 
             screen_card = make_card(parent, "屏幕活动")
             screen_body = tk.Frame(screen_card, bg="#fffdf7")
@@ -16239,8 +17026,16 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             screen_buttons = tk.Frame(screen_body, bg="#fffdf7")
             screen_buttons.pack(fill="x")
             current_only_selected = bool(self.settings.get("roam_current_monitor_only", False))
-            panel_button(screen_buttons, "只在当前屏幕", lambda: apply_screen_scope(True), width=116, selected=current_only_selected).pack(side="left")
-            panel_button(screen_buttons, "允许多屏策略", lambda: apply_screen_scope(False), width=116, selected=not current_only_selected).pack(side="left", padx=8)
+            panel_button_grid(
+                screen_buttons,
+                [
+                    ("只在当前屏幕", lambda: apply_screen_scope(True), "neutral", current_only_selected),
+                    ("允许多屏策略", lambda: apply_screen_scope(False), "neutral", not current_only_selected),
+                ],
+                columns=2,
+                width=128,
+                height=30,
+            )
             refresh_screen_status()
 
             guide_card = make_card(parent, "生图提示词使用方法")
@@ -16256,8 +17051,16 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             ).pack(fill="x", padx=12, pady=(2, 8))
             guide_row = tk.Frame(guide_card, bg="#fffdf7")
             guide_row.pack(fill="x", padx=12, pady=(0, 12))
-            panel_button(guide_row, "复制使用教学", lambda: self.copy_text_to_clipboard(self.prompt_usage_guide_text(), "提示词使用教学"), width=112, height=28).pack(side="left")
-            panel_button(guide_row, "复制扩展动作提示词", lambda: self.copy_text_to_clipboard(self.extension_action_prompt("自定义扩展动作", self.active_pet_name(), self.active_pet.get("species", ""), self.active_pet.get("notes", ""), self.active_pet.get("category_subtype", "") or self.active_pet.get("category", ""), category_detail=self.active_pet.get("category_detail", "")), "扩展动作提示词"), width=142, height=28, variant="primary").pack(side="left", padx=8)
+            panel_button_grid(
+                guide_row,
+                [
+                    ("复制使用教学", lambda: self.copy_text_to_clipboard(self.prompt_usage_guide_text(), "提示词使用教学")),
+                    ("复制扩展动作提示词", lambda: self.copy_text_to_clipboard(self.extension_action_prompt("自定义扩展动作", self.active_pet_name(), self.active_pet.get("species", ""), self.active_pet.get("notes", ""), self.active_pet.get("category_subtype", "") or self.active_pet.get("category", ""), category_detail=self.active_pet.get("category_detail", "")), "扩展动作提示词"), "primary"),
+                ],
+                columns=2,
+                width=154,
+                height=28,
+            )
 
             chase_asset = next((asset for asset in self.pet_extension_assets() if asset.get("id") == "chase-butterfly"), None)
             if chase_asset:
@@ -16320,23 +17123,14 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             pet_name = self.active_pet_name()
             active_provider_id, active_provider = self.active_ai_provider()
 
-            def provider_key_state(provider):
-                env_key = str(provider.get("env_key", "") or "").strip()
-                if self.provider_saved_key(provider):
-                    return "本机加密"
-                if env_key and os.getenv(env_key):
-                    return "环境变量"
-                return "未配置"
-
             def ai_mode_info():
-                provider_text = self.provider_display_text(active_provider_id, active_provider)
-                model_text = self.provider_model_name(active_provider)
-                if self.ai_can_respond():
-                    return "云端可用", f"{provider_text} / {model_text}", sage_soft, sage
+                summary = self.ai_connection_summary(active_provider_id, active_provider)
+                if summary["value"] == "已配置":
+                    return "云端已配置", summary["hint"], sage_soft, sage
                 if self.settings.get("ai_enabled", True) and self.settings.get("ai_fallback_enabled", True):
-                    return "本地兜底", f"{provider_text} Key {provider_key_state(active_provider)}", "#fff8ee", accent_dark
+                    return "本地陪伴", summary["hint"], "#fff8ee", accent_dark
                 if self.settings.get("ai_enabled", True):
-                    return "待配置", f"{provider_text} Key {provider_key_state(active_provider)}", "#fff1df", accent_dark
+                    return "待配置", summary["hint"], "#fff1df", accent_dark
                 return "已关闭", "只使用本地短句陪伴", "#fff1df", accent_dark
 
             overview = make_card(parent, "对话总览")
@@ -16346,7 +17140,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 overview_grid.grid_columnconfigure(col, weight=1, uniform="dialog_overview")
             ai_title, ai_hint, ai_bg, _ai_fg = ai_mode_info()
             metric_cell(overview_grid, 0, "快速试聊", "可发送", "Enter 或按钮发送", sage_soft)
-            metric_cell(overview_grid, 1, "AI", ai_title, ai_hint, ai_bg)
+            metric_cell(overview_grid, 1, "陪聊", ai_title, ai_hint, ai_bg)
             metric_cell(overview_grid, 2, "记忆", f"{len(self.chat_memory.get('messages', []))} 条", f"最近情绪 {self.memory_summary.get('last_mood') or self.chat_memory.get('last_mood') or '暂无'}")
             metric_cell(overview_grid, 3, "气泡", BUBBLE_STYLES.get(self.settings.get("bubble_style"), "默认"), f"{int(self.settings.get('bubble_duration', 0))} 秒")
 
@@ -16373,7 +17167,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 font=("Microsoft YaHei UI", 10),
             )
             chat_entry.pack(side="left", fill="x", expand=True, ipady=7)
-            chat_status = tk.Label(chat_card, text="输入后会按当前 AI/本地兜底状态回复。", bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8))
+            chat_status = tk.Label(chat_card, text="输入后会按当前云端陪聊或本地陪伴状态回复。", bg="#fffdf7", fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 8))
             chat_status.pack(fill="x", padx=12, pady=(0, 8))
 
             def send_from_panel(_event=None):
@@ -16403,15 +17197,15 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 quick_items.append((label, command, "primary" if not value else "neutral"))
             panel_button_grid(quick_row, quick_items, columns=4, width=118, height=28)
 
-            ai_card = make_card(parent, "AI 与记忆")
+            ai_card = make_card(parent, "陪聊与记忆")
             state_title, state_hint, state_bg, state_fg = ai_mode_info()
             state = tk.Frame(ai_card, bg=state_bg, highlightthickness=1, highlightbackground="#ead7bd")
             state.pack(fill="x", padx=12, pady=(0, 10))
             tk.Label(state, text=state_title, bg=state_bg, fg=state_fg, width=10, anchor="center", font=("Microsoft YaHei UI", 10, "bold")).pack(side="left", padx=10, pady=10)
             tk.Label(state, text=state_hint, bg=state_bg, fg=text_main, anchor="w", justify="left", wraplength=560, font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True, pady=10)
-            add_check(ai_card, "启用云端 AI 对话", "ai_enabled")
-            add_check(ai_card, "AI 失败时使用本地兜底", "ai_fallback_enabled")
-            add_slider(ai_card, "AI 超时", "ai_timeout", 4.0, 120.0, 1.0, lambda v: f"{int(v)}秒")
+            add_check(ai_card, "启用云端陪聊", "ai_enabled")
+            add_check(ai_card, "云端失败时使用本地陪伴", "ai_fallback_enabled")
+            add_slider(ai_card, "云端超时", "ai_timeout", 4.0, 120.0, 1.0, lambda v: f"{int(v)}秒")
             status_label = tk.Label(ai_card, text=self.ai_status_text(), bg="#fffdf7", fg=text_muted, anchor="w", justify="left", font=("Microsoft YaHei UI", 9))
             status_label.pack(fill="x", padx=12, pady=(4, 8))
             self.ai_status_label = status_label
@@ -16422,7 +17216,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 ai_buttons,
                 [
                     ("刷新状态", lambda: self.set_ai_status(""), "neutral"),
-                    ("AI 配置", lambda: switch_page("AI"), "primary"),
+                    ("陪聊设置", lambda: switch_page("AI"), "primary"),
                     ("测试连接", self.test_active_ai_provider_async, "neutral"),
                     ("询问模型", self.ask_active_ai_model_async, "neutral"),
                     ("查看记忆", self.open_memory_window, "neutral"),
@@ -16574,24 +17368,34 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 return "未配置"
 
             active_provider_id, active_provider = self.active_ai_provider()
+            connection_summary = self.ai_connection_summary(active_provider_id, active_provider)
             overview = make_card(parent, "连接状态")
             overview_grid = tk.Frame(overview, bg=card_bg)
             overview_grid.pack(fill="x", padx=14, pady=(2, 10))
             for col in range(4):
                 overview_grid.grid_columnconfigure(col, weight=1, uniform="ai_overview")
-            metric_cell(overview_grid, 0, "AI 对话", "已开启" if self.settings.get("ai_enabled") else "未开启", "测试成功会自动开启", sage_soft)
+            connection_hint = {
+                "success": "建议先测试连接",
+                "warning": "保存 Key 后可测试",
+                "muted": "本地陪伴模式",
+            }.get(connection_summary["tone"], connection_summary["hint"])
+            metric_cell(overview_grid, 0, "云端陪聊", connection_summary["value"], connection_hint, sage_soft if connection_summary["tone"] == "success" else "#fff1df")
             metric_cell(overview_grid, 1, "厂商", self.provider_display_text(active_provider_id, active_provider), "当前启用")
             metric_cell(overview_grid, 2, "模型", self.provider_model_name(active_provider), "本地配置")
-            metric_cell(overview_grid, 3, "Key", provider_key_state(active_provider), "真实 Key 不显示")
+            metric_cell(overview_grid, 3, "Key", connection_summary["key_state"], "真实 Key 不显示")
 
             overview_actions = tk.Frame(overview, bg=card_bg)
             overview_actions.pack(fill="x", padx=14, pady=(0, 12))
-            add_check(overview_actions, "启用云端 AI 对话", "ai_enabled")
+            add_check(overview_actions, "启用云端陪聊", "ai_enabled")
             add_check(overview_actions, "失败时用本地兜底", "ai_fallback_enabled")
-            native_button(overview_actions, "测试当前连接", self.test_active_ai_provider_async, "primary").pack(side="left", padx=(12, 8), pady=(2, 0))
-            native_button(overview_actions, f"和{self.active_pet_name()}聊", self.open_chat_panel).pack(side="left", pady=(2, 0))
+            overview_button_grid = tk.Frame(overview_actions, bg=card_bg)
+            overview_button_grid.pack(fill="x", padx=12, pady=(3, 0))
+            for column in range(2):
+                overview_button_grid.grid_columnconfigure(column, weight=1, uniform="ai_overview_actions")
+            native_button(overview_button_grid, "测试当前连接", self.test_active_ai_provider_async, "primary", width=13).grid(row=0, column=0, sticky="w", padx=(0, 6), pady=(2, 0))
+            native_button(overview_button_grid, f"和{self.active_pet_name()}聊", self.open_chat_panel, width=13).grid(row=0, column=1, sticky="w", padx=(6, 0), pady=(2, 0))
 
-            workspace = make_card(parent, "AI 连接设置")
+            workspace = make_card(parent, "陪聊连接设置")
             provider_ids = list(self.ai_providers.get("providers", {}).keys())
             initial_provider_id = self.ai_provider_panel_selected_id or self.active_provider_id()
             if initial_provider_id not in self.ai_providers.get("providers", {}):
@@ -16612,7 +17416,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
             header = tk.Frame(workspace, bg=card_bg)
             header.pack(fill="x", padx=14, pady=(0, 10))
-            tk.Label(header, text="先选择厂商，再配置模型、Key、额度和连接测试。测试只验证连接，不要求模型返回 JSON。", bg=card_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).pack(side="left")
+            tk.Label(header, text="先选择服务，再填写 Key 并测试连接；模型、额度和接口细节按需调整。", bg=card_bg, fg=text_muted, anchor="w", font=("Microsoft YaHei UI", 9)).pack(side="left")
             selected_status = tk.Label(header, text="", bg=card_bg, fg=accent_dark, anchor="e", font=("Microsoft YaHei UI", 9, "bold"))
             selected_status.pack(side="right")
 
@@ -16799,7 +17603,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     anchor="w",
                     font=("Microsoft YaHei UI", 10, "bold"),
                 ).pack(fill="x", padx=12, pady=(9, 1))
-                recent_research = self.ai_last_research_summary or "普通陪聊不会预查询；主人明确说“查一下、搜索、最新、资料、往年今日”等才会先检索网页，再交给当前 AI 回复。问“现在几点/今天几号”会直接使用本机时间回答；AI 未连接时也会先给网页摘要。"
+                recent_research = self.ai_last_research_summary or "普通陪聊不会预查询；主人明确说“查一下、搜索、最新、资料、往年今日”等才会先检索网页，再交给当前陪聊服务回复。问“现在几点/今天几号”会直接使用本机时间回答；云端陪聊未连接时也会先给网页摘要。"
                 tk.Label(
                     research_box,
                     text=recent_research,
@@ -17181,10 +17985,10 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                         if self.provider_saved_key(self.ai_providers["providers"].get(provider_id, {})):
                             self.set_ai_status("Key 已保存在本机。如需替换，请在替换 Key 输入框粘贴新 Key。")
                         else:
-                            messagebox.showwarning("没有填写 Key", "请把真实 API Key 粘贴到“API Key（本机加密）”输入框。")
                             if key_entry is not None:
                                 key_entry.focus_set()
                             self.set_ai_status("Key 未保存：API Key 输入框为空")
+                            self.show_panel_toast("Key 未保存", "请把真实 API Key 粘贴到“API Key（本机加密）”输入框。", "info")
                         return
 
                     display_name = self.provider_display_text(provider_id)
@@ -17201,8 +18005,8 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                             draw_details()
                             return True
                         except Exception as exc:
-                            messagebox.showerror("保存失败", str(exc))
                             self.set_ai_status(f"Key 保存失败：{str(exc)[:80]}")
+                            self.show_panel_toast("Key 保存失败", str(exc), "error")
                             return False
 
                     if self.provider_saved_key(self.ai_providers["providers"].get(provider_id, {})):
@@ -17261,18 +18065,20 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     try:
                         save_provider_fields(show_status=False)
                     except Exception as exc:
-                        messagebox.showerror("保存失败", str(exc))
                         self.set_ai_status(f"保存失败：{str(exc)[:80]}")
+                        self.show_panel_toast("保存失败", str(exc), "error")
                         return
                     self.set_ai_status(f"正在测试：{self.provider_display_text(provider_id)} / {form_vars['model'].get().strip() or self.provider_model_name(provider)}；成功后会自动设为当前")
                     self.test_active_ai_provider_async(provider_id, True)
 
                 actions = tk.Frame(details, bg=card_bg)
                 actions.pack(fill="x", pady=(2, 8))
-                native_button(actions, "保存配置", lambda: save_provider_fields(True)).pack(side="left", padx=(0, 8))
-                native_button(actions, "保存 Key", save_key, "neutral").pack(side="left", padx=(0, 8))
+                for column in range(5):
+                    actions.grid_columnconfigure(column, weight=1, uniform="ai_provider_actions")
+                native_button(actions, "保存配置", lambda: save_provider_fields(True), width=10).grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 4))
+                native_button(actions, "保存 Key", save_key, "neutral", width=10).grid(row=0, column=1, sticky="ew", padx=6, pady=(0, 4))
                 provider_is_testing = self.ai_testing_provider_id == provider_id
-                test_button = native_button(actions, "测试中..." if provider_is_testing else "测试并启用", test_and_enable, "primary")
+                test_button = native_button(actions, "测试中..." if provider_is_testing else "测试并启用", test_and_enable, "primary", width=11)
                 if provider_is_testing:
                     test_button.configure(
                         state="disabled",
@@ -17282,9 +18088,9 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                         disabledforeground=text_muted,
                         cursor="arrow",
                     )
-                test_button.pack(side="left", padx=(0, 8))
-                native_button(actions, "设为当前", activate_provider).pack(side="left", padx=(0, 8))
-                native_button(actions, "清除 Key", clear_key, "danger").pack(side="left", padx=(12, 0))
+                test_button.grid(row=0, column=2, sticky="ew", padx=6, pady=(0, 4))
+                native_button(actions, "设为当前", activate_provider, width=10).grid(row=0, column=3, sticky="ew", padx=6, pady=(0, 4))
+                native_button(actions, "清除 Key", clear_key, "danger", width=10).grid(row=0, column=4, sticky="ew", padx=(6, 0), pady=(0, 4))
 
                 section_heading(details, "测试结果", "失败时按恢复建议检查 Key、模型、Base URL、网络或兼容模式")
                 status = tk.Frame(details, bg="#fffdf7")
@@ -17294,11 +18100,13 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 self.ai_status_label.pack(fill="x", padx=12, pady=(0, 8))
                 status_actions = tk.Frame(status, bg="#fffdf7")
                 status_actions.pack(fill="x", padx=12, pady=(0, 10))
-                native_button(status_actions, "刷新状态", lambda: self.set_ai_status("")).pack(side="left", padx=(0, 8))
-                native_button(status_actions, "询问模型", self.ask_active_ai_model_async).pack(side="left", padx=(0, 8))
-                native_button(status_actions, "查看记忆", self.open_memory_window).pack(side="left", padx=(0, 8))
-                native_button(status_actions, "导出记忆", self.export_ai_memory).pack(side="left", padx=(0, 8))
-                native_button(status_actions, "清空记忆", self.clear_ai_memory, "danger").pack(side="left", padx=(8, 0))
+                for column in range(5):
+                    status_actions.grid_columnconfigure(column, weight=1, uniform="ai_status_actions")
+                native_button(status_actions, "刷新状态", lambda: self.set_ai_status(""), width=10).grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 4))
+                native_button(status_actions, "询问模型", self.ask_active_ai_model_async, width=10).grid(row=0, column=1, sticky="ew", padx=6, pady=(0, 4))
+                native_button(status_actions, "查看记忆", self.open_memory_window, width=10).grid(row=0, column=2, sticky="ew", padx=6, pady=(0, 4))
+                native_button(status_actions, "导出记忆", self.export_ai_memory, width=10).grid(row=0, column=3, sticky="ew", padx=6, pady=(0, 4))
+                native_button(status_actions, "清空记忆", self.clear_ai_memory, "danger", width=10).grid(row=0, column=4, sticky="ew", padx=(6, 0), pady=(0, 4))
 
             refresh_provider_selector()
             draw_details()
@@ -17308,28 +18116,44 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             title_var = tk.StringVar()
             due_var = tk.StringVar(value=(datetime.now() + timedelta(hours=1)).strftime("%H:%M"))
             priority_var = tk.StringVar(value="普通")
+            form_status = {"label": None}
+
+            def set_form_status(message, tone="info"):
+                colors = {
+                    "info": text_muted,
+                    "success": sage,
+                    "error": "#8f4d22",
+                }
+                label = form_status.get("label")
+                if label is not None:
+                    label.configure(text=message, fg=colors.get(tone, text_muted))
 
             def add_from_form():
                 due_text = due_var.get().strip()
                 if due_text and self.parse_local_datetime(due_text) is None:
-                    messagebox.showerror("时间格式不对", "可填 30分钟后、18:30、今天 18:00、明天 09:00、2026-05-19 18:30。")
+                    message = "可填 30分钟后、18:30、今天 18:00、明天 09:00、2026-05-19 18:30。"
+                    set_form_status(message, "error")
+                    self.show_panel_toast("时间格式不对", message, "error")
                     return
                 try:
                     todo = self.add_todo(
                         title_var.get(),
                         due_text,
-                        "工作",
+                        "生活",
                         priority_var.get(),
                         "none",
                         "",
                         0,
                     )
                 except ValueError as exc:
-                    messagebox.showerror("添加失败", str(exc))
+                    set_form_status(str(exc), "error")
+                    self.show_panel_toast("添加失败", str(exc), "error")
                     return
                 title_var.set("")
                 self.todo_selected_id = todo.get("id", "")
                 self.refresh_todo_listbox()
+                set_form_status(f"已记下：{todo['title']}", "success")
+                self.show_panel_toast("提醒已添加", f"已记下：{todo['title']}", "success")
                 self.say(f"主人，我记下了：{todo['title']}。")
 
             def submit_from_entry(_event=None):
@@ -17363,27 +18187,38 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
             helper_row = tk.Frame(add_card, bg="#fffdf7")
             helper_row.pack(fill="x", padx=12, pady=(0, 8))
-            tk.Label(
+            form_status["label"] = tk.Label(
                 helper_row,
                 text="分类、重复、持续提醒和备注在“详细”里设置。",
                 bg="#fffdf7",
                 fg=text_muted,
                 anchor="w",
                 font=("Microsoft YaHei UI", 8),
-            ).pack(side="left", fill="x", expand=True)
+            )
+            form_status["label"].pack(side="left", fill="x", expand=True)
             panel_button(helper_row, "详细", lambda: self.open_todo_editor(), width=64, height=28).pack(side="right")
 
             quick = tk.Frame(add_card, bg="#fffdf7")
             quick.pack(fill="x", padx=12, pady=(0, 10))
-            tk.Label(quick, text="常用时间", bg="#fffdf7", fg=text_muted, font=("Microsoft YaHei UI", 8, "bold")).pack(side="left", padx=(0, 7))
-            panel_button(quick, "30分钟后", lambda: due_var.set("30分钟后"), width=82).pack(side="left", padx=(0, 7))
-            panel_button(quick, "今天18:00", lambda: due_var.set("18:00"), width=82).pack(side="left")
-            panel_button(quick, "明天09:00", lambda: due_var.set("明天 09:00"), width=86).pack(side="left", padx=7)
-            panel_button(quick, "无提醒", lambda: due_var.set(""), width=70).pack(side="left")
-            panel_button(quick, "清空", lambda: title_var.set(""), width=62, variant="ghost").pack(side="left", padx=7)
+            tk.Label(quick, text="常用时间", bg="#fffdf7", fg=text_muted, font=("Microsoft YaHei UI", 8, "bold")).pack(anchor="w", pady=(0, 5))
+            quick_buttons = tk.Frame(quick, bg="#fffdf7")
+            quick_buttons.pack(fill="x")
+            panel_button_grid(
+                quick_buttons,
+                [
+                    ("30分钟后", lambda: due_var.set("30分钟后")),
+                    ("今天18:00", lambda: due_var.set("18:00")),
+                    ("明天09:00", lambda: due_var.set("明天 09:00")),
+                    ("无提醒", lambda: due_var.set("")),
+                    ("清空", lambda: title_var.set(""), "ghost"),
+                ],
+                columns=5,
+                width=96,
+                height=28,
+            )
             tk.Label(
                 add_card,
-                text="快速记录默认分类为“工作”、不重复；需要更多规则时用详细编辑。",
+                text="快速记录默认分类为“生活”、不重复；需要更多规则时用详细编辑。",
                 bg="#fffdf7",
                 fg=text_muted,
                 anchor="w",
@@ -17480,8 +18315,15 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             list_canvas.bind("<MouseWheel>", wheel_todo_cards)
             list_inner.bind("<MouseWheel>", wheel_todo_cards)
 
-            def complete_selected():
+            def selected_todo_or_warn(action_label):
                 todo = self.selected_todo()
+                if todo:
+                    return todo
+                self.show_panel_toast("先选一条提醒", f"请选择一条待办后再{action_label}。", "warning")
+                return None
+
+            def complete_selected():
+                todo = selected_todo_or_warn("完成或重开")
                 if todo:
                     if todo.get("status") == "done":
                         self.reopen_todo(todo["id"])
@@ -17489,41 +18331,59 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                         self.complete_todo(todo["id"])
 
             def snooze_selected(minutes):
-                todo = self.selected_todo()
+                todo = selected_todo_or_warn("稍后提醒")
                 if todo:
                     self.snooze_todo(todo["id"], minutes)
 
             def edit_selected():
-                todo = self.selected_todo()
+                todo = selected_todo_or_warn("编辑")
                 if todo:
                     self.open_todo_editor(todo)
 
             def pin_selected():
-                todo = self.selected_todo()
+                todo = selected_todo_or_warn("置顶")
                 if todo:
                     self.toggle_todo_pin(todo["id"])
 
             def delete_selected():
-                todo = self.selected_todo()
+                todo = selected_todo_or_warn("删除")
                 if todo:
-                    self.delete_todo(todo["id"])
+                    self.confirm_delete_todo(todo["id"])
 
             actions = tk.Frame(list_card, bg="#fffdf7")
             actions.pack(fill="x", padx=12, pady=(0, 8))
             primary_actions = tk.Frame(actions, bg="#fffdf7")
             primary_actions.pack(fill="x", pady=(0, 6))
-            panel_button(primary_actions, "完成/重开", complete_selected, width=88, variant="primary").pack(side="left")
-            panel_button(primary_actions, "编辑", edit_selected, width=60).pack(side="left", padx=6)
-            panel_button(primary_actions, "置顶", pin_selected, width=60).pack(side="left")
-            panel_button(primary_actions, "时间轴", self.open_todo_history_window, width=70).pack(side="right")
+            panel_button_grid(
+                primary_actions,
+                [
+                    ("完成/重开", complete_selected, "primary"),
+                    ("编辑", edit_selected),
+                    ("置顶", pin_selected),
+                    ("时间轴", self.open_todo_history_window),
+                ],
+                columns=4,
+                width=98,
+                height=30,
+            )
 
             snooze_actions = tk.Frame(actions, bg="#fffdf7")
             snooze_actions.pack(fill="x")
-            tk.Label(snooze_actions, text="稍后提醒", bg="#fffdf7", fg=text_muted, font=("Microsoft YaHei UI", 8, "bold")).pack(side="left", padx=(0, 7))
-            panel_button(snooze_actions, "15分钟", lambda: snooze_selected(15), width=68).pack(side="left", padx=(0, 6))
-            panel_button(snooze_actions, "1小时", lambda: snooze_selected(60), width=62).pack(side="left")
-            panel_button(snooze_actions, "明天", lambda: snooze_selected(24 * 60), width=60).pack(side="left", padx=6)
-            panel_button(snooze_actions, "删除", delete_selected, width=60, variant="danger").pack(side="right")
+            tk.Label(snooze_actions, text="稍后提醒", bg="#fffdf7", fg=text_muted, font=("Microsoft YaHei UI", 8, "bold")).pack(anchor="w", pady=(0, 5))
+            snooze_buttons = tk.Frame(snooze_actions, bg="#fffdf7")
+            snooze_buttons.pack(fill="x")
+            panel_button_grid(
+                snooze_buttons,
+                [
+                    ("15分钟", lambda: snooze_selected(15)),
+                    ("1小时", lambda: snooze_selected(60)),
+                    ("明天", lambda: snooze_selected(24 * 60)),
+                    ("删除", delete_selected, "danger"),
+                ],
+                columns=4,
+                width=88,
+                height=28,
+            )
             detail = tk.Frame(list_card, bg=subtle_bg, highlightthickness=1, highlightbackground="#ecd6b0")
             detail.pack(fill="x", padx=12, pady=(0, 8))
             tk.Label(detail, text="当前详情", bg=subtle_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(fill="x", padx=10, pady=(7, 0))
@@ -18026,7 +18886,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             picker_card = make_card(parent, "主人与宠物故事")
             tk.Label(
                 picker_card,
-                text="这里记录你和每个宠物的故事、照片和思念日记。AI 聊天时会读取当前宠物的故事摘要，让回复更像它。",
+                text="这里记录你和每个宠物的故事、照片和思念日记。云端陪聊时会读取当前宠物的故事摘要，让回复更像它。",
                 bg=card_bg,
                 fg=text_muted,
                 anchor="w",
@@ -18388,7 +19248,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                         story_editor_bg_settings["background_opacity"] = max(0.18, float(story_editor_bg_settings.get("background_opacity", 0.18) or 0.18))
                         self.save_story_editor_ui_settings_for_pet(pet_id, story_editor_bg_settings)
                     except (OSError, ValueError) as exc:
-                        messagebox.showerror("背景设置失败", str(exc))
+                        self.show_panel_toast("背景设置失败", str(exc), "error", parent=window)
                         return
                     refresh_story_background_preview()
 
@@ -18497,14 +19357,14 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                         if Path(str(path)).suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"} and Path(str(path)).exists()
                     ]
                     if not valid:
-                        messagebox.showwarning("没有可用图片", "请拖入或选择 png、webp、jpg、jpeg 图片。")
+                        self.show_panel_toast("没有可用图片", "请拖入或选择 png、webp、jpg、jpeg 图片。", "warning", parent=window)
                         return
                     try:
                         for path in valid:
                             image_refs.append(self.copy_story_image_to_pet(pet_id, path))
                         self.remember_directory_setting("default_image_dir", valid[0])
                     except OSError as exc:
-                        messagebox.showerror("添加图片失败", str(exc))
+                        self.show_panel_toast("添加图片失败", str(exc), "error", parent=window)
                         return
                     refresh_image_label()
 
@@ -18532,7 +19392,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                                 self.remember_directory_setting("default_image_dir", valid[0])
                                 refresh_story_background_preview()
                             except OSError as exc:
-                                messagebox.showerror("背景设置失败", str(exc))
+                                self.show_panel_toast("背景设置失败", str(exc), "error", parent=window)
                         return
                     drop_area.configure(highlightbackground=accent)
                     drop_text.configure(text="已接收图片，正在加入故事...")
@@ -18552,7 +19412,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     title = title_var.get().strip()
                     content = content_text.get("1.0", "end-1c").strip("\n\r ")
                     if not title and not content.strip():
-                        messagebox.showwarning("内容为空", "请至少写一个标题或正文。")
+                        self.show_panel_toast("内容为空", "请至少写一个标题或正文。", "warning", parent=window)
                         return
                     state = self.load_pet_stories(pet_id)
                     now = datetime.now().isoformat(timespec="seconds")
@@ -18575,6 +19435,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                     self.save_pet_stories(pet_id, state)
                     window.destroy()
                     render_detail()
+                    self.show_panel_toast("故事已保存", "已写入当前宠物档案。", "success", parent=panel)
 
                 panel_button(actions, "添加图片", add_images, width=88, height=34).pack(side="left")
                 panel_button(actions, type_save_labels.get(type_var.get(), "保存故事"), save_story, width=96, height=34, variant="primary").pack(side="left", padx=8)
@@ -18594,15 +19455,36 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 window.focus_force()
 
             def delete_story(pet_id, entry_id):
-                if not messagebox.askyesno("删除故事", "确定删除这条故事记录吗？图片文件会保留在宠物档案目录里。"):
+                current_state = self.load_pet_stories(pet_id)
+                entry = next((item for item in current_state.get("entries", []) if item.get("id") == entry_id), None)
+                if entry is None:
+                    self.show_panel_toast("故事不存在", "这条故事可能已经被删除或切换宠物后不可见。", "warning", parent=panel)
                     return
-                state = self.load_pet_stories(pet_id)
-                state["entries"] = [item for item in state.get("entries", []) if item.get("id") != entry_id]
-                state["prompt_summary"] = self.generate_pet_story_summary(pet_id, state=state)
-                state["summary_updated_at"] = datetime.now().isoformat(timespec="seconds")
-                state["summary_source"] = "local_auto"
-                self.save_pet_stories(pet_id, state)
-                render_detail()
+                story_title = str(entry.get("title") or entry.get("content") or "这条故事").strip()
+                story_title = story_title[:24] + ("..." if len(story_title) > 24 else "")
+
+                def apply_delete():
+                    state = self.load_pet_stories(pet_id)
+                    state["entries"] = [item for item in state.get("entries", []) if item.get("id") != entry_id]
+                    state["prompt_summary"] = self.generate_pet_story_summary(pet_id, state=state)
+                    state["summary_updated_at"] = datetime.now().isoformat(timespec="seconds")
+                    state["summary_source"] = "local_auto"
+                    self.save_pet_stories(pet_id, state)
+                    render_detail()
+                    self.show_panel_toast("故事已删除", f"已从档案收起：{story_title}", "success", parent=panel)
+                    return True
+
+                self.show_panel_confirm(
+                    "删除故事",
+                    f"删除「{story_title}」？",
+                    "这条故事、日记或思念会从当前宠物档案中移除。",
+                    detail_title="只移除当前宠物的一条故事记录",
+                    detail_body="不会删除图片文件、聊天记忆、提醒、陪伴等级或其他宠物故事；图片副本会继续保留在宠物档案目录。",
+                    confirm_text="删除",
+                    on_confirm=apply_delete,
+                    variant="danger",
+                    parent=panel,
+                )
 
             def render_detail():
                 for child in detail_holder.winfo_children():
@@ -18703,7 +19585,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                         next_state["summary_source"] = "local_auto"
                         self.save_pet_stories(pid, next_state)
                         render_detail()
-                        messagebox.showinfo("已本地整理", "还没有配置可用 AI，已先用本地规则整理摘要。配置 AI 后可以生成更像宠物的角色提示词。")
+                        self.show_panel_toast("已本地整理", "还没有配置可用 AI，已先用本地规则整理摘要。", "info", parent=panel)
                         return
 
                     self.set_ai_status("正在整理宠物故事摘要...")
@@ -18713,7 +19595,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                             provider_id, provider = self.active_ai_provider()
                             seed = self.build_pet_role_prompt_seed(pid, next_state, max_chars=5200)
                             prompt = (
-                                "请把下面资料整理成给宠物 AI 聊天使用的故事摘要。要求：\n"
+                                "请把下面资料整理成给宠物云端陪聊使用的故事摘要。要求：\n"
                                 "1. 只保留真实记录，不编造新经历。\n"
                                 "2. 用自然中文，适合主人后续阅读和手动编辑。\n"
                                 "3. 分为“关系背景”“重要回忆”“性格细节”“聊天提醒”。\n"
@@ -18786,11 +19668,11 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
                 def generate_role_prompt(pid):
                     if not self.ai_can_respond():
-                        messagebox.showinfo("需要先配置 AI", "生成角色提示词需要先到 AI 页保存 Key，并测试启用当前厂商。当前只能使用本地摘要。")
+                        self.show_panel_toast("需要先配置陪聊服务", "请先到陪聊设置页保存 Key，并测试启用当前服务。", "warning", parent=panel)
                         return
                     state_before = self.load_pet_stories(pid)
                     if not state_before.get("entries"):
-                        messagebox.showinfo("还没有故事", "请先写一条故事、日记或思念，再生成角色提示词。")
+                        self.show_panel_toast("还没有故事", "请先写一条故事、日记或思念，再生成角色提示词。", "warning", parent=panel)
                         return
                     self.set_ai_status("正在根据宠物故事生成角色提示词...")
 
@@ -18815,7 +19697,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                                 temperature=0.35,
                             )
                         except Exception as exc:
-                            self.root.after(0, lambda e=str(exc): messagebox.showerror("生成失败", self.describe_ai_error(e)))
+                            self.root.after(0, lambda e=str(exc): self.show_panel_toast("生成失败", self.describe_ai_error(e), "error", parent=panel))
                             return
 
                         def done():
@@ -18823,7 +19705,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                             next_state["role_prompt"] = generated.strip()
                             next_state["role_prompt_updated_at"] = datetime.now().isoformat(timespec="seconds")
                             self.save_pet_stories(pid, next_state)
-                            self.set_ai_status("角色提示词已生成，之后 AI 聊天会优先读取。")
+                            self.set_ai_status("角色提示词已生成，之后云端陪聊会优先读取。")
                             render_detail()
 
                         self.root.after(0, done)
@@ -18839,7 +19721,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 panel_button(summary_actions, "生成角色提示词", lambda pid=pet_id: generate_role_prompt(pid), width=120, height=30, variant="primary").pack(side="left", padx=(8, 0))
                 tk.Label(
                     summary_actions,
-                    text="AI 聊天会按当前宠物读取角色提示词、摘要和最近故事。",
+                    text="云端陪聊会按当前宠物读取角色提示词、摘要和最近故事。",
                     bg=card_bg,
                     fg=text_muted,
                     font=("Microsoft YaHei UI", 8),
@@ -19664,10 +20546,23 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             add_slider(speed_card, "动作速度", "animation_speed", 0.35, 1.50, 0.05, lambda v: f"{int(v * 100)}%")
 
         def page_settings(parent):
-            paths_card = make_card(parent, "默认目录")
+            def shorten_path(path, max_chars=74):
+                raw_path = Path(path)
+                try:
+                    rel = raw_path.resolve().relative_to(self.pet_dir.resolve())
+                    text = "当前桌宠目录" if str(rel) == "." else f"当前桌宠目录\\{rel}"
+                except (OSError, ValueError):
+                    text = str(raw_path)
+                if len(text) <= max_chars:
+                    return text
+                head = max(18, (max_chars - 5) // 2)
+                tail = max(24, max_chars - head - 5)
+                return f"{text[:head]} ... {text[-tail:]}"
+
+            paths_card = make_card(parent, "本地文件夹")
             tk.Label(
                 paths_card,
-                text="把导出、上传和图片选择的默认打开位置集中放在这里，后续弹窗会优先使用这些目录。",
+                text="普通使用只需要知道数据在本机。这里控制导出、上传和图片选择的默认位置，不会把聊天、提醒、Key 或本机路径带进公开安装包。",
                 bg=card_bg,
                 fg=text_muted,
                 anchor="w",
@@ -19677,35 +20572,51 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             ).pack(fill="x", padx=12, pady=(2, 10))
             path_grid = tk.Frame(paths_card, bg=card_bg)
             path_grid.pack(fill="x", padx=12, pady=(0, 12))
-            path_grid.grid_columnconfigure(1, weight=1)
+            path_grid.grid_columnconfigure(0, weight=1)
 
-            def path_row(row, label, key, fallback):
-                tk.Label(path_grid, text=label, bg=card_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=0, sticky="w", padx=(0, 10), pady=5)
-                var = tk.StringVar(value=str(self.settings.get(key, "") or fallback))
-                entry = tk.Entry(path_grid, textvariable=var, bg="#fffaf3", fg=text_main, relief="flat", highlightthickness=1, highlightbackground="#ead1a9", highlightcolor=accent, font=("Microsoft YaHei UI", 9))
-                entry.grid(row=row, column=1, sticky="ew", pady=5, ipady=6)
+            def path_row(row, title, key, fallback, hint):
+                cell = tk.Frame(path_grid, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+                cell.grid(row=row, column=0, sticky="ew", pady=(0, 8))
+                cell.grid_columnconfigure(0, weight=1)
+                tk.Label(cell, text=title, bg="#fff8ee", fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=0, column=0, sticky="w", padx=10, pady=(8, 1))
+                tk.Label(cell, text=hint, bg="#fff8ee", fg=text_muted, anchor="w", justify="left", wraplength=480, font=("Microsoft YaHei UI", 8)).grid(row=1, column=0, sticky="ew", padx=10)
+                value_label = tk.Label(cell, text="", bg="#fff8ee", fg=accent_dark, anchor="w", justify="left", wraplength=480, font=("Microsoft YaHei UI", 8, "bold"))
+                value_label.grid(row=2, column=0, sticky="ew", padx=10, pady=(4, 8))
+                actions = tk.Frame(cell, bg="#fff8ee")
+                actions.grid(row=0, column=1, rowspan=3, sticky="e", padx=10, pady=8)
+
+                def current_path():
+                    return self.settings_dir_value(key, fallback)
+
+                def refresh():
+                    value_label.configure(text=shorten_path(current_path()))
 
                 def choose():
-                    path = filedialog.askdirectory(initialdir=str(Path(var.get() or fallback)))
+                    path = filedialog.askdirectory(initialdir=str(current_path()), title=f"选择{title}")
                     if path:
-                        var.set(path)
+                        self.remember_directory_setting(key, path)
+                        refresh()
+                        self.show_panel_toast("目录已保存", f"{title}已更新。", "success")
 
-                def save():
-                    self.remember_directory_setting(key, var.get())
-                    var.set(str(self.settings.get(key, "") or fallback))
-                    self.say("主人，默认目录保存好了。")
+                def reset():
+                    self.settings[key] = ""
+                    self.save_settings()
+                    refresh()
+                    self.show_panel_toast("已恢复默认", f"{title}已回到默认位置。", "info")
 
-                panel_button(path_grid, "选择", choose, width=58, height=28).grid(row=row, column=2, sticky="e", padx=(8, 0), pady=5)
-                panel_button(path_grid, "保存", save, width=58, height=28, variant="primary").grid(row=row, column=3, sticky="e", padx=(6, 0), pady=5)
+                panel_button(actions, "打开", lambda: self.open_path_in_system(current_path()), width=58, height=28, variant="primary").pack(side="left")
+                panel_button(actions, "更改", choose, width=58, height=28).pack(side="left", padx=(6, 0))
+                panel_button(actions, "默认", reset, width=58, height=28).pack(side="left", padx=(6, 0))
+                refresh()
 
-            path_row(0, "导出目录", "default_export_dir", self.pet_dir / "exports")
-            path_row(1, "上传目录", "default_upload_dir", self.pet_dir)
-            path_row(2, "图片目录", "default_image_dir", self.pet_dir)
+            path_row(0, "导出文件夹", "default_export_dir", self.pet_dir / "exports", "备份、安装包和导出文件默认放在这里。")
+            path_row(1, "上传文件夹", "default_upload_dir", self.pet_dir, "更换形象、动作条和照片时，文件选择器会先打开这里。")
+            path_row(2, "图片文件夹", "default_image_dir", self.pet_dir, "选择聊天背景、故事图片和参考照片时优先打开这里。")
 
-            github_card = make_card(parent, "GitHub macOS 构建")
+            github_card = make_card(parent, "开发者构建工具")
             tk.Label(
                 github_card,
-                text="用于 Windows 触发 GitHub Actions 生成 macOS .app。目标仓库填 `owner/repo`；workflow 模板必须提交到该仓库；Token 建议只给当前仓库 Contents/Actions 读写权限，并只保存在本机或环境变量。",
+                text="普通用户不需要配置这里。只有要从 Windows 触发 GitHub Actions 生成 macOS .app 时，才展开并填写仓库、workflow 和 Token。",
                 bg=card_bg,
                 fg=text_muted,
                 anchor="w",
@@ -19713,47 +20624,120 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 wraplength=650,
                 font=("Microsoft YaHei UI", 9),
             ).pack(fill="x", padx=12, pady=(2, 10))
-            github_grid = tk.Frame(github_card, bg=card_bg)
-            github_grid.pack(fill="x", padx=12, pady=(0, 10))
-            github_grid.grid_columnconfigure(1, weight=1)
-            vars_map = {
-                "github_repo": tk.StringVar(value=str(self.settings.get("github_repo", "") or "")),
-                "github_branch": tk.StringVar(value=str(self.settings.get("github_branch", "") or "main")),
-                "github_workflow": tk.StringVar(value=str(self.settings.get("github_workflow", "") or "build-macos-app.yml")),
-                "github_token_env_key": tk.StringVar(value=self.github_token_env_key()),
-            }
+            github_body = tk.Frame(github_card, bg=card_bg)
+            github_body.pack(fill="x", padx=12, pady=(0, 12))
+            github_state = {"expanded": False}
 
-            def github_entry(row, label, key):
-                tk.Label(github_grid, text=label, bg=card_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=0, sticky="w", padx=(0, 10), pady=5)
-                tk.Entry(github_grid, textvariable=vars_map[key], bg="#fffaf3", fg=text_main, relief="flat", highlightthickness=1, highlightbackground="#ead1a9", highlightcolor=accent, font=("Microsoft YaHei UI", 9)).grid(row=row, column=1, sticky="ew", pady=5, ipady=6)
+            def render_github_body():
+                for child in github_body.winfo_children():
+                    child.destroy()
 
-            github_entry(0, "仓库 owner/repo", "github_repo")
-            github_entry(1, "分支", "github_branch")
-            github_entry(2, "Workflow 文件", "github_workflow")
-            github_entry(3, "Token 环境变量", "github_token_env_key")
-            token_row = tk.Frame(github_card, bg=card_bg)
-            token_row.pack(fill="x", padx=12, pady=(0, 12))
-            token_var = tk.StringVar()
-            tk.Label(token_row, text=f"Token 状态：{self.github_build_token()[1]}", bg=card_bg, fg=sage, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left")
-            tk.Entry(token_row, textvariable=token_var, show="*", bg="#fffaf3", fg=text_main, relief="flat", highlightthickness=1, highlightbackground="#ead1a9", highlightcolor=accent, font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True, padx=8, ipady=6)
+                if not github_state["expanded"]:
+                    compact = tk.Frame(github_body, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
+                    compact.pack(fill="x")
+                    tk.Label(
+                        compact,
+                        text="已折叠：GitHub 仓库、Token 和 workflow 属于开发者发布流程，不影响日常陪伴、聊天、提醒和本地数据。",
+                        bg="#fff8ee",
+                        fg=text_muted,
+                        anchor="w",
+                        justify="left",
+                        wraplength=540,
+                        font=("Microsoft YaHei UI", 8),
+                    ).pack(side="left", fill="x", expand=True, padx=10, pady=10)
+                    panel_button(compact, "展开", lambda: (github_state.update({"expanded": True}), render_github_body()), width=70, height=28, variant="sage").pack(side="right", padx=10, pady=10)
+                    return
 
-            def save_github_settings():
-                self.settings["github_repo"] = self.normalize_github_repo(vars_map["github_repo"].get())
-                self.settings["github_branch"] = vars_map["github_branch"].get().strip() or "main"
-                self.settings["github_workflow"] = vars_map["github_workflow"].get().strip() or "build-macos-app.yml"
-                self.settings["github_token_env_key"] = vars_map["github_token_env_key"].get().strip() or "DANHUANG_GITHUB_TOKEN"
-                if token_var.get().strip():
-                    self.save_github_build_token(token_var.get())
-                    token_var.set("")
-                else:
-                    self.save_settings()
-                self.say("主人，GitHub 构建设置保存好了。")
-                switch_page("设置")
+                github_grid = tk.Frame(github_body, bg=card_bg)
+                github_grid.pack(fill="x", pady=(0, 10))
+                github_grid.grid_columnconfigure(1, weight=1)
+                vars_map = {
+                    "github_repo": tk.StringVar(value=str(self.settings.get("github_repo", "") or "")),
+                    "github_branch": tk.StringVar(value=str(self.settings.get("github_branch", "") or "main")),
+                    "github_workflow": tk.StringVar(value=str(self.settings.get("github_workflow", "") or "build-macos-app.yml")),
+                    "github_token_env_key": tk.StringVar(value=self.github_token_env_key()),
+                }
 
-            panel_button(token_row, "保存 GitHub 设置", save_github_settings, width=126, height=30, variant="primary").pack(side="left")
-            panel_button(token_row, "写入 workflow 模板", lambda: messagebox.showinfo("已写入", f"已写入：\n{self.ensure_github_workflow_template()}"), width=126, height=30).pack(side="left", padx=(8, 0))
+                def github_entry(row, label, key):
+                    tk.Label(github_grid, text=label, bg=card_bg, fg=text_main, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).grid(row=row, column=0, sticky="w", padx=(0, 10), pady=5)
+                    tk.Entry(github_grid, textvariable=vars_map[key], bg="#fffaf3", fg=text_main, relief="flat", highlightthickness=1, highlightbackground="#ead1a9", highlightcolor=accent, font=("Microsoft YaHei UI", 9)).grid(row=row, column=1, sticky="ew", pady=5, ipady=6)
+
+                github_entry(0, "仓库 owner/repo", "github_repo")
+                github_entry(1, "分支", "github_branch")
+                github_entry(2, "Workflow 文件", "github_workflow")
+                github_entry(3, "Token 环境变量", "github_token_env_key")
+                token_row = tk.Frame(github_body, bg=card_bg)
+                token_row.pack(fill="x", pady=(0, 10))
+                token_var = tk.StringVar()
+                tk.Label(token_row, text=f"Token 状态：{self.github_build_token()[1]}", bg=card_bg, fg=sage, anchor="w", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left")
+                tk.Entry(token_row, textvariable=token_var, show="*", bg="#fffaf3", fg=text_main, relief="flat", highlightthickness=1, highlightbackground="#ead1a9", highlightcolor=accent, font=("Microsoft YaHei UI", 9)).pack(side="left", fill="x", expand=True, padx=8, ipady=6)
+
+                def save_github_settings():
+                    self.settings["github_repo"] = self.normalize_github_repo(vars_map["github_repo"].get())
+                    self.settings["github_branch"] = vars_map["github_branch"].get().strip() or "main"
+                    self.settings["github_workflow"] = vars_map["github_workflow"].get().strip() or "build-macos-app.yml"
+                    self.settings["github_token_env_key"] = vars_map["github_token_env_key"].get().strip() or "DANHUANG_GITHUB_TOKEN"
+                    if token_var.get().strip():
+                        self.save_github_build_token(token_var.get())
+                        token_var.set("")
+                    else:
+                        self.save_settings()
+                    self.show_panel_toast("GitHub 设置已保存", "构建配置只保存在本机，不会进入公开安装包。", "success")
+                    render_github_body()
+
+                def write_workflow_template():
+                    try:
+                        path = self.ensure_github_workflow_template()
+                        self.show_panel_toast("workflow 已写入", shorten_path(path, 62), "success")
+                    except Exception as exc:
+                        self.show_panel_toast("写入失败", str(exc)[:160], "error")
+
+                github_actions = tk.Frame(github_body, bg=card_bg)
+                github_actions.pack(fill="x")
+                panel_button_grid(
+                    github_actions,
+                    [
+                        ("保存 GitHub 设置", save_github_settings, "primary"),
+                        ("写入 workflow 模板", write_workflow_template),
+                        ("收起", lambda: (github_state.update({"expanded": False}), render_github_body()), "ghost"),
+                    ],
+                    columns=3,
+                    width=132,
+                    height=30,
+                )
+
+            render_github_body()
 
         def page_safety(parent):
+            data_card = make_card(parent, "本地数据位置")
+            data_dir = Path(__file__).resolve().parent
+            export_dir = self.default_export_dir()
+            data_label = self.local_path_label(data_dir)
+            export_label = self.local_path_label(export_dir)
+            tk.Label(
+                data_card,
+                text=f"数据位置：{data_label}\n导出位置：{export_label}\n聊天、待办、提醒历史、故事和 API Key 都只保存在本机；完整目录可用下方按钮打开，公开分发包会重新生成干净模板。",
+                bg="#fffdf7",
+                fg=text_main,
+                anchor="w",
+                justify="left",
+                wraplength=650,
+                font=("Microsoft YaHei UI", 9),
+            ).pack(fill="x", padx=12, pady=(2, 10))
+            data_actions = tk.Frame(data_card, bg="#fffdf7")
+            data_actions.pack(fill="x", padx=12, pady=(0, 12))
+            panel_button_grid(
+                data_actions,
+                [
+                    ("打开数据文件夹", lambda: self.open_path_in_system(data_dir), "primary"),
+                    ("打开导出目录", lambda: self.open_path_in_system(export_dir)),
+                    ("个人备份", self.export_configuration),
+                ],
+                columns=3,
+                width=126,
+                height=30,
+            )
+
             boundary = make_card(parent, "分发安全边界")
             tk.Label(
                 boundary,
@@ -19777,7 +20761,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 tk.Label(item, text=body, bg=fill, fg=text_muted, anchor="nw", justify="left", wraplength=190, font=("Microsoft YaHei UI", 8)).pack(fill="x", padx=10, pady=(0, 8))
 
             boundary_cell(0, "默认排除", "待办、提醒历史、聊天、记忆、故事和本机路径不随公开包带出。", "#fff8ee", accent_dark)
-            boundary_cell(1, "弹窗可选", "待办、故事/日记、AI 厂商配置需要导出时逐项勾选。", "#f1f7ed", sage)
+            boundary_cell(1, "弹窗可选", "待办、故事/日记、陪聊服务配置需要导出时逐项勾选。", "#f1f7ed", sage)
             boundary_cell(2, "永不导出", "真实 API Key、GitHub Token、DPAPI 加密内容和日志不写进分发包。", "#fff1df", "#5d3328")
 
             card = make_card(parent, "个人备份")
@@ -19793,9 +20777,17 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             ).pack(fill="x", padx=12, pady=(2, 10))
             row = tk.Frame(card, bg="#fffdf7")
             row.pack(fill="x", padx=12, pady=(0, 12))
-            panel_button(row, "导出配置", self.export_configuration, width=92, variant="primary").pack(side="left")
-            panel_button(row, "恢复配置", self.restore_configuration, width=92).pack(side="left", padx=8)
-            panel_button(row, "备份精灵图", self.backup_spritesheet, width=104).pack(side="left")
+            panel_button_grid(
+                row,
+                [
+                    ("导出配置", self.export_configuration, "primary"),
+                    ("恢复配置", self.restore_configuration),
+                    ("备份精灵图", self.backup_spritesheet),
+                ],
+                columns=3,
+                width=118,
+                height=30,
+            )
 
             package_card = make_card(parent, "安装包导出")
             tk.Label(
@@ -19810,8 +20802,16 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             ).pack(fill="x", padx=12, pady=(2, 10))
             package_row = tk.Frame(package_card, bg="#fffdf7")
             package_row.pack(fill="x", padx=12, pady=(0, 12))
-            panel_button(package_row, "导出 Windows 安装包", lambda: self.open_installer_export_dialog("windows"), width=146, height=30, variant="primary").pack(side="left")
-            panel_button(package_row, "生成 macOS 可运行包", lambda: self.open_installer_export_dialog("macos"), width=156, height=30).pack(side="left", padx=8)
+            panel_button_grid(
+                package_row,
+                [
+                    ("导出 Windows 安装包", lambda: self.open_installer_export_dialog("windows"), "primary"),
+                    ("生成 macOS 可运行包", lambda: self.open_installer_export_dialog("macos")),
+                ],
+                columns=3,
+                width=158,
+                height=30,
+            )
             app_button = tk.Button(
                 package_row,
                 text="手机 App 导出（待手机适配）",
@@ -19824,7 +20824,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 pady=4,
                 font=("Microsoft YaHei UI", 9),
             )
-            app_button.pack(side="left")
+            app_button.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 4))
             package_rules = tk.Frame(package_card, bg="#fff8ee", highlightthickness=1, highlightbackground="#ead7bd")
             package_rules.pack(fill="x", padx=12, pady=(0, 12))
             tk.Label(
@@ -19860,7 +20860,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             error_log = Path(__file__).resolve().parent / "desktop-pet-error.log"
             tk.Label(
                 export_status,
-                text=f"默认导出目录：{export_dir}\n导出弹窗会在完成后保留压缩包路径和入口脚本路径；失败时会显示日志位置和恢复建议。\n失败日志：{error_log}",
+                text=f"默认导出目录：{self.local_path_label(export_dir)}\n导出弹窗会在完成后保留压缩包路径和入口脚本路径；失败时会显示日志位置和恢复建议。\n失败日志：{self.local_path_label(error_log)}",
                 bg="#eef6ea",
                 fg=text_muted,
                 anchor="w",
@@ -19937,7 +20937,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 [
                     (f"和{pet_name}聊", self.open_chat_panel, "primary"),
                     ("待办提醒", lambda: switch_page("提醒")),
-                    ("AI 配置", lambda: switch_page("AI")),
+                    ("陪聊设置", lambda: switch_page("AI")),
                     ("切换形象", lambda: switch_page("形象")),
                     ("摸摸它", self.say_random),
                     ("隐藏气泡", self.hide_bubble),
@@ -19994,13 +20994,15 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             })
 
         nav_groups = [
-            ("日常", ["首页", "对话", "提醒", "动作"]),
-            ("宠物资产", ["形象", "档案", "故事"]),
-            ("行为设置", ["行为", "操作"]),
-            ("设置与安全", ["设置", "安全"]),
+            ("日常", ["首页", "对话", "提醒"]),
+            ("宠物", ["形象", "动作"]),
+            ("隐私", ["安全"]),
         ]
         if self.settings["panel_advanced"]:
-            nav_groups.append(("高级", ["巡逻", "外观"]))
+            nav_groups.extend([
+                ("智能与记录", ["AI", "档案", "故事"]),
+                ("高级", ["行为", "操作", "设置", "巡逻", "外观"]),
+            ])
 
         for section, names in nav_groups:
             visible_names = [name for name in names if name in pages]
@@ -20047,10 +21049,20 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             close_panel()
             self.open_control_panel()
 
-        panel_button(footer, "保存", save_and_close, width=88, variant="primary").pack(side="left", padx=(16, 8), pady=9)
-        panel_button(footer, "恢复默认", reset_defaults, width=88).pack(side="left", pady=9)
-        panel_button(footer, "高级" if not self.settings["panel_advanced"] else "基础", toggle_panel_mode, width=76).pack(side="left", padx=8, pady=9)
-        panel_button(footer, "关闭", close_panel, width=88).pack(side="right", padx=16, pady=9)
+        footer_actions = tk.Frame(footer, bg=panel_bg)
+        footer_actions.pack(fill="x", padx=16, pady=9)
+        panel_button_grid(
+            footer_actions,
+            [
+                ("保存", save_and_close, "primary"),
+                ("恢复默认", reset_defaults),
+                ("显示高级" if not self.settings["panel_advanced"] else "回到日常", toggle_panel_mode),
+                ("关闭", close_panel, "ghost"),
+            ],
+            columns=4,
+            width=104,
+            height=30,
+        )
 
         switch_page(initial_page)
         self.center_window(panel)

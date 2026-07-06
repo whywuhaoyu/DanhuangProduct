@@ -7,13 +7,21 @@ from typing import Any, Mapping
 
 from assets.manifest import action_label
 
-QUICK_MENU_MAX_VISIBLE_EXTRA_ACTIONS = 4
+QUICK_MENU_MAX_VISIBLE_EXTRA_ACTIONS = 3
+ACTIVITY_MODE_LABELS = {
+    "quiet": "安静",
+    "daily": "日常",
+    "active": "活跃",
+}
+ACTIVITY_MODE_ORDER = ("quiet", "daily", "active")
 
 RIGHT_MENU_LAYOUT = {
-    "columns": 2,
-    "min_width": 280,
-    "max_width": 340,
-    "button_min_height": 34,
+    "columns": 3,
+    "min_width": 540,
+    "max_width": 620,
+    "button_min_height": 32,
+    "max_height_ratio": 0.78,
+    "min_scroll_body_height": 180,
     "panel_gap": 12,
     "screen_margin": 8,
     "pet_overlap_margin": 4,
@@ -96,6 +104,49 @@ def right_menu_style_tokens() -> dict[str, Any]:
     return deepcopy(RIGHT_MENU_STYLE)
 
 
+def compute_menu_viewport_size(
+    content_size: Mapping[str, Any],
+    fixed_size: Mapping[str, Any],
+    screen_rect: Mapping[str, Any],
+    *,
+    screen_margin: int = RIGHT_MENU_LAYOUT["screen_margin"],
+    max_height_ratio: float = RIGHT_MENU_LAYOUT["max_height_ratio"],
+    min_body_height: int = RIGHT_MENU_LAYOUT["min_scroll_body_height"],
+) -> dict[str, Any]:
+    """Clamp the right menu body to a screen-safe viewport height."""
+
+    content_height = max(1, _int(content_size.get("height"), 1))
+    fixed_height = max(0, _int(fixed_size.get("height"), 0))
+    screen_top = _int(screen_rect.get("top", 0))
+    screen_bottom = _int(screen_rect.get("bottom", screen_rect.get("height", 720)))
+    screen_height = max(1, _int(screen_rect.get("height"), screen_bottom - screen_top))
+    margin = max(0, _int(screen_margin, RIGHT_MENU_LAYOUT["screen_margin"]))
+    minimum_body = max(1, _int(min_body_height, RIGHT_MENU_LAYOUT["min_scroll_body_height"]))
+    try:
+        ratio = float(max_height_ratio)
+    except (TypeError, ValueError):
+        ratio = float(RIGHT_MENU_LAYOUT["max_height_ratio"])
+    ratio = max(0.35, min(1.0, ratio))
+    absolute_limit = max(1, screen_height - margin * 2)
+    ratio_limit = max(1, int(screen_height * ratio))
+    preferred_limit = max(ratio_limit, min(absolute_limit, fixed_height + minimum_body))
+    max_panel_height = max(1, min(absolute_limit, preferred_limit))
+    available_body_height = max(1, max_panel_height - fixed_height)
+    viewport_height = min(content_height, available_body_height)
+    panel_height = fixed_height + viewport_height
+    return {
+        "content_height": content_height,
+        "fixed_height": fixed_height,
+        "viewport_height": viewport_height,
+        "panel_height": panel_height,
+        "max_panel_height": max_panel_height,
+        "scrollable": content_height > viewport_height + 1,
+        "screen_margin": margin,
+        "max_height_ratio": ratio,
+        "min_body_height": minimum_body,
+    }
+
+
 def _action_map(pet_manifest: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
     actions = _list(pet_manifest.get("actions"))
     return {
@@ -161,7 +212,10 @@ def build_right_menu_model(
     *,
     current_pet_id: str = "",
     pinned: bool = False,
+    paused: bool = False,
+    activity_mode: str = "daily",
     max_visible_extensions: int = QUICK_MENU_MAX_VISIBLE_EXTRA_ACTIONS,
+    can_switch_pet: bool = True,
 ) -> dict[str, Any]:
     """Build a serializable model for the desktop right-click menu.
 
@@ -179,14 +233,29 @@ def build_right_menu_model(
     pet_id = str(pet_manifest.get("pet_id") or "")
     display_name = str(pet_manifest.get("display_name") or pet_id or "宠物")
     summary = pet_manifest.get("summary") if isinstance(pet_manifest.get("summary"), Mapping) else {}
+    active_mode = str(activity_mode or "daily")
+    if active_mode not in ACTIVITY_MODE_LABELS:
+        active_mode = "daily"
 
     common = [
         _command("chat", f"和{display_name}聊", "open_chat", variant="primary"),
         _command("control_panel", "桌宠面板", "open_control_panel", variant="soft"),
         _command("reminders", "待办提醒", "open_control_panel", page="提醒", variant="soft"),
-        _command("ai", "AI 配置", "open_control_panel", page="AI", variant="soft"),
-        _command("switch_pet", "切换形象", "open_pet_switcher", variant="soft"),
-        _command("pet_touch", "摸摸它", "say_random", variant="neutral"),
+        _command("ai", "陪聊设置", "open_control_panel", page="AI", variant="soft"),
+        _command("quiet_mode", "安静一下", "quiet_mode", variant="ghost"),
+    ]
+    if can_switch_pet:
+        common.append(_command("switch_pet", "切换形象", "open_pet_switcher", variant="soft"))
+    common.append(_command("pet_touch", "摸摸它", "say_random", variant="neutral"))
+    mode_buttons = [
+        _command(
+            f"activity_mode:{mode_id}",
+            ACTIVITY_MODE_LABELS[mode_id],
+            "set_activity_mode",
+            variant="selected" if mode_id == active_mode else "soft",
+            meta={"mode": mode_id},
+        )
+        for mode_id in ACTIVITY_MODE_ORDER
     ]
     base_buttons = [
         _action_button(action_id, pet_manifest, actions, fixed=True)
@@ -219,11 +288,19 @@ def build_right_menu_model(
         )
 
     window = [
+        _command(
+            "toggle_activity_pause",
+            "恢复日常" if paused else "暂停活动",
+            "toggle_activity_pause",
+            variant="soft" if paused else "ghost",
+        ),
         _command("hide_bubble", "隐藏气泡", "hide_bubble", variant="ghost"),
         _command("exit", "退出", "close", variant="danger"),
     ]
     sections = [
         {"id": "common", "title": "常用", "items": common},
+        {"id": "window", "title": "窗口", "items": window},
+        {"id": "activity_modes", "title": "陪伴模式", "items": mode_buttons},
         {"id": "base_actions", "title": "基础动作", "items": base_buttons},
         {
             "id": "extension_actions",
@@ -231,7 +308,6 @@ def build_right_menu_model(
             "items": visible_extension_buttons,
             "footer": extension_footer,
         },
-        {"id": "window", "title": "窗口", "items": window},
     ]
     return {
         "version": 1,
@@ -245,6 +321,10 @@ def build_right_menu_model(
             "action_pack_level": str(pet_manifest.get("action_pack_level") or ""),
             "current": bool(current_pet_id and pet_id == current_pet_id),
             "pinned": bool(pinned),
+            "paused": bool(paused),
+            "can_switch_pet": bool(can_switch_pet),
+            "activity_mode": active_mode,
+            "activity_mode_label": ACTIVITY_MODE_LABELS[active_mode],
             "subtitle": "陪你说句话，或者做个基础动作",
             "playable_count": int(summary.get("playable_count") or 0),
             "extension_count": int(summary.get("extension_count") or 0),

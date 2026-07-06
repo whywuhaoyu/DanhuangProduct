@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.46")
+                    self.assertEqual(module.APP_VERSION, "0.11.64")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -48,6 +48,114 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertTrue(hasattr(module.DanhuangPet, "pet_switcher_view_model"))
                 self.assertTrue(hasattr(module.DanhuangPet, "bubble_view_model"))
                 self.assertTrue(hasattr(module.DanhuangPet, "pet_window_view_model"))
+
+    def test_initial_roam_schedule_respects_daily_interval(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                module = load_runtime_module(path)
+                delay = module.next_roam_timestamp({"roam_interval": 120.0}, now=1000.0) - 1000.0
+                source = path.read_text(encoding="utf-8")
+
+                self.assertGreaterEqual(delay, 84.0)
+                self.assertLessEqual(delay, 162.0)
+                self.assertNotIn("random.uniform(2.0, 4.0)", source)
+
+    def test_snooze_delay_label_uses_human_terms(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                module = load_runtime_module(path)
+
+                self.assertEqual(module.snooze_delay_label(15), "15 分钟后")
+                self.assertEqual(module.snooze_delay_label(60), "1 小时后")
+                self.assertEqual(module.snooze_delay_label(24 * 60), "明天")
+                self.assertEqual(module.snooze_delay_label(2 * 24 * 60), "2 天后")
+
+    def test_todo_delete_uses_panel_confirm(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def show_panel_confirm(", source)
+                self.assertIn("def confirm_delete_todo(", source)
+                self.assertIn('self.show_panel_confirm(', source)
+                self.assertNotIn('messagebox.askyesno("删除待办"', source)
+
+    def test_companion_reset_uses_panel_confirm(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def reset_companion_state(", source)
+                self.assertIn('self.show_panel_confirm(\n            "重置陪伴数据"', source)
+                self.assertIn("不会删除聊天、待办或提醒", source)
+                self.assertNotIn('messagebox.askyesno("重置陪伴数据"', source)
+
+    def test_ai_memory_clear_uses_panel_confirm(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def clear_ai_memory(", source)
+                self.assertIn('self.show_panel_confirm(\n            "清空陪聊记忆"', source)
+                self.assertIn("不会删除 API Key、提醒、待办或陪伴等级", source)
+                self.assertNotIn('messagebox.askyesno(f"清空{self.active_pet_name()}记忆"', source)
+
+    def test_pet_asset_delete_uses_panel_confirm(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def clear_pet_identity_image(", source)
+                self.assertIn("def remove_reference_image_from_pet(", source)
+                self.assertIn('self.show_panel_confirm(\n            "删除主像素图"', source)
+                self.assertIn("不会删除现实照片、参考图、动作精灵图或聊天记忆", source)
+                self.assertNotIn('messagebox.askyesno("删除主像素图"', source)
+                self.assertIn('self.show_panel_confirm(\n            "删除参考图"', source)
+                self.assertIn("不会删除本机外部源文件", source)
+                self.assertNotIn('messagebox.askyesno("删除参考图"', source)
+
+    def test_extension_action_clear_uses_panel_confirm(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def remove_extension_action_asset(", source)
+                self.assertIn('self.show_panel_confirm(\n            "清空动作精灵图"', source)
+                self.assertIn("这个扩展动作会从动作页、右键动作栏和当前形象的可播放动作里移除", source)
+                self.assertIn("不会删除基础动作、主像素图、现实照片、参考图或聊天记忆", source)
+                self.assertNotIn('messagebox.askyesno("清空动作精灵图"', source)
+
+    def test_story_page_feedback_uses_panel_components(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn('def show_panel_toast(self, title, message, tone="success", duration=4200, parent=None):', source)
+                self.assertIn("def delete_story(pet_id, entry_id):", source)
+                self.assertIn('self.show_panel_confirm(\n                    "删除故事"', source)
+                self.assertIn("只移除当前宠物的一条故事记录", source)
+                self.assertIn("不会删除图片文件、聊天记忆、提醒、陪伴等级或其他宠物故事", source)
+                self.assertIn('self.show_panel_toast("故事已保存"', source)
+                self.assertIn('self.show_panel_toast("已本地整理"', source)
+                self.assertNotIn('messagebox.askyesno("删除故事"', source)
+                self.assertNotIn('messagebox.showwarning("内容为空"', source)
+                self.assertNotIn('messagebox.showinfo("需要先配置陪聊服务"', source)
+
+    def test_safety_backup_feedback_uses_panel_toast(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def export_configuration(", source)
+                self.assertIn("def restore_configuration(", source)
+                self.assertIn("def backup_spritesheet(", source)
+                self.assertIn('self.show_panel_toast("配置已导出"', source)
+                self.assertIn('self.show_panel_toast("恢复失败"', source)
+                self.assertIn('self.show_panel_toast("配置已恢复"', source)
+                self.assertIn('self.show_panel_toast("备份失败"', source)
+                self.assertIn('self.show_panel_toast("精灵图已备份"', source)
+                self.assertNotIn('messagebox.showerror("恢复失败"', source)
+                self.assertNotIn('messagebox.showerror("备份失败"', source)
 
 
 if __name__ == "__main__":
