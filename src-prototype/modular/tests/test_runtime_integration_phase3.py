@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.67")
+                    self.assertEqual(module.APP_VERSION, "0.11.68")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -204,6 +204,21 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertIn('popup.bind("<Escape>", close_from_popup)', source)
                 self.assertIn("popup.after(80, lambda: (popup.lift(), popup.focus_force(), complete_button.focus_set()))", source)
                 self.assertIn("if self.reminder_popup is popup:", source)
+
+    def test_chat_window_focus_and_background_feedback_are_wired(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def open_chat_panel(self):", source)
+                self.assertIn("self.chat_panel.deiconify()", source)
+                self.assertIn("self.chat_panel.after(80, entry.focus_set)", source)
+                self.assertIn("def open_chat_background_dialog(self):", source)
+                self.assertIn("def close_background_dialog(_event=None):", source)
+                self.assertIn('self.show_panel_toast("背景设置失败"', source)
+                self.assertIn('window.bind("<Escape>", close_background_dialog)', source)
+                self.assertIn("window.after(80, lambda: (window.lift(), window.focus_force()))", source)
+                self.assertNotIn('messagebox.showerror("背景失败"', source)
 
 
 if __name__ == "__main__":

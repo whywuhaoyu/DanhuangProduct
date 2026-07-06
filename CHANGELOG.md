@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.68-tk-chat-focus-background-polish - 2026-07-06
+
+- 继续按付费用户严苛审计聊天体验：聊天窗口重复打开时会恢复窗口、提升焦点并重新聚焦输入框，减少从右键/控制面板回到聊天时的手动点击。
+- 聊天背景上传失败不再使用 Windows 系统错误框，改为锚定聊天背景窗口的暖色 Toast。
+- 聊天背景窗口补 `Esc` 关闭和打开后焦点提升，关闭按钮、窗口关闭和快捷键走同一清理路径。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.68-chat-focus-background-20260706/chat-focus-background-evidence.json`、`qa/tk-ui-0.11.68-chat-focus-background-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-214445.zip`，ZIP SHA256 `DD419374923D44476FA038F6D93CFB1F5B87692E978DDB843A6D0B82948959F3`，EXE SHA256 `45824B693D170F065571EF10284BE0AC91DAE5A645016390C23EFB8630588E74`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-214445/` 和对应 zip。
+
 ## 0.11.67-tk-reminder-popup-shortcuts - 2026-07-06
 
 - 继续按付费用户严苛审计提醒到点体验：提醒弹窗的状态 chip、主操作和稍后提醒操作改为固定网格，降低横向挤压和按钮错位风险。

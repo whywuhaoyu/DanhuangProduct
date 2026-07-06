@@ -124,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.67"
+APP_VERSION = "0.11.68"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -13474,6 +13474,13 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         window.transient(self.chat_panel if self.chat_panel is not None else self.root)
         window._image_refs = []
 
+        def close_background_dialog(_event=None):
+            try:
+                window.destroy()
+            except tk.TclError:
+                pass
+            return "break"
+
         shell = tk.Frame(window, bg="#fff7ec", padx=18, pady=16)
         shell.pack(fill="both", expand=True)
         tk.Label(shell, text=f"{pet.get('display_name', '宠物')}的聊天背景", bg="#fff7ec", fg="#2f261f", font=("Microsoft YaHei UI", 13, "bold")).pack(anchor="w")
@@ -13667,17 +13674,20 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             try:
                 rel = self.copy_chat_background_to_pet(pet_id, path)
             except OSError as exc:
-                messagebox.showerror("背景失败", str(exc))
+                self.show_panel_toast("背景设置失败", str(exc)[:160], "error", parent=window)
                 return
             apply_background(rel)
             refresh_candidates()
 
         tk.Button(actions, text="上传背景", command=upload_background, bg="#c9772d", fg="#ffffff", activebackground="#a86431", activeforeground="#ffffff", relief="flat", bd=0, padx=14, pady=8, cursor="hand2").pack(side="left")
         tk.Button(actions, text="清空背景", command=lambda: (apply_background(""), refresh_candidates()), bg="#fff1dc", fg="#5d3328", activebackground="#f4d8b4", relief="flat", bd=0, padx=14, pady=8, cursor="hand2").pack(side="left", padx=8)
-        tk.Button(actions, text="关闭", command=window.destroy, bg="#fffaf3", fg="#2f261f", activebackground="#fff1df", relief="flat", bd=0, padx=14, pady=8, cursor="hand2").pack(side="right")
+        tk.Button(actions, text="关闭", command=close_background_dialog, bg="#fffaf3", fg="#2f261f", activebackground="#fff1df", relief="flat", bd=0, padx=14, pady=8, cursor="hand2").pack(side="right")
         refresh_preview()
         refresh_candidates()
+        window.protocol("WM_DELETE_WINDOW", close_background_dialog)
+        window.bind("<Escape>", close_background_dialog)
         self.center_window(window)
+        window.after(80, lambda: (window.lift(), window.focus_force()))
 
     def append_chat_history(self, speaker, text):
         if self.chat_history_box is None:
@@ -13807,7 +13817,15 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
 
     def open_chat_panel(self):
         if self.chat_panel is not None and self.chat_panel.winfo_exists():
+            self.chat_panel.deiconify()
             self.chat_panel.lift()
+            try:
+                self.chat_panel.focus_force()
+            except tk.TclError:
+                pass
+            entry = self.chat_history_box.get("entry") if isinstance(self.chat_history_box, dict) else None
+            if entry is not None:
+                self.chat_panel.after(80, entry.focus_set)
             return
 
         panel = tk.Toplevel(self.root)
