@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.68")
+                    self.assertEqual(module.APP_VERSION, "0.11.69")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -219,6 +219,24 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertIn('window.bind("<Escape>", close_background_dialog)', source)
                 self.assertIn("window.after(80, lambda: (window.lift(), window.focus_force()))", source)
                 self.assertNotIn('messagebox.showerror("背景失败"', source)
+
+    def test_pet_identity_actions_use_button_grids(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("visual_actions = tk.Frame(visual_info", source)
+                self.assertIn("panel_button_grid(\n                visual_actions,", source)
+                self.assertIn('("更换主像素图", lambda pet_id=current_pet.get("id")', source)
+                self.assertIn('("删除主像素图", lambda pet_id=current_pet.get("id")', source)
+                self.assertIn("columns=3,\n                width=132,\n                height=28,", source)
+                self.assertIn("refs_actions = tk.Frame(refs", source)
+                self.assertIn("panel_button_grid(\n                refs_actions,", source)
+                self.assertIn('("添加现实照片", lambda pet_id=current_pet.get("id")', source)
+                self.assertIn('("新增宠物", lambda: self.import_basic_pet_assets', source)
+                self.assertIn("columns=2,\n                width=132,\n                height=28,", source)
+                self.assertNotIn('panel_button(visual_actions, "更换主像素图"', source)
+                self.assertNotIn('panel_button(refs_actions, "添加现实照片"', source)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.69-tk-pet-identity-actions-grid - 2026-07-06
+
+- 继续按付费用户严苛审计形象页资产体验：当前主形象操作区改为共享按钮网格，避免更换主像素图、添加现实照片、管理动作、编辑资料和删除主像素图在窄窗口下横向挤压。
+- 用户上传现实照片区域底部操作改为两列按钮网格，减少“添加现实照片 / 新增宠物”贴边或错位风险。
+- 危险操作“删除主像素图”保留红色危险样式，但纳入同一网格体系，点击目标和视觉层级更稳定。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.69-pet-identity-actions-grid-20260706/pet-identity-actions-grid-evidence.json`、`qa/tk-ui-0.11.69-pet-identity-actions-grid-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-215245.zip`，ZIP SHA256 `49D5EE65CDC78989167AE84BA3B3CEE1BD0D17A0A8B5DB6150FDC12CAC3A2FF1`，EXE SHA256 `F93D7FEE936432BD0D95DAA616D1028B08D36F0EBFA186182B1568D7B00D7746`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-215245/` 和对应 zip。
+
 ## 0.11.68-tk-chat-focus-background-polish - 2026-07-06
 
 - 继续按付费用户严苛审计聊天体验：聊天窗口重复打开时会恢复窗口、提升焦点并重新聚焦输入框，减少从右键/控制面板回到聊天时的手动点击。

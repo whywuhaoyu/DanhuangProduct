@@ -124,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.68"
+APP_VERSION = "0.11.69"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -18880,11 +18880,19 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             ).pack(fill="x", pady=(0, 8))
             visual_actions = tk.Frame(visual_info, bg="#fffaf1")
             visual_actions.pack(fill="x")
-            panel_button(visual_actions, "更换主像素图", lambda pet_id=current_pet.get("id"): self.choose_pet_identity_image(pet_id, lambda: switch_page("形象")), width=110, height=28, variant="primary").pack(side="left")
-            panel_button(visual_actions, "删除主像素图", lambda pet_id=current_pet.get("id"): self.clear_pet_identity_image(pet_id, lambda: switch_page("形象")), width=104, height=28, variant="danger").pack(side="left", padx=8)
-            panel_button(visual_actions, "添加现实照片", lambda pet_id=current_pet.get("id"): self.add_reference_images_to_pet(pet_id, lambda: switch_page("形象")), width=104, height=28).pack(side="left")
-            panel_button(visual_actions, "管理动作", lambda: switch_page("动作"), width=82, height=28).pack(side="left", padx=8)
-            panel_button(visual_actions, "编辑资料", lambda pet_id=current_pet.get("id"): self.open_pet_profile_editor(pet_id, lambda: switch_page("形象")), width=82, height=28).pack(side="left")
+            panel_button_grid(
+                visual_actions,
+                [
+                    ("更换主像素图", lambda pet_id=current_pet.get("id"): self.choose_pet_identity_image(pet_id, lambda: switch_page("形象")), "primary"),
+                    ("添加现实照片", lambda pet_id=current_pet.get("id"): self.add_reference_images_to_pet(pet_id, lambda: switch_page("形象")), "neutral"),
+                    ("管理动作", lambda: switch_page("动作"), "neutral"),
+                    ("编辑资料", lambda pet_id=current_pet.get("id"): self.open_pet_profile_editor(pet_id, lambda: switch_page("形象")), "neutral"),
+                    ("删除主像素图", lambda pet_id=current_pet.get("id"): self.clear_pet_identity_image(pet_id, lambda: switch_page("形象")), "danger"),
+                ],
+                columns=3,
+                width=132,
+                height=28,
+            )
 
             list_card = make_card(parent, "家人形象列表")
             tk.Label(
@@ -18985,8 +18993,16 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 tk.Label(refs_grid, text="当前形象还没有归档图片。", bg="#fffdf7", fg=text_muted, font=("Microsoft YaHei UI", 9)).grid(row=0, column=0, sticky="w")
             refs_actions = tk.Frame(refs, bg="#fffdf7")
             refs_actions.pack(fill="x", padx=12, pady=(0, 12))
-            panel_button(refs_actions, "添加现实照片", lambda pet_id=current_pet.get("id"): self.add_reference_images_to_pet(pet_id, lambda: switch_page("形象")), width=104, height=28, variant="primary").pack(side="left")
-            panel_button(refs_actions, "新增宠物", lambda: self.import_basic_pet_assets(lambda: switch_page("形象")), width=82, height=28).pack(side="left", padx=8)
+            panel_button_grid(
+                refs_actions,
+                [
+                    ("添加现实照片", lambda pet_id=current_pet.get("id"): self.add_reference_images_to_pet(pet_id, lambda: switch_page("形象")), "primary"),
+                    ("新增宠物", lambda: self.import_basic_pet_assets(lambda: switch_page("形象")), "neutral"),
+                ],
+                columns=2,
+                width=132,
+                height=28,
+            )
 
         def page_pet_stories(parent):
             self.pet_family = self.load_pet_family()
