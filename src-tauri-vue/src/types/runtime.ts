@@ -1,6 +1,9 @@
 export interface PetSummary {
   id: string;
   display_name: string;
+  pet_type: string;
+  pet_type_label: string;
+  pet_tags: string[];
   species: string;
   notes: string;
   status: string;

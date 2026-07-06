@@ -68,6 +68,12 @@ struct PetEntryFile {
     #[serde(default)]
     display_name: String,
     #[serde(default)]
+    pet_type: String,
+    #[serde(default)]
+    pet_type_label: String,
+    #[serde(default)]
+    pet_tags: Vec<String>,
+    #[serde(default)]
     species: String,
     #[serde(default)]
     status: String,
@@ -745,6 +751,9 @@ struct RuntimeSummary {
 struct PetSummary {
     id: String,
     display_name: String,
+    pet_type: String,
+    pet_type_label: String,
+    pet_tags: Vec<String>,
     species: String,
     notes: String,
     status: String,
@@ -4379,6 +4388,52 @@ fn pet_action_summaries(pet: &PetEntryFile) -> Vec<PetActionSummary> {
         .collect()
 }
 
+fn infer_pet_type(species: &str) -> String {
+    let value = species.trim().to_lowercase();
+    if value.contains("cat") || value.contains("猫") {
+        "cat".to_string()
+    } else if value.contains("dog")
+        || value.contains("狗")
+        || value.contains("犬")
+        || value.contains("松狮")
+    {
+        "dog".to_string()
+    } else if value.contains("duck") || value.contains("鸭") || value.contains("梗") {
+        "meme".to_string()
+    } else if value.is_empty() {
+        "custom".to_string()
+    } else {
+        "other".to_string()
+    }
+}
+
+fn normalize_pet_type(raw: &str, species: &str) -> String {
+    match raw.trim().to_lowercase().as_str() {
+        "dog" | "cat" | "meme" | "custom" | "other" => raw.trim().to_lowercase(),
+        _ => infer_pet_type(species),
+    }
+}
+
+fn default_pet_type_label(pet_type: &str) -> &'static str {
+    match pet_type {
+        "dog" => "狗狗",
+        "cat" => "猫咪",
+        "meme" => "梗系",
+        "custom" => "自定义",
+        "other" => "其他",
+        _ => "自定义",
+    }
+}
+
+fn normalize_pet_tags(tags: &[String]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    tags.iter()
+        .map(|tag| tag.trim().chars().take(18).collect::<String>())
+        .filter(|tag| !tag.is_empty() && seen.insert(tag.clone()))
+        .take(8)
+        .collect()
+}
+
 fn to_pet_summary(root: &Path, pet: &PetEntryFile) -> PetSummary {
     let identity_asset = safe_asset_path(&pet.identity_image).ok();
     let spritesheet_asset = safe_asset_path(&pet.spritesheet).ok();
@@ -4388,10 +4443,19 @@ fn to_pet_summary(root: &Path, pet: &PetEntryFile) -> PetSummary {
         .filter_map(|path| safe_asset_path(path).ok())
         .collect::<Vec<_>>();
     let actions = pet_action_summaries(pet);
+    let pet_type = normalize_pet_type(&pet.pet_type, &pet.species);
+    let pet_type_label = if pet.pet_type_label.trim().is_empty() {
+        default_pet_type_label(&pet_type).to_string()
+    } else {
+        pet.pet_type_label.trim().chars().take(24).collect()
+    };
 
     PetSummary {
         id: pet.id.clone(),
         display_name: pet.display_name.clone(),
+        pet_type,
+        pet_type_label,
+        pet_tags: normalize_pet_tags(&pet.pet_tags),
         species: pet.species.clone(),
         notes: pet.notes.clone(),
         status: pet.status.clone(),
@@ -5156,7 +5220,7 @@ fn clear_pet_action_strip(
         .extension_assets
         .retain(|asset| asset.id != action_id);
     if before_count == target.extension_assets.len() {
-        return Err("没有找到可清空的扩展动作条".to_string());
+        return Err("没有找到可清空的特色动作".to_string());
     }
 
     target.supported_actions.retain(|id| id != &action_id);

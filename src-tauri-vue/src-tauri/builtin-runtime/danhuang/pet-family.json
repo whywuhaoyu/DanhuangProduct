@@ -5,6 +5,12 @@
     {
       "id": "danhuang",
       "display_name": "蛋黄",
+      "pet_type": "dog",
+      "pet_type_label": "狗狗",
+      "pet_tags": [
+        "纪念陪伴",
+        "完整动作"
+      ],
       "species": "dog",
       "status": "ready",
       "spritesheet": "spritesheet.webp",
@@ -45,6 +51,12 @@
     {
       "id": "black_white_dog",
       "display_name": "小墨",
+      "pet_type": "dog",
+      "pet_type_label": "狗狗",
+      "pet_tags": [
+        "安静",
+        "基础动作"
+      ],
       "species": "dog",
       "status": "ready",
       "spritesheet": "family/xiao-mo/spritesheet.webp",
@@ -52,7 +64,7 @@
       "reference_images": [
         "family-references/black-white-dog.jpg"
       ],
-      "notes": "小墨，黑白短毛狗，黑色下垂耳，黑色双眼罩，白色鼻梁，白色胸口和前腿，安静亲近。基础动作版，扩展动作待补充。",
+      "notes": "小墨，黑白短毛狗，黑色下垂耳，黑色双眼罩，白色鼻梁，白色胸口和前腿，安静亲近。基础动作版，特色动作待补充。",
       "relationship": "主人家里的宠物形象之一，作为独立桌宠陪伴主人。",
       "role_profile": "小墨是安静亲近的黑白小狗，适合用稳定、轻声、靠近的方式陪主人。",
       "background": "当前是基础动作版，先保留稳定的日常陪伴感，后续再补充更多动作。",
@@ -71,6 +83,12 @@
     {
       "id": "orange_cat",
       "display_name": "橘宝",
+      "pet_type": "cat",
+      "pet_type_label": "猫咪",
+      "pet_tags": [
+        "猫咪",
+        "特色动作"
+      ],
       "species": "cat",
       "status": "ready",
       "spritesheet": "family/ju-bao/spritesheet.webp",
@@ -78,7 +96,7 @@
       "reference_images": [
         "family-references/orange-cat-and-hugging-dog.jpg"
       ],
-      "notes": "橘宝基础动作已修复：挥爪抬爪更高，左右跑和跳跃保持当前稳定版；新增舔爪、舔毛、洗脸扩展动作。",
+      "notes": "橘宝基础动作已修复：挥爪抬爪更高，左右跑和跳跃保持当前稳定版；新增舔爪、舔毛、洗脸特色动作。",
       "relationship": "主人家里的橘猫形象之一，作为独立桌宠陪伴主人。",
       "role_profile": "橘宝是带一点猫咪自在感的陪伴角色，会用轻松、靠近但不黏人的方式回应主人。",
       "background": "橘宝来自主人保存的家庭宠物参考图，当前已接入基础动作和舔爪、舔毛、洗脸等猫咪动作。",
@@ -137,6 +155,12 @@
     {
       "id": "hugging_dog",
       "display_name": "小白",
+      "pet_type": "dog",
+      "pet_type_label": "狗狗",
+      "pet_tags": [
+        "温和",
+        "基础动作"
+      ],
       "species": "dog",
       "status": "ready",
       "spritesheet": "family/xiao-bai/spritesheet.webp",
@@ -163,6 +187,12 @@
     {
       "id": "pet-20260520-112213",
       "display_name": "胖久",
+      "pet_type": "dog",
+      "pet_type_label": "狗狗",
+      "pet_tags": [
+        "松狮",
+        "特色动作"
+      ],
       "species": "松狮",
       "status": "ready",
       "spritesheet": "family/pet-20260520-112213/spritesheet.webp",
@@ -171,10 +201,10 @@
         "family/pet-20260520-112213/uploads/user-1-01.jpg",
         "family/pet-20260520-112213/uploads/user-2-01.jpg"
       ],
-      "notes": "胖久，奶油色松狮小狗，圆脸厚毛、粉棕鼻、灰色胸背带。当前使用稳定 5 基础动作版；扩展动作接入摸摸头、舔爪、打哈欠、吐舌头、伸懒腰、打个盹。打滚等比例漂移动作暂不启用。",
+      "notes": "胖久，奶油色松狮小狗，圆脸厚毛、粉棕鼻、灰色胸背带。当前使用稳定 5 基础动作版；特色动作接入摸摸头、舔爪、打哈欠、吐舌头、伸懒腰、打个盹。打滚等比例漂移动作暂不启用。",
       "relationship": "主人家里的松狮小狗形象之一，作为独立桌宠陪伴主人。",
       "role_profile": "胖久是奶油色松狮小狗，圆脸厚毛，适合用慢一点、软一点、憨厚一点的方式陪伴主人。",
-      "background": "胖久当前使用稳定基础动作，并接入摸摸头、舔爪、打哈欠、吐舌头、伸懒腰、打个盹等扩展动作。",
+      "background": "胖久当前使用稳定基础动作，并接入摸摸头、舔爪、打哈欠、吐舌头、伸懒腰、打个盹等特色动作。",
       "personality": "憨厚、慢热、柔软、亲近，像一只圆滚滚靠过来的小狗。",
       "speech_style": "称呼用户为“主人”。语气软、短、慢一点，可以多用趴着、打盹、伸懒腰、贴近等生活化表达。",
       "action_pack_level": "basic",
@@ -301,6 +331,130 @@
             170,
             160,
             220
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ikun_duck",
+      "display_name": "小坤",
+      "pet_type": "meme",
+      "pet_type_label": "梗系",
+      "pet_tags": [
+        "唱跳Rap",
+        "篮球",
+        "特色动作"
+      ],
+      "species": "黄鸭",
+      "status": "ready",
+      "spritesheet": "family/ikun_duck/spritesheet.webp",
+      "identity_image": "family/ikun_duck/identity-base.png",
+      "reference_images": [
+        "family/ikun_duck/identity-base.png"
+      ],
+      "notes": "小坤是梗系黄鸭桌宠，灰色中分发型、黑色连帽衫和篮球是主要识别点，内置唱、跳、Rap、篮球、打招呼和认真工作等特色动作。",
+      "relationship": "作为独立梗系桌宠形象陪伴主人。",
+      "role_profile": "小坤带一点舞台感和篮球梗，但回应仍保持轻松、短句和低打扰。",
+      "background": "基于用户提供的参考图重新生成的原创桌宠形象，不包含真人肖像、品牌标识、歌词或水印。",
+      "personality": "活泼、臭美、有节奏感，适合用轻松方式给工作间隙一点反差感。",
+      "speech_style": "称呼用户为“主人”。短句、轻松，可以提到练球、节奏、打个招呼，但不使用歌词、品牌或真人口吻。",
+      "action_pack_level": "basic",
+      "supported_actions": [
+        "idle",
+        "running-right",
+        "running-left",
+        "waving",
+        "jumping",
+        "failed",
+        "waiting",
+        "running",
+        "review",
+        "custom:basketball",
+        "custom:sing",
+        "custom:dance",
+        "custom:rap",
+        "custom:greeting",
+        "custom:working"
+      ],
+      "extension_assets": [
+        {
+          "id": "custom:basketball",
+          "label": "打篮球",
+          "strip": "family/ikun_duck/extension-custom-basketball.webp",
+          "frames": 8,
+          "durations": [
+            120,
+            120,
+            120,
+            140,
+            120,
+            120,
+            160,
+            240
+          ]
+        },
+        {
+          "id": "custom:sing",
+          "label": "唱",
+          "strip": "family/ikun_duck/extension-custom-sing.webp",
+          "frames": 4,
+          "durations": [
+            180,
+            160,
+            180,
+            240
+          ]
+        },
+        {
+          "id": "custom:dance",
+          "label": "跳",
+          "strip": "family/ikun_duck/extension-custom-dance.webp",
+          "frames": 6,
+          "durations": [
+            130,
+            130,
+            130,
+            130,
+            160,
+            220
+          ]
+        },
+        {
+          "id": "custom:rap",
+          "label": "Rap",
+          "strip": "family/ikun_duck/extension-custom-rap.webp",
+          "frames": 4,
+          "durations": [
+            160,
+            140,
+            160,
+            220
+          ]
+        },
+        {
+          "id": "custom:greeting",
+          "label": "打招呼",
+          "strip": "family/ikun_duck/extension-custom-greeting.webp",
+          "frames": 4,
+          "durations": [
+            160,
+            140,
+            140,
+            260
+          ]
+        },
+        {
+          "id": "custom:working",
+          "label": "认真工作",
+          "strip": "family/ikun_duck/extension-custom-working.webp",
+          "frames": 6,
+          "durations": [
+            180,
+            150,
+            180,
+            150,
+            200,
+            260
           ]
         }
       ]

@@ -59,12 +59,16 @@ const demoCoreActions = [
   atlasAction("jumping", "跳一下", 4, 5, [80, 75, 90, 95, 140]),
 ];
 
-const demoFullActions = [
+const demoStandardActions = [
   ...demoCoreActions,
-  atlasAction("waiting", "等一下", 6, 6, [220, 180, 180, 220, 180, 260]),
-  atlasAction("review", "陪我一会", 8, 6, [210, 190, 220, 190, 190, 260]),
   atlasAction("failed", "委屈一下", 5, 8, [120, 100, 120, 140, 160, 180, 180, 260]),
+  atlasAction("waiting", "等一下", 6, 6, [220, 180, 180, 220, 180, 260]),
   atlasAction("running", "跑一小段", 7, 6, [62, 58, 54, 58, 62, 74]),
+  atlasAction("review", "陪我一会", 8, 6, [210, 190, 220, 190, 190, 260]),
+];
+
+const demoFullActions = [
+  ...demoStandardActions,
   atlasAction("standing", "站一会", 9, 8, [240, 220, 260, 220, 280, 220, 240, 320]),
   atlasAction("tongue", "吐舌头", 10, 8, [140, 140, 150, 150, 150, 150, 160, 220]),
   atlasAction("lying", "卧倒", 11, 8, [190, 190, 230, 260, 260, 300, 300, 360]),
@@ -81,6 +85,9 @@ const demoPets: PetSummary[] = [
   {
     id: "danhuang",
     display_name: "蛋黄",
+    pet_type: "dog",
+    pet_type_label: "狗狗",
+    pet_tags: ["纪念陪伴", "完整动作"],
     species: "小狗",
     notes: "内置完整动作包，首次启动即可显示、对话、提醒和巡游。",
     status: "ready",
@@ -97,6 +104,9 @@ const demoPets: PetSummary[] = [
   {
     id: "black_white_dog",
     display_name: "小墨",
+    pet_type: "dog",
+    pet_type_label: "狗狗",
+    pet_tags: ["安静", "基础动作"],
     species: "小狗",
     notes: "黑白小狗形象，已内置基础动作，可直接切换到桌面。",
     status: "ready",
@@ -113,8 +123,11 @@ const demoPets: PetSummary[] = [
   {
     id: "orange_cat",
     display_name: "橘宝",
+    pet_type: "cat",
+    pet_type_label: "猫咪",
+    pet_tags: ["猫咪", "特色动作"],
     species: "小猫",
-    notes: "橘猫形象，带舔爪、舔毛和洗脸三个扩展动作。",
+    notes: "橘猫形象，带舔爪、舔毛和洗脸三个特色动作。",
     status: "ready",
     action_pack_level: "basic",
     supported_action_count: 8,
@@ -134,6 +147,9 @@ const demoPets: PetSummary[] = [
   {
     id: "hugging_dog",
     display_name: "小白",
+    pet_type: "dog",
+    pet_type_label: "狗狗",
+    pet_tags: ["温和", "基础动作"],
     species: "小狗",
     notes: "拥抱小狗形象，已内置基础动作，可直接切换到桌面。",
     status: "ready",
@@ -150,8 +166,11 @@ const demoPets: PetSummary[] = [
   {
     id: "pet-20260520-112213",
     display_name: "胖久",
+    pet_type: "dog",
+    pet_type_label: "狗狗",
+    pet_tags: ["松狮", "特色动作"],
     species: "松狮",
-    notes: "奶油色松狮小狗，已内置基础动作和 8 个扩展动作。",
+    notes: "奶油色松狮小狗，已内置基础动作和 8 个特色动作。",
     status: "ready",
     action_pack_level: "basic",
     supported_action_count: 13,
@@ -174,6 +193,33 @@ const demoPets: PetSummary[] = [
       stripAction("sleeping", "打个盹", "family/pet-20260520-112213/extension-sleeping.webp", 6),
       stripAction("chase-butterfly", "追蝴蝶", "family/pet-20260520-112213/extension-chase-butterfly.webp", 8),
       stripAction("sniffing", "闻一闻", "family/pet-20260520-112213/extension-sniffing.webp", 8),
+    ],
+  },
+  {
+    id: "ikun_duck",
+    display_name: "小坤",
+    pet_type: "meme",
+    pet_type_label: "梗系",
+    pet_tags: ["唱跳Rap", "篮球", "特色动作"],
+    species: "黄鸭",
+    notes: "梗系黄鸭形象，灰色中分发型、黑色连帽衫和篮球是主要识别点，带打篮球、唱、跳、Rap、打招呼和认真工作六个特色动作。",
+    status: "ready",
+    action_pack_level: "basic",
+    supported_action_count: 15,
+    extension_action_count: 6,
+    identity_asset: "family/ikun_duck/identity-base.png",
+    reference_assets: ["family/ikun_duck/identity-base.png"],
+    spritesheet_asset: "family/ikun_duck/spritesheet.webp",
+    identity_available: true,
+    spritesheet_available: true,
+    actions: [
+      ...demoStandardActions,
+      stripAction("custom:basketball", "打篮球", "family/ikun_duck/extension-custom-basketball.webp", 8),
+      stripAction("custom:sing", "唱", "family/ikun_duck/extension-custom-sing.webp", 4),
+      stripAction("custom:dance", "跳", "family/ikun_duck/extension-custom-dance.webp", 6),
+      stripAction("custom:rap", "Rap", "family/ikun_duck/extension-custom-rap.webp", 4),
+      stripAction("custom:greeting", "打招呼", "family/ikun_duck/extension-custom-greeting.webp", 4),
+      stripAction("custom:working", "认真工作", "family/ikun_duck/extension-custom-working.webp", 6),
     ],
   },
 ];
@@ -252,6 +298,10 @@ const mockRuntime: RuntimeSummary = {
     notes: ["体验预览使用 5 个内置宠物素材；桌面版会在本机数据目录初始化同一套宠物。"],
   },
 };
+
+function cloneMockRuntime() {
+  return JSON.parse(JSON.stringify(mockRuntime)) as RuntimeSummary;
+}
 
 let mockTodos: TodoSummary[] = [
   {
@@ -394,7 +444,7 @@ export const runtimeApi: RuntimeApi = {
   async getRuntimeSummary() {
     if (!isTauri()) {
       syncMockTodoCounts();
-      return mockRuntime;
+      return cloneMockRuntime();
     }
     return invoke<RuntimeSummary>("get_runtime_summary");
   },
@@ -437,7 +487,7 @@ export const runtimeApi: RuntimeApi = {
       if (!actionIds.length) throw new Error("右键动作栏至少保留 1 个动作");
       mockRuntime.settings.quick_menu_actions = actionIds;
       mockRuntime.settings.quick_menu_action_count = actionIds.length;
-      return mockRuntime;
+      return cloneMockRuntime();
     }
     return invoke<RuntimeSummary>("update_quick_menu_actions", { input });
   },
@@ -463,7 +513,7 @@ export const runtimeApi: RuntimeApi = {
       mockRuntime.features.active_provider = activeProvider;
       mockRuntime.features.enabled_provider_count = providers.filter((provider) => provider.enabled).length;
       mockRuntime.features.saved_key_provider_count = providers.filter((provider) => provider.has_saved_key).length;
-      return mockRuntime;
+      return cloneMockRuntime();
     }
     return invoke<RuntimeSummary>("update_ai_provider_state", { input });
   },
@@ -484,7 +534,7 @@ export const runtimeApi: RuntimeApi = {
       if (!input.clear) {
         mockRuntime.features.active_provider = input.provider_id;
       }
-      return mockRuntime;
+      return cloneMockRuntime();
     }
     return invoke<RuntimeSummary>("update_ai_provider_key", { input });
   },
@@ -514,7 +564,7 @@ export const runtimeApi: RuntimeApi = {
       if (!target) throw new Error("体验演示没有这个可切换宠物");
       mockRuntime.current_pet_id = target.id;
       mockRuntime.current_pet = target;
-      return mockRuntime;
+      return cloneMockRuntime();
     }
     return invoke<RuntimeSummary>("switch_pet", { input });
   },
@@ -529,7 +579,7 @@ export const runtimeApi: RuntimeApi = {
       if (mockRuntime.current_pet_id === target.id) {
         mockRuntime.current_pet = target;
       }
-      return mockRuntime;
+      return cloneMockRuntime();
     }
     return invoke<RuntimeSummary>("update_pet_profile", { input });
   },
@@ -551,7 +601,7 @@ export const runtimeApi: RuntimeApi = {
       if (mockRuntime.current_pet_id === target.id) {
         mockRuntime.current_pet = target;
       }
-      return mockRuntime;
+      return cloneMockRuntime();
     }
     return invoke<RuntimeSummary>("upload_pet_image", { input });
   },
@@ -577,7 +627,7 @@ export const runtimeApi: RuntimeApi = {
       if (mockRuntime.current_pet_id === target.id) {
         mockRuntime.current_pet = target;
       }
-      return mockRuntime;
+      return cloneMockRuntime();
     }
     return invoke<RuntimeSummary>("upload_pet_action_strip", { input });
   },
@@ -596,7 +646,7 @@ export const runtimeApi: RuntimeApi = {
       if (mockRuntime.current_pet_id === target.id) {
         mockRuntime.current_pet = target;
       }
-      return mockRuntime;
+      return cloneMockRuntime();
     }
     return invoke<RuntimeSummary>("clear_pet_action_strip", { input });
   },

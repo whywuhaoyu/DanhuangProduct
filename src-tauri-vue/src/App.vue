@@ -131,6 +131,7 @@ type ToastTone = "success" | "info" | "warn" | "danger-soft";
 type ReminderFilter = "全部" | "今日" | "重要" | "已完成";
 type ProviderState = "待配置 Key" | "可接入" | "测试中" | "已启用" | "当前" | "连接失败" | "高级";
 type PresencePresetId = "companion" | "focus" | "playful" | "edge";
+type PetTypeId = "all" | "dog" | "cat" | "meme" | "custom" | "other";
 type PetCommandId =
   | "quick-talk"
   | "quick-chat"
@@ -148,6 +149,11 @@ interface ThemeOption {
   label: string;
   caption: string;
   swatches: string[];
+}
+
+interface PetTypeOption {
+  id: PetTypeId;
+  label: string;
 }
 
 interface BubblePaletteOption {
@@ -316,6 +322,15 @@ const petCommandIds: PetCommandId[] = [
   "clear-bubbles",
 ];
 
+const petTypeOptions: PetTypeOption[] = [
+  { id: "all", label: "全部" },
+  { id: "dog", label: "狗狗" },
+  { id: "cat", label: "猫咪" },
+  { id: "meme", label: "梗系" },
+  { id: "custom", label: "自定义" },
+  { id: "other", label: "其他" },
+];
+
 const runtime = ref<RuntimeSummary | null>(null);
 const currentAsset = ref("");
 const currentAssetPath = ref("");
@@ -339,6 +354,8 @@ const petPinned = ref(true);
 const quickMenuOpen = ref(false);
 const quickMenuMoreOpen = ref(false);
 const petSwitcherOpen = ref(false);
+const identityPetTypeFilter = ref<PetTypeId>("all");
+const quickMenuPetTypeFilter = ref<PetTypeId>("all");
 const quickMenuPos = ref({ x: 44, y: 44 });
 const activePetActionId = ref("idle");
 const spriteFrame = ref(0);
@@ -609,7 +626,17 @@ const securityActionCards: SecurityActionCard[] = [
   { action: "installer-status", label: "安装包状态", caption: "检查安装包是否已生成，并确认无需额外运行环境。", icon: PackageCheck, tone: "info" },
 ];
 
-const baseActionIds = ["idle", "running-right", "running-left", "waving", "jumping"];
+const baseActionIds = [
+  "idle",
+  "running-right",
+  "running-left",
+  "waving",
+  "jumping",
+  "failed",
+  "waiting",
+  "running",
+  "review",
+];
 
 const roleStyles = ["蛋黄本色", "技术导师", "产品拆解", "知识博主", "短视频编导", "研究助手", "直说教练", "运营写手"];
 
@@ -769,6 +796,8 @@ const readyPets = computed(() =>
     .slice()
     .sort((a, b) => Number(b.id === runtime.value?.current_pet_id) - Number(a.id === runtime.value?.current_pet_id)),
 );
+const filteredReadyPets = computed(() => readyPets.value.filter((pet) => petMatchesType(pet, identityPetTypeFilter.value)));
+const quickMenuReadyPets = computed(() => readyPets.value.filter((pet) => petMatchesType(pet, quickMenuPetTypeFilter.value)));
 const navigationItems = computed(() => navGroups.flatMap((group) => group.items));
 const activeTheme = computed(() => themeOptions.find((theme) => theme.id === activeThemeId.value) ?? themeOptions[0]);
 const selectedProviderCard = computed(() => providerCards.value.find((provider) => provider.id === selectedProvider.value) ?? providerCards.value[0]);
@@ -968,7 +997,7 @@ const pageCaption = computed(() => {
     identity: "当前主形象、现实照片和家人形象列表。",
     profile: "宠物级陪伴数据、长期记忆和最近聊天。",
     story: "故事、日记、思念记录，默认克制表达。",
-    motion: "动作预览、右键动作栏和扩展动作上传。",
+    motion: "动作预览、右键动作栏和特色动作上传。",
     ai: "AI 厂商、模型、Key 隐私和测试反馈。",
     appearance: "透明窗口、气泡样式、颜色预设和即时预览。",
     behavior: "移动速度、巡游策略、多屏和安静时段。",
@@ -3721,7 +3750,7 @@ function openPanelPage(page: string) {
 }
 
 function petStatusLabel(pet: PetSummary) {
-  return `${pet.supported_action_count} 个动作，${pet.extension_action_count} 个扩展`;
+  return `${pet.supported_action_count} 个动作，${pet.extension_action_count} 个特色动作`;
 }
 
 function petActionPackLabel(pet: PetSummary | null | undefined) {
@@ -3733,7 +3762,33 @@ function petActionPackLabel(pet: PetSummary | null | undefined) {
 }
 
 function actionKindLabel(action: PetActionSummary) {
-  return action.source === "strip" ? "补充动作" : "内置动作";
+  return action.source === "strip" ? "特色动作" : "内置动作";
+}
+
+function normalizedPetTypeId(pet: PetSummary | null | undefined): PetTypeId {
+  const typeId = pet?.pet_type?.trim();
+  if (typeId === "dog" || typeId === "cat" || typeId === "meme" || typeId === "custom" || typeId === "other") return typeId;
+  const species = pet?.species?.toLowerCase() ?? "";
+  if (species.includes("dog") || species.includes("狗") || species.includes("犬") || species.includes("松狮")) return "dog";
+  if (species.includes("cat") || species.includes("猫")) return "cat";
+  if (species.includes("duck") || species.includes("鸭") || species.includes("梗")) return "meme";
+  return species ? "other" : "custom";
+}
+
+function petTypeLabel(pet: PetSummary | null | undefined) {
+  return pet?.pet_type_label?.trim() || petTypeOptions.find((item) => item.id === normalizedPetTypeId(pet))?.label || "自定义";
+}
+
+function petSpeciesLabel(pet: PetSummary | null | undefined) {
+  return pet?.species?.trim() || "未标注物种";
+}
+
+function petMetaLabel(pet: PetSummary) {
+  return `${petTypeLabel(pet)} · ${petSpeciesLabel(pet)} · ${petActionPackLabel(pet)}`;
+}
+
+function petMatchesType(pet: PetSummary, typeId: PetTypeId) {
+  return typeId === "all" || normalizedPetTypeId(pet) === typeId;
 }
 
 function petInitial(pet: PetSummary) {
@@ -3848,7 +3903,7 @@ async function uploadPetActionStripFile(file: File | undefined) {
     return;
   }
   if (file.size > 10 * 1024 * 1024) {
-    showToast("动作条超过 10MB，先压缩后再导入");
+    showToast("动作文件超过 10MB，先压缩后再导入");
     return;
   }
 
@@ -3873,7 +3928,7 @@ async function uploadPetActionStripFile(file: File | undefined) {
     localStorage.setItem(PET_REFRESH_KEY, `${Date.now()}:action:${currentPet.value.id}:${actionId}`);
     lastActionImportResult.value = `${label} 已导入，${frames} 帧，已加入当前宠物动作清单；仍需人工确认身份、方向和透明边缘。`;
     petActionDraft.value.action_id = nextCustomActionId();
-    showToast(`${label} 动作条已导入`);
+    showToast(`${label} 特色动作已导入`);
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
   } finally {
@@ -3897,7 +3952,7 @@ async function handleActionStripDrop(event: DragEvent) {
 
 async function clearPetActionStrip(action: PetActionSummary) {
   if (!currentPet.value || action.source !== "strip") return;
-  const confirmed = window.confirm(`确认从动作清单移除“${action.label}”？\n\n不会删除磁盘上的原始动作条文件，只会从当前宠物和右键栏移除。`);
+  const confirmed = window.confirm(`确认从动作清单移除“${action.label}”？\n\n不会删除磁盘上的原始动作文件，只会从当前宠物和右键栏移除。`);
   if (!confirmed) return;
   try {
     const summary = await runtimeApi.clearPetActionStrip({
@@ -3907,7 +3962,7 @@ async function clearPetActionStrip(action: PetActionSummary) {
     await applyRuntimeSummary(summary, { refreshTodoList: false });
     localStorage.setItem(PET_REFRESH_KEY, `${Date.now()}:action-clear:${currentPet.value.id}:${action.id}`);
     lastActionImportResult.value = `${action.label} 已从动作清单移除，素材文件未物理删除。`;
-    showToast("扩展动作已从清单移除");
+    showToast("特色动作已从清单移除");
   } catch (error) {
     showToast(error instanceof Error ? error.message : String(error));
   }
@@ -4373,8 +4428,19 @@ onBeforeUnmount(() => {
         </div>
         <div v-if="petSwitcherOpen" class="quick-menu__pet-switcher">
           <p>家人形象</p>
+          <div class="quick-menu__type-filter" aria-label="宠物类型筛选">
+            <button
+              v-for="type in petTypeOptions"
+              :key="type.id"
+              type="button"
+              :class="{ active: quickMenuPetTypeFilter === type.id }"
+              @click.stop="quickMenuPetTypeFilter = type.id"
+            >
+              {{ type.label }}
+            </button>
+          </div>
           <button
-            v-for="pet in readyPets"
+            v-for="pet in quickMenuReadyPets"
             :key="pet.id"
             type="button"
             class="quick-menu__pet-row"
@@ -4385,13 +4451,14 @@ onBeforeUnmount(() => {
             <span class="quick-menu__pet-avatar">{{ petInitial(pet) }}</span>
             <span>
               <strong>{{ pet.display_name }}</strong>
-              <small>{{ pet.species || "未标注种类" }} · {{ petActionPackLabel(pet) }}</small>
+              <small>{{ petMetaLabel(pet) }}</small>
             </span>
             <StatusPill
               :label="pet.id === runtime?.current_pet_id ? '当前' : petSwitchingId === pet.id ? '切换中' : '切换'"
               :tone="pet.id === runtime?.current_pet_id ? 'info' : 'sage'"
             />
           </button>
+          <small v-if="!quickMenuReadyPets.length" class="quick-menu__empty">这个类型下暂时没有可切换形象。</small>
           <button class="quick-menu__manage-link" type="button" @click="openPanelPage('identity')">管理全部形象</button>
         </div>
         <div class="quick-menu__section">
@@ -4585,7 +4652,7 @@ onBeforeUnmount(() => {
             <div class="metric-row">
               <MetricCard label="可用形象" :value="runtime?.ready_pet_count ?? 0" />
               <MetricCard label="可播放动作" :value="runtime?.total_supported_actions ?? 0" />
-              <MetricCard label="扩展动作" :value="runtime?.total_extension_assets ?? 0" />
+              <MetricCard label="特色动作" :value="runtime?.total_extension_assets ?? 0" />
             </div>
             <div class="progress-block">
               <div>
@@ -4704,7 +4771,7 @@ onBeforeUnmount(() => {
             <small v-if="referenceAssetError" class="inline-warning">{{ referenceAssetError }}</small>
             <div class="metric-row">
               <MetricCard label="动作" :value="currentPet?.supported_action_count ?? 0" />
-              <MetricCard label="扩展" :value="currentPet?.extension_action_count ?? 0" />
+              <MetricCard label="特色动作" :value="currentPet?.extension_action_count ?? 0" />
               <MetricCard label="参考图" :value="currentPet?.reference_assets.length ?? 0" />
               <MetricCard label="动作表现" :value="petActionPackLabel(currentPet)" />
             </div>
@@ -4718,12 +4785,23 @@ onBeforeUnmount(() => {
               </div>
               <Image :size="22" />
             </div>
+            <div class="filter-row pet-type-filter" aria-label="宠物类型筛选">
+              <button
+                v-for="type in petTypeOptions"
+                :key="type.id"
+                type="button"
+                :class="{ selected: identityPetTypeFilter === type.id }"
+                @click="identityPetTypeFilter = type.id"
+              >
+                {{ type.label }}
+              </button>
+            </div>
             <div class="pet-list">
-              <div v-for="pet in readyPets" :key="pet.id" class="pet-row" :class="{ current: pet.id === runtime?.current_pet_id }">
+              <div v-for="pet in filteredReadyPets" :key="pet.id" class="pet-row" :class="{ current: pet.id === runtime?.current_pet_id }">
                 <div class="pet-row__avatar">{{ petInitial(pet) }}</div>
                 <div>
                   <strong>{{ pet.display_name }}</strong>
-                  <span>{{ pet.species || "未标注种类" }} · {{ petActionPackLabel(pet) }} · 参考图 {{ pet.reference_assets.length }}</span>
+                  <span>{{ petMetaLabel(pet) }} · 参考图 {{ pet.reference_assets.length }}</span>
                 </div>
                 <StatusPill :label="pet.id === runtime?.current_pet_id ? '当前' : pet.status" :tone="pet.id === runtime?.current_pet_id ? 'info' : 'sage'" />
                 <span class="row-meta">{{ petStatusLabel(pet) }}</span>
@@ -4738,6 +4816,10 @@ onBeforeUnmount(() => {
                     {{ pet.id === runtime?.current_pet_id ? "当前形象" : petSwitchingId === pet.id ? "切换中" : "切换" }}
                   </button>
                 </div>
+              </div>
+              <div v-if="!filteredReadyPets.length" class="empty-state compact">
+                <Image :size="20" />
+                <span>这个类型下暂时没有可用形象。</span>
               </div>
             </div>
           </article>
@@ -4889,7 +4971,7 @@ onBeforeUnmount(() => {
             <div class="panel-header">
               <div>
                 <span class="eyebrow">操作</span>
-                <h2>常用、基础动作、扩展动作、窗口操作分组</h2>
+                <h2>常用、基础动作、特色动作、窗口操作分组</h2>
               </div>
               <Play :size="22" />
             </div>
@@ -4916,12 +4998,12 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="operation-section">
-              <h3>扩展动作</h3>
+              <h3>特色动作</h3>
               <div class="chip-grid">
                 <button v-for="item in extensionActionItems" :key="item.id" type="button" @click="queueAction(item)">
                   {{ item.label }}
                 </button>
-                <small v-if="!extensionActionItems.length">扩展动作还未接入，后续可上传动作条。</small>
+                <small v-if="!extensionActionItems.length">特色动作还未接入，后续可上传特色动作素材。</small>
               </div>
             </div>
             <div class="operation-section">
@@ -4962,7 +5044,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="metric-row">
               <MetricCard label="可播放动作" :value="playableActions.length" />
-              <MetricCard label="扩展动作条" :value="runtime?.total_extension_assets ?? 0" />
+              <MetricCard label="特色动作" :value="runtime?.total_extension_assets ?? 0" />
               <MetricCard label="右键动作" :value="activeQuickMenuActionItems.length" />
             </div>
             <div class="action-preview-list">
@@ -4998,8 +5080,8 @@ onBeforeUnmount(() => {
           <article class="panel">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">扩展动作导入</span>
-                <h2>上传透明 PNG/WebP 动作条</h2>
+                <span class="eyebrow">特色动作导入</span>
+                <h2>上传透明 PNG/WebP 特色动作</h2>
               </div>
               <Upload :size="22" />
             </div>
@@ -5011,7 +5093,7 @@ onBeforeUnmount(() => {
               @drop.prevent="handleActionStripDrop"
             >
               <Upload :size="24" />
-              <strong>{{ petActionUploading ? "正在导入动作条" : "拖入 PNG/WebP 动作条" }}</strong>
+              <strong>{{ petActionUploading ? "正在导入特色动作" : "拖入 PNG/WebP 动作素材" }}</strong>
                 <span>也可以先填名称和帧数，再用下方按钮选择文件。动作编号会自动生成。</span>
             </div>
             <div class="action-upload-form">
@@ -5042,7 +5124,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="qa-list">
               <div><StatusPill label="尺寸" tone="sage" /><span>Rust 校验宽度等于 192 x 帧数，高度 208。</span></div>
-              <div><StatusPill label="格式" tone="sage" /><span>动作条只接受透明友好的 PNG/WebP。</span></div>
+              <div><StatusPill label="格式" tone="sage" /><span>动作素材只接受透明友好的 PNG/WebP。</span></div>
               <div><StatusPill label="语义" tone="warn" /><span>方向、身份一致性仍需人工确认。</span></div>
             </div>
           </article>
