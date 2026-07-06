@@ -29,7 +29,7 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 module = load_runtime_module(path)
 
                 if path == CURRENT_RUNTIME_FILE:
-                    self.assertEqual(module.APP_VERSION, "0.11.73")
+                    self.assertEqual(module.APP_VERSION, "0.11.74")
                 else:
                     self.assertTrue(hasattr(module, "APP_VERSION"))
                 self.assertIsNotNone(module.MODULAR_BUILD_PET_ACTION_MANIFEST)
@@ -281,6 +281,23 @@ class Phase3RuntimeIntegrationTests(unittest.TestCase):
                 self.assertNotIn('messagebox.showerror("导入失败", "至少选择一张主像素图或参考照片。"', source)
                 self.assertNotIn('messagebox.showwarning("无法上传"', source)
                 self.assertNotIn('messagebox.showerror("上传失败"', source)
+
+    def test_extension_action_upload_feedback_uses_panel_toast(self) -> None:
+        for path in RUNTIME_FILES:
+            with self.subTest(path=str(path.relative_to(PROJECT_ROOT))):
+                source = path.read_text(encoding="utf-8")
+
+                self.assertIn("def save_extension_action_asset(self, label, strip_path, target_state=None, feedback_parent=None):", source)
+                self.assertIn('self.show_panel_toast("导入失败", "请先填写动作名称。", "warning", parent=feedback_parent)', source)
+                self.assertIn('self.show_panel_toast("导入失败", "；".join(errors)[:180], "error", parent=feedback_parent)', source)
+                self.assertIn('self.show_panel_toast("导入完成，建议检查", "；".join(warnings)[:180], "warning", parent=feedback_parent)', source)
+                self.assertIn("self.save_extension_action_asset(label, strip_path, target_state, feedback_parent=self.panel)", source)
+                self.assertIn('self.show_panel_toast("动作不合格", "；".join(errors)[:180], "error", parent=window)', source)
+                self.assertIn('self.show_panel_toast("建议检查", "；".join(warnings)[:180], "warning", parent=window)', source)
+                self.assertIn("self.save_extension_action_asset(label_var.get(), strip_var.get(), feedback_parent=window)", source)
+                self.assertNotIn('messagebox.showerror("导入失败", "请先填写动作名称。"', source)
+                self.assertNotIn('messagebox.showerror("动作不合格"', source)
+                self.assertNotIn('messagebox.showwarning("建议检查"', source)
 
     def test_clipboard_copy_feedback_uses_panel_toast(self) -> None:
         for path in RUNTIME_FILES:

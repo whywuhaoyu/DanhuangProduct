@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.74-tk-extension-action-feedback-polish - 2026-07-06
+
+- 继续按付费用户严苛审计动作资产链路：扩展动作上传窗口的动作名称为空、动作条不合格和建议检查反馈统一改为当前窗口 Toast。
+- `save_extension_action_asset()` 新增可选 `feedback_parent` 参数，推荐待补动作上传路径也能把反馈锚定到控制面板。
+- 保留“动作已上传”的三态选择框给下一批单独重做，避免把清空/重选/取消复杂确认混入本批。
+- 已补回归测试和 QA 证据：`qa/tk-ui-0.11.74-extension-action-feedback-20260706/extension-action-feedback-evidence.json`、`qa/tk-ui-0.11.74-extension-action-feedback-20260706/exe-smoke-desktop.png`。
+- 已生成并验证 Windows 免 Python 包：`packages/danhuang-desktop-pet-windows-20260706-224054.zip`，ZIP SHA256 `CAD47DB60C0A6BC6D86C6E75D97DF044633615B069A70C4748F855412747FBE6`，EXE SHA256 `C3787BF32F612264806212DD9A0B253EC7B4FF4E2B356DBDE3D1FE2ADAD5C851`。
+- 按最新打包规则清理 `packages/`，只保留 `danhuang-desktop-pet-windows-20260706-224054/` 和对应 zip。
+
 ## 0.11.73-tk-new-pet-import-feedback-polish - 2026-07-06
 
 - 继续按付费用户严苛审计新增宠物链路：新增宠物向导的创建失败、基础动作缺失、拖拽格式不支持和拖拽异常反馈统一改为当前窗口 Toast。

@@ -13,6 +13,7 @@
 
 | 版本 | 日期 | 更新内容 |
 | --- | --- | --- |
+| v1.23 | 2026-07-06 | 第三十批执行：扩展动作上传核心失败反馈从系统弹窗改为当前窗口 Toast，生成 0.11.74 发行包并只保留最新包 |
 | v1.22 | 2026-07-06 | 第二十九批执行：新增宠物导入核心失败反馈从系统弹窗改为当前窗口 Toast，生成 0.11.73 发行包并只保留最新包 |
 | v1.21 | 2026-07-06 | 第二十八批执行：更换主像素图失败反馈从系统弹窗改为面板 Toast，生成 0.11.72 发行包并只保留最新包 |
 | v1.20 | 2026-07-06 | 第二十七批执行：复制提示词反馈从系统弹窗改为 Toast，生成 0.11.71 发行包并只保留最新包 |
@@ -121,7 +122,7 @@ src-prototype/modular/ui/
 - 形象页 0.11.72 已把更换主像素图时的图片不存在、无法读取反馈改为面板 Toast，不再弹 Windows 系统错误框。
 - 新增宠物向导 0.11.73 已把创建失败、基础动作缺失、拖拽格式不支持和拖拽异常反馈改为当前窗口 Toast。
 - 形象/动作辅助链路 0.11.71 已把复制提示词、扩展动作提示词和使用教学的空内容、成功、失败反馈改为面板 Toast。
-- 动作页：基础动作、扩展动作、推荐待补动作、上传 QA 结果分区展示；0.11.62 已把清空扩展动作精灵图改为暖色面板确认，明确动作页、右键动作栏和可播放动作边界。
+- 动作页：基础动作、扩展动作、推荐待补动作、上传 QA 结果分区展示；0.11.62 已把清空扩展动作精灵图改为暖色面板确认，明确动作页、右键动作栏和可播放动作边界；0.11.74 已把扩展动作上传核心失败反馈改为当前窗口 Toast。
 
 ### P2：低频页面和模块化
 
@@ -397,3 +398,14 @@ src-prototype/modular/ui/tk_panel.py
 - 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.73-new-pet-import-feedback-20260706/new-pet-import-feedback-evidence.json`、`qa/tk-ui-0.11.73-new-pet-import-feedback-20260706/exe-smoke-desktop.png`。
 - 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-223303/` 和 zip；ZIP SHA256 `89D0453FB2D1C8A165035DE2873BCEC665265BA4EB17915823FA939E6FFA84C4`；EXE SHA256 `637B629CC9733738A4D6AE8E4CEFABB0D7A36AE0C1267F9F8457003B992326ED`。
 - 包清理状态：按用户最新要求，`packages/` 只保留最新一组 Tk Windows 包目录和 zip；旧 0.11.72 包已删除。
+
+### 2026-07-06 第三十批
+
+- 目标线别：Tk/Python 线，版本号更新到 `0.11.74`。
+- 审计口径：继续按付费用户动作资产链路检查，要求上传扩展动作时的动作名称为空、动作条不合格和建议检查不能再跳出割裂的 Windows 系统弹窗。
+- 严格问题：0.11.73 已收敛新增宠物向导，但扩展动作上传窗口仍在动作条校验失败和警告时使用 `messagebox`；用户上传动作素材时会被系统弹窗打断，也不清楚错误属于哪个上传窗口。
+- 改动内容：`save_extension_action_asset()` 增加 `feedback_parent`；自定义扩展动作窗口和推荐待补动作上传路径的失败/警告反馈统一改为 `show_panel_toast()`。
+- 验证状态：legacy、当前运行镜像和发行包 app `py_compile` 已通过；52 个 modular 单元测试通过；当前运行镜像和发行包 `validate_phase3.py` 均无 warnings；包内 JSON、UTF-8、真实隐私扫描、zip 缓存残留检查和 exe 8 秒桌面烟测已完成。
+- 截图状态：已补 QA 证据和桌面烟测截图 `qa/tk-ui-0.11.74-extension-action-feedback-20260706/extension-action-feedback-evidence.json`、`qa/tk-ui-0.11.74-extension-action-feedback-20260706/exe-smoke-desktop.png`。
+- 打包状态：已生成 `packages/danhuang-desktop-pet-windows-20260706-224054/` 和 zip；ZIP SHA256 `CAD47DB60C0A6BC6D86C6E75D97DF044633615B069A70C4748F855412747FBE6`；EXE SHA256 `C3787BF32F612264806212DD9A0B253EC7B4FF4E2B356DBDE3D1FE2ADAD5C851`。
+- 包清理状态：按用户最新要求，`packages/` 只保留最新一组 Tk Windows 包目录和 zip；旧 0.11.73 包已删除。

@@ -41,29 +41,30 @@
 | v27 | 2026-07-06 | 记录 0.11.71 复制提示词反馈统一、最终包哈希、桌面烟测和只保留最新包证据 |
 | v28 | 2026-07-06 | 记录 0.11.72 主像素图失败反馈统一、最终包哈希、桌面烟测和只保留最新包证据 |
 | v29 | 2026-07-06 | 记录 0.11.73 新增宠物导入反馈统一、最终包哈希、桌面烟测和只保留最新包证据 |
+| v30 | 2026-07-06 | 记录 0.11.74 扩展动作上传反馈统一、最终包哈希、桌面烟测和只保留最新包证据 |
 
 ## 核心结论
 
-已基于 Tk 版本 `0.11.73` 在当前根 `E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct-tk` 生成新的 Windows 免 Python exe 包。包产物仍留在本机 `packages/`，不进入 GitHub 代码仓库；GitHub 只提交本记录和源码/文档变更。
+已基于 Tk 版本 `0.11.74` 在当前根 `E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct-tk` 生成新的 Windows 免 Python exe 包。包产物仍留在本机 `packages/`，不进入 GitHub 代码仓库；GitHub 只提交本记录和源码/文档变更。
 
-按照用户最新要求，`packages/` 每次打包后只保留最新一组 Tk Windows 包目录和 zip。本批新包验证通过后，已删除旧 0.11.72 包目录和 zip，当前只保留 0.11.73。
+按照用户最新要求，`packages/` 每次打包后只保留最新一组 Tk Windows 包目录和 zip。本批新包验证通过后，已删除旧 0.11.73 包目录和 zip，当前只保留 0.11.74。
 
 本批发行包按“蛋黄单宠版”处理：`pet-family.json` 只包含 `danhuang`，`identity_image=""`，`reference_images=[]`，不带用户上传源图、现实照片、身份参考图、个人故事或跨宠物扩展动作。
 
-0.11.73 的新增重点是新增宠物导入反馈可信度：创建失败、基础动作缺失、拖拽格式不支持和拖拽异常反馈统一改为当前窗口 Toast。
+0.11.74 的新增重点是扩展动作上传反馈可信度：动作名称缺失、动作不合格和建议检查反馈统一改为当前窗口 Toast。
 
 ## 包路径
 
 ```text
-E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct-tk\packages\danhuang-desktop-pet-windows-20260706-223303
-E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct-tk\packages\danhuang-desktop-pet-windows-20260706-223303.zip
+E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct-tk\packages\danhuang-desktop-pet-windows-20260706-224054
+E:\ProgrammingAlgorithm\VSCodeProjects\DanhuangProduct-tk\packages\danhuang-desktop-pet-windows-20260706-224054.zip
 ```
 
 ## 哈希
 
 ```text
-ZIP SHA256: 89D0453FB2D1C8A165035DE2873BCEC665265BA4EB17915823FA939E6FFA84C4
-EXE SHA256: 637B629CC9733738A4D6AE8E4CEFABB0D7A36AE0C1267F9F8457003B992326ED
+ZIP SHA256: CAD47DB60C0A6BC6D86C6E75D97DF044633615B069A70C4748F855412747FBE6
+EXE SHA256: C3787BF32F612264806212DD9A0B253EC7B4FF4E2B356DBDE3D1FE2ADAD5C851
 ```
 
 ## 包含资源
@@ -85,14 +86,15 @@ EXE SHA256: 637B629CC9733738A4D6AE8E4CEFABB0D7A36AE0C1267F9F8457003B992326ED
 ## 验证入口
 
 - `python -m py_compile` 覆盖 legacy monolith、E 盘运行镜像和发行包 app。
-- `python -m unittest discover -s src-prototype/modular/tests` 通过 49 个测试。
+- `python -m unittest discover -s src-prototype/modular/tests` 通过 52 个测试。
 - 当前运行镜像 `validate_phase3.py` 输出 5 个 ready 宠物、54 个可播放动作、11 个扩展动作，右键菜单布局为 `columns=3/min_width=540/max_width=620/max_height_ratio=0.78`，分组顺序为 `common/window/activity_modes/base_actions/extension_actions`，`warnings` 为空。
-- 发行包 `validate_phase3.py --pet-dir packages/danhuang-desktop-pet-windows-20260706-223303/app --json` 输出 1 个 ready 宠物、19 个蛋黄动作、0 个扩展动作，右键菜单布局 `columns=3/min_width=540/max_width=620/max_height_ratio=0.78`，分组顺序为 `common/window/activity_modes/base_actions/extension_actions`，`warnings` 为空。
+- 发行包 `validate_phase3.py --pet-dir packages/danhuang-desktop-pet-windows-20260706-224054/app --json` 输出 1 个 ready 宠物、19 个蛋黄动作、0 个扩展动作，右键菜单布局 `columns=3/min_width=540/max_width=620/max_height_ratio=0.78`，分组顺序为 `common/window/activity_modes/base_actions/extension_actions`，`warnings` 为空。
 - 包内 29 个 JSON 可解析；源码、文档和本批发行包内文本文件未检测到 UTF-8 BOM 或非法 UTF-8。
-- 包内 `manifest.json` 显示 `app_version=0.11.73`、`python_bundled=true`、`windows_exe=app/dist/DanhuangDesktopPet/DanhuangDesktopPet.exe`、`missing_assets=[]`。
+- 包内 `manifest.json` 显示 `app_version=0.11.74`、`python_bundled=true`、`windows_exe=app/dist/DanhuangDesktopPet/DanhuangDesktopPet.exe`、`missing_assets=[]`。
 - 包内默认设置显示 `activity_mode=daily`、`scale=0.46`、`talk_interval=150.0`、`roam_interval=120.0`、`multi_monitor_roam=false`、`roam_allow_center=false`。
 - 包内临时 `app/build`、`app/__pycache__` 和 `app/DanhuangDesktopPet.spec` 已清理；最终 zip 内无 `build`、`.spec`、`__pycache__` 残留。
 - 包内 49 个文本文件真实隐私扫描未发现 API Key、DPAPI 加密 blob、Token、本机路径或日志文件；空待办、空提醒、空聊天记忆、初始陪伴模板和 `reference_images=[]` 已确认。
+- 0.11.74 扩展动作上传反馈证据：`qa/tk-ui-0.11.74-extension-action-feedback-20260706/extension-action-feedback-evidence.json`。legacy 和当前运行镜像均显示扩展动作上传的名称缺失、动作不合格和建议检查反馈已接入 `show_panel_toast()`，且对应旧系统弹窗已移除。
 - 0.11.73 新增宠物导入反馈证据：`qa/tk-ui-0.11.73-new-pet-import-feedback-20260706/new-pet-import-feedback-evidence.json`。legacy 和当前运行镜像均显示新增宠物向导创建失败、基础动作缺失、拖拽格式不支持和拖拽异常反馈已接入 `show_panel_toast()`，且对应旧系统弹窗已移除。
 - 0.11.72 主像素图反馈证据：`qa/tk-ui-0.11.72-identity-image-feedback-20260706/identity-image-feedback-evidence.json`。legacy 和当前运行镜像均显示更换主像素图的图片不存在、无法读取反馈已接入 `show_panel_toast()`，且旧 `messagebox.showerror("主像素图失败"` 已移除。
 - 0.11.71 复制反馈证据：`qa/tk-ui-0.11.71-clipboard-feedback-20260706/clipboard-feedback-evidence.json`。legacy 和当前运行镜像均显示复制提示词空内容、复制成功和复制失败已接入 `show_panel_toast()`，且旧 `messagebox.showwarning("没有可复制内容"` 和 `messagebox.showerror("复制失败"` 已移除。
@@ -108,7 +110,7 @@ EXE SHA256: 637B629CC9733738A4D6AE8E4CEFABB0D7A36AE0C1267F9F8457003B992326ED
 - 0.11.61 形象资产删除确认证据：`qa/tk-ui-0.11.61-pet-asset-confirm-20260705/pet-asset-confirm-evidence.json`。legacy 和当前运行镜像均显示“删除主像素图 / 删除参考图”已接入 `show_panel_confirm()`，且旧 `messagebox.askyesno("删除主像素图"` 和 `messagebox.askyesno("删除参考图"` 已移除。
 - 0.11.60 AI 清空记忆确认证据：`qa/tk-ui-0.11.60-ai-memory-confirm-20260705/ai-memory-confirm-evidence.json`。legacy 和当前运行镜像均显示“清空陪聊记忆”已接入 `show_panel_confirm()`，且旧 `messagebox.askyesno(f"清空{self.active_pet_name()}记忆"` 已移除。
 - 0.11.59 陪伴重置确认证据：`qa/tk-ui-0.11.59-companion-reset-confirm-20260705/companion-reset-confirm-evidence.json`。legacy 和当前运行镜像均显示“重置陪伴数据”已接入 `show_panel_confirm()`，且旧 `messagebox.askyesno("重置陪伴数据"` 已移除。
-- exe 8 秒桌面启动烟测通过，截图见 `qa/tk-ui-0.11.73-new-pet-import-feedback-20260706/exe-smoke-desktop.png`；结束后无本次启动的 `DanhuangDesktopPet` 残留进程。
+- exe 8 秒桌面启动烟测通过，截图见 `qa/tk-ui-0.11.74-extension-action-feedback-20260706/exe-smoke-desktop.png`；结束后无本次启动的 `DanhuangDesktopPet` 残留进程。
 - 0.11.49 完整截图矩阵仍保留在 `qa/tk-ui-0.11.49-20260705/`；0.11.50 针对性设置页截图补到 `qa/tk-ui-0.11.50-20260705/12-settings-package-folded.png`。
 - 0.11.50 已补 DPI 修正 QA：`qa/tk-ui-0.11.50-20260705/00-desktop-pet-dpi-scaled-window.png`、`16-right-menu-dpi-scaled-window.png`、`contact-sheet-0.11.50-dpi-qa.png` 和 `screenshot-summary-0.11.50-dpi-qa.json`。当前机器全屏截图为物理像素 `2560x1440`，Tk 返回逻辑像素 `2048x1152`；透明 Tk 顶层窗口截图必须按 `1.25` 比例换算坐标，否则会出现空白桌宠或右键菜单裁偏的假阳性。
 - 0.11.51 已补右键菜单截图：`qa/tk-ui-0.11.51-20260705/16-right-menu-compact-single-pet.png`。发行包右键菜单逻辑尺寸为 `540x593`，125% DPI 下物理截图为 `675x741`；`common_commands` 不包含 `open_pet_switcher`。
@@ -134,14 +136,15 @@ EXE SHA256: 637B629CC9733738A4D6AE8E4CEFABB0D7A36AE0C1267F9F8457003B992326ED
 - 0.11.71 已补复制提示词反馈证据、桌面烟测截图：`qa/tk-ui-0.11.71-clipboard-feedback-20260706/clipboard-feedback-evidence.json`、`qa/tk-ui-0.11.71-clipboard-feedback-20260706/exe-smoke-desktop.png`。
 - 0.11.72 已补主像素图反馈证据、桌面烟测截图：`qa/tk-ui-0.11.72-identity-image-feedback-20260706/identity-image-feedback-evidence.json`、`qa/tk-ui-0.11.72-identity-image-feedback-20260706/exe-smoke-desktop.png`。
 - 0.11.73 已补新增宠物导入反馈证据、桌面烟测截图：`qa/tk-ui-0.11.73-new-pet-import-feedback-20260706/new-pet-import-feedback-evidence.json`、`qa/tk-ui-0.11.73-new-pet-import-feedback-20260706/exe-smoke-desktop.png`。
+- 0.11.74 已补扩展动作上传反馈证据、桌面烟测截图：`qa/tk-ui-0.11.74-extension-action-feedback-20260706/extension-action-feedback-evidence.json`、`qa/tk-ui-0.11.74-extension-action-feedback-20260706/exe-smoke-desktop.png`。
 
 ## 已知风险
 
 - 干净 Windows 用户环境验收尚未执行，仍需单独验证首次安装、桌面快捷方式、升级保留数据、无自启动和安全软件提醒。
 - 包内仍带源码版安装脚本和高级构建脚本，但普通用户说明已优先指向 `安装免Python版.bat`；GitHub 构建配置在软件内已默认折叠。
-- `packages/` 当前只保留最新 0.11.73 目录和 zip：`packages/danhuang-desktop-pet-windows-20260706-223303/`、`packages/danhuang-desktop-pet-windows-20260706-223303.zip`。旧包已按用户最新要求清理，不再累积。
+- `packages/` 当前只保留最新 0.11.74 目录和 zip：`packages/danhuang-desktop-pet-windows-20260706-224054/`、`packages/danhuang-desktop-pet-windows-20260706-224054.zip`。旧包已按用户最新要求清理，不再累积。
 
 ## 回退方式
 
-- 本地只保留最新包；如需回退上一版，需要从 Git 历史恢复 0.11.72 源码后重新打包，或从外部备份取回旧 zip。
-- 代码回退：回退 `APP_VERSION=0.11.72`，移除新增宠物导入反馈 Toast 和对应测试；注意这会恢复新增宠物向导的系统弹窗割裂体验。
+- 本地只保留最新包；如需回退上一版，需要从 Git 历史恢复 0.11.73 源码后重新打包，或从外部备份取回旧 zip。
+- 代码回退：回退 `APP_VERSION=0.11.73`，移除扩展动作上传反馈 Toast 和对应测试；注意这会恢复扩展动作上传窗口的系统弹窗割裂体验。

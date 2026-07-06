@@ -124,7 +124,7 @@ TODO_FILE = "danhuang-todos.json"
 REMINDER_HISTORY_FILE = "danhuang-reminder-history.json"
 FAMILY_FILE = "pet-family.json"
 APP_ICON_FILE = "danhuang-app-icon.ico"
-APP_VERSION = "0.11.73"
+APP_VERSION = "0.11.74"
 INSTANCE_LOCK_FILE = ".danhuang-desktop-pet.lock"
 INSTANCE_LOCK_HANDLE = None
 SHUTDOWN_EVENT_NAME = "Local\\DanhuangDesktopPetShutdown"
@@ -6862,17 +6862,17 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             index += 1
         return candidate, base
 
-    def save_extension_action_asset(self, label, strip_path, target_state=None):
+    def save_extension_action_asset(self, label, strip_path, target_state=None, feedback_parent=None):
         target_state = target_state if target_state in EXTENDED_ACTIONS else None
         label = str(label or "").strip()
         if not label:
-            messagebox.showerror("导入失败", "请先填写动作名称。")
+            self.show_panel_toast("导入失败", "请先填写动作名称。", "warning", parent=feedback_parent)
             return False
         if not strip_path:
             return False
         strip, frame_count, errors, warnings = self.validate_extension_strip_image(strip_path, target_state or label)
         if errors:
-            messagebox.showerror("导入失败", "\n".join(errors))
+            self.show_panel_toast("导入失败", "；".join(errors)[:180], "error", parent=feedback_parent)
             return False
         self.pet_family = self.load_pet_family()
         pet_id = self.active_pet.get("id", "danhuang")
@@ -6924,7 +6924,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
         self.reload_frames()
         self.say(f"「{label}」已经加入扩展动作。")
         if warnings:
-            messagebox.showwarning("导入完成，建议检查", "\n".join(warnings))
+            self.show_panel_toast("导入完成，建议检查", "；".join(warnings)[:180], "warning", parent=feedback_parent)
         return True
 
     def remove_extension_action_asset(self, action_id, on_done=None):
@@ -7237,7 +7237,7 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
             )
             if strip_path:
                 self.remember_directory_setting("default_upload_dir", strip_path)
-            return self.save_extension_action_asset(label, strip_path, target_state)
+            return self.save_extension_action_asset(label, strip_path, target_state, feedback_parent=self.panel)
 
         window = tk.Toplevel(self.root)
         window.title("上传自定义动作")
@@ -7322,15 +7322,15 @@ Windows 不能本地直接生成 macOS `.app`，需要一个 GitHub 仓库让 Gi
                 self.remember_directory_setting("default_upload_dir", path)
                 _strip, _count, errors, warnings = self.validate_extension_strip_image(path, label_var.get())
                 if errors:
-                    messagebox.showerror("动作不合格", "\n".join(errors))
+                    self.show_panel_toast("动作不合格", "；".join(errors)[:180], "error", parent=window)
                     return
                 strip_var.set(path)
                 file_label.configure(text=f"动作条：{Path(path).name}")
                 if warnings:
-                    messagebox.showwarning("建议检查", "\n".join(warnings))
+                    self.show_panel_toast("建议检查", "；".join(warnings)[:180], "warning", parent=window)
 
         def submit():
-            if self.save_extension_action_asset(label_var.get(), strip_var.get()):
+            if self.save_extension_action_asset(label_var.get(), strip_var.get(), feedback_parent=window):
                 window.destroy()
 
         actions = tk.Frame(shell, bg="#fff7ec")
